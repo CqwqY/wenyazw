@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>范文库 - 文芽作文</title>
+<meta name="description" content="按年级、体裁、主题筛选的中小学生范文，每篇附逐段点评，讲清楚好在哪里。">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">文</span>
+      <span>文芽作文</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="打开菜单">菜单</button>
+    <nav class="nav" id="nav">
+      <a href="index.html">首页</a>
+      <a href="essays.html" class="active">范文库</a>
+      <a href="materials.html">素材库</a>
+      <a href="tips.html">写作方法</a>
+      <a href="about.html">关于</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="page-head">
+    <h1>范文库</h1>
+    <p>每一篇都附点评。建议先自己读一遍，猜猜它好在哪里，再看点评对不对得上。</p>
+  </div>
+
+  <div class="filters">
+    <button class="chip" data-grade="全部">全部年级</button>
+    <button class="chip" data-grade="小学">小学</button>
+    <button class="chip" data-grade="初中">初中</button>
+    <button class="chip" data-grade="高中">高中</button>
+    <span style="width:12px"></span>
+    <button class="chip" data-genre="全部">全部体裁</button>
+    <button class="chip" data-genre="记叙文">记叙文</button>
+    <button class="chip" data-genre="议论文">议论文</button>
+    <button class="chip" data-genre="写景">写景</button>
+    <button class="chip" data-genre="散文">散文</button>
+    <div class="search-box">
+      <svg class="icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+      </svg>
+      <input id="essaySearch" type="search" placeholder="搜标题、主题或作者" aria-label="搜索范文">
+    </div>
+  </div>
+
+  <p style="font-size:13.5px;color:var(--ink-mute);margin-bottom:18px" id="essayCount"></p>
+
+  <div class="grid grid-3" id="essayGrid" style="padding-bottom:64px"></div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <div class="brand" style="margin-bottom:12px">
+          <span class="brand-mark">文</span>
+          <span>文芽作文</span>
+        </div>
+        <p>让每一篇作文，都长出自己的一枝。面向中小学生的作文学习平台。</p>
+      </div>
+      <div>
+        <h4>内容</h4>
+        <ul class="footer-links">
+          <li><a href="essays.html">范文库</a></li>
+          <li><a href="materials.html">素材库</a></li>
+          <li><a href="tips.html">写作方法</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>关于</h4>
+        <ul class="footer-links">
+          <li><a href="about.html">平台介绍</a></li>
+          <li><a href="about.html#contact">联系我们</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="copyright">
+      <span>文芽作文 · 保留所有权利</span>
+      <span>本站范文为教学示例，欢迎阅读，请勿直接抄袭</span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/data.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

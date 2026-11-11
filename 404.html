@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>页面不存在 - 文芽作文</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">文</span>
+      <span>文芽作文</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="打开菜单">菜单</button>
+    <nav class="nav" id="nav">
+      <a href="index.html">首页</a>
+      <a href="essays.html">范文库</a>
+      <a href="materials.html">素材库</a>
+      <a href="tips.html">写作方法</a>
+      <a href="about.html">关于</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="empty" style="padding:120px 20px">
+    <h1 style="font-size:60px;color:var(--brand);margin-bottom:8px">404</h1>
+    <p style="margin-bottom:24px">这一页还没长出来。</p>
+    <a class="btn btn-primary" href="index.html">回到首页</a>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="copyright">
+      <span>文芽作文 · 保留所有权利</span>
+      <span>本站范文为教学示例，欢迎阅读，请勿直接抄袭</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.getElementById("navToggle").addEventListener("click", function () {
+    document.getElementById("nav").classList.toggle("open");
+  });
+</script>
+</body>
+</html>
