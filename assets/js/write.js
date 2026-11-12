@@ -322,7 +322,8 @@
   on(els.toggleConfig, "click", function () {
     setConfigOpen(els.configPanel.hasAttribute("hidden"));
   });
-  setConfigOpen(!readConfig().key);
+  // 手机上配置面板一展开就是整屏，默认收起，需要时点「接口配置」再开
+  setConfigOpen(!readConfig().key && window.innerWidth > 760);
 
   ["preset", "base", "path", "key", "model", "temp", "maxTokens", "remember"].forEach(function (name) {
     els[name].addEventListener("change", saveConfig);
@@ -1160,6 +1161,7 @@
   function renderMarginNotes() {
     var host = els.paperNotes;
     if (!host) return;
+    if (typeof syncPaperBadge === "function") syncPaperBadge();
     host.innerHTML = "";
     var marks = pendingMarks();
     if (!marks.length && !criticItems.length) {
@@ -1443,6 +1445,7 @@
     b.appendChild(t);
     els.contextList.appendChild(b);
     els.contextList.scrollTop = els.contextList.scrollHeight;
+    noteChatReply();
     return t;
   }
 
@@ -2233,6 +2236,8 @@
         : "大纲可以先改、可以增补，再开始写";
     }
     if (paper) renderAnnotated();
+    // 手机端：切 pane 就等于切底部视图，两边状态保持一致
+    if (isMobile() && !els.studio.hasAttribute("hidden")) setMView(name);
   }
 
   function setDocHint(msg) {
@@ -3164,7 +3169,11 @@
   on(els.scoreToggle, "click", function () {
     setScoreOpen(els.scoreBody.hasAttribute("hidden"));
   });
-  on(els.criticBtn, "click", runCritic);
+  on(els.criticBtn, "click", function () {
+    // 手机端评改结果排在稿纸上，先切到稿纸视图，否则跑完了看不见
+    if (isMobile()) setMView("paper");
+    runCritic();
+  });
 
   // 大纲 / 稿纸切换
   on(els.docTabs, "click", function (e) {
@@ -3246,12 +3255,89 @@
 
 
 
+  /* ---------------- 手机端：对话 / 大纲 / 稿纸 三视图 ---------------- */
+
+  var mTabs = $("mTabs");
+  var mBadgeChat = $("mBadgeChat");
+  var mBadgePaper = $("mBadgePaper");
+  var mqMobile = window.matchMedia("(max-width: 760px)");
+  var mobileView = "outline";
+  var unreadChat = 0;
+
+  function isMobile() { return !!(mqMobile && mqMobile.matches); }
+
+  function setBadge(el, n) {
+    if (!el) return;
+    if (n > 0) {
+      el.textContent = n > 9 ? "9+" : String(n);
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+
+  function noteChatReply() {
+    if (!isMobile()) return;
+    if (mobileView === "chat") return;
+    unreadChat += 1;
+    setBadge(mBadgeChat, unreadChat);
+  }
+
+  function syncPaperBadge() {
+    var undecided = criticItems.filter(function (x) {
+      return !x.agreed && x.verdict === "坏";
+    }).length;
+    setBadge(mBadgePaper, pendingMarks().length + undecided);
+  }
+
+  function setMView(name) {
+    mobileView = name;
+    if (!els.studio) return;
+    els.studio.classList.remove("mv-chat", "mv-outline", "mv-paper");
+    els.studio.classList.add("mv-" + name);
+    if (mTabs) {
+      mTabs.querySelectorAll(".m-tab").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-view") === name);
+      });
+    }
+    if (name === "chat") {
+      unreadChat = 0;
+      setBadge(mBadgeChat, 0);
+      requestAnimationFrame(function () {
+        if (els.contextList) els.contextList.scrollTop = els.contextList.scrollHeight;
+      });
+    }
+    if (name === "paper") {
+      // 隐藏状态下 rect 全是 0，切回来必须重排一次旁批位置
+      requestAnimationFrame(function () {
+        if (docBody.trim()) renderAnnotated();
+      });
+    }
+  }
+
+  if (mTabs) {
+    on(mTabs, "click", function (e) {
+      var btn = e.target.closest(".m-tab");
+      if (!btn) return;
+      var v = btn.getAttribute("data-view");
+      if (v === "chat") { setMView("chat"); return; }
+      switchPane(v);
+    });
+  }
+
+  // 从桌面切到手机宽度时，把视图补上，避免两个栏同时露出来
+  (mqMobile.addEventListener ? mqMobile.addEventListener.bind(mqMobile, "change") : mqMobile.addListener.bind(mqMobile))(function () {
+    if (!els.studio || els.studio.hasAttribute("hidden")) return;
+    setMView(mobileView || "outline");
+  });
+
   /* ---------------- 初始化 ---------------- */
 
   updateSteps();
   showEmpty();
   setBusy(false);
   setChatMode("annotate");
+  setMView("outline");
 
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(function () { alignPaperGrid(); });
