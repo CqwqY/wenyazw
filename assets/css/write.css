@@ -673,3 +673,160 @@ body.studio-mode .site-footer { display: none; }
   .wizard-body { padding: 18px 16px 22px; }
   .paper-inner { padding: calc(var(--cell) / 2) 12px calc(var(--cell) * 1.5); }
 }
+
+/* ============ 老师手批：朱红修改符号 ============ */
+
+.paper-body .ink-mark {
+  position: relative;
+  color: #a8322a;
+  cursor: help;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.paper-body .ink-mark .ink-no {
+  font-family: var(--sans, sans-serif);
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: super;
+  color: #fff;
+  background: #a8322a;
+  border-radius: 50%;
+  padding: 1px 3px;
+  margin-left: 2px;
+  letter-spacing: 0;
+}
+.paper-body .ink-delete { text-decoration: line-through; text-decoration-color: #a8322a; text-decoration-thickness: 2px; }
+.paper-body .ink-replace { text-decoration: line-through; text-decoration-color: #a8322a; text-decoration-thickness: 2px; background: rgba(168, 50, 42, .07); }
+.paper-body .ink-insert { border-bottom: 2px solid #a8322a; }
+.paper-body .ink-swap { border: 1px dashed #a8322a; }
+.paper-body .ink-comment { text-decoration: underline wavy #a8322a; text-underline-offset: 4px; }
+.paper-body .ink-suggest {
+  font-size: .72em;
+  color: #a8322a;
+  letter-spacing: 0;
+  background: rgba(168, 50, 42, .08);
+  border-radius: 3px;
+  padding: 1px 4px;
+  margin: 0 2px;
+  white-space: normal;
+}
+
+/* ============ 批注面板（左侧对话区内，可随对话一起滚） ============ */
+
+.annot-panel {
+  border: 1px solid #e3cec4;
+  background: #fffaf7;
+  border-radius: var(--radius, 10px);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.annot-panel[hidden] { display: none; }
+.annot-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #8c332b;
+}
+.annot-count { font-size: 11.5px; font-weight: 400; color: var(--ink-mute); }
+.annot-actions { display: flex; gap: 7px; }
+.annot-actions .btn-outline { flex: 1; font-size: 12px; padding: 5px 8px; }
+
+.annot-card {
+  border: 1px solid #ecded7;
+  background: #fff;
+  border-radius: 8px;
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.annot-card.state-accepted { opacity: .62; border-color: #cfe0d3; background: #f7fbf8; }
+.annot-card.state-ignored { opacity: .5; }
+.annot-card.state-invalid { border-color: #e0c088; background: #fffbf2; }
+.annot-card-top { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.annot-no { color: #a8322a; font-weight: 600; }
+.annot-sym {
+  border: 1px solid #d9b6ac;
+  color: #8c332b;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11.5px;
+}
+.annot-state { margin-left: auto; color: var(--ink-mute); font-size: 11.5px; }
+.annot-orig {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  background: #faf5f2;
+  border-left: 2px solid #d9b6ac;
+  padding: 4px 8px;
+  word-break: break-word;
+}
+.annot-sug { font-size: 12.5px; line-height: 1.6; color: #8c332b; word-break: break-word; }
+.annot-reason { font-size: 12px; line-height: 1.55; color: var(--ink-mute); }
+.annot-card-actions { display: flex; gap: 7px; margin-top: 2px; }
+.btn-mini {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  border-radius: 6px;
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.btn-mini:hover { border-color: var(--brand); color: var(--brand-deep); }
+.btn-mini.primary { background: var(--brand, #2f6f4e); border-color: var(--brand, #2f6f4e); color: #fff; }
+.btn-mini.primary:hover { opacity: .9; color: #fff; }
+
+/* ============ 账号区 / 登录弹窗 ============ */
+
+.account-area { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+.account-name { font-size: 13px; color: var(--ink-soft); }
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 32, 28, .45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+.modal-mask[hidden] { display: none; }
+.modal-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .18);
+  padding: 20px 22px 18px;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.modal-head h2 { font-size: 18px; }
+.modal-close {
+  border: 0; background: transparent; cursor: pointer;
+  font-size: 22px; line-height: 1; color: var(--ink-mute); padding: 0 4px;
+}
+.auth-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.auth-tab {
+  border: 0; background: transparent; cursor: pointer;
+  font-size: 13.5px; color: var(--ink-mute);
+  padding: 7px 14px; border-bottom: 2px solid transparent;
+}
+.auth-tab.active { color: var(--brand-deep, #245c40); border-bottom-color: var(--brand, #2f6f4e); font-weight: 600; }
+.modal-card .field { margin-bottom: 12px; }
+.auth-advanced { margin: 4px 0 12px; font-size: 12.5px; color: var(--ink-mute); }
+.auth-advanced summary { cursor: pointer; margin-bottom: 8px; }
+.auth-advanced .input { font-size: 12.5px; }
+.auth-hint { margin-top: 6px; line-height: 1.6; }
+.auth-msg { font-size: 12.5px; line-height: 1.6; min-height: 18px; margin-bottom: 8px; }
+.auth-msg.error { color: #b23b30; }
+.auth-msg.ok { color: var(--brand-deep, #245c40); }
+.modal-actions { display: flex; justify-content: flex-end; }
+.auth-foot { margin-top: 12px; font-size: 11.5px; color: var(--ink-mute); line-height: 1.6; text-align: center; }

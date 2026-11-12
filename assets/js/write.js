@@ -56,6 +56,10 @@
   var activeCat = "";            // 本次成稿的类别快照（返回工作台改选项不影响已生成的稿）
   var activeTopic = "";          // 本次成稿的题目原题快照
   var activeProvince = "";       // 本次成稿所选省份快照
+  var docTitle = "";             // 稿纸标题（纯文本）
+  var docBody = "";              // 稿纸正文（纯文本，采纳批注时在这里替换）
+  var annotations = [];          // 老师手批：待处理/已采纳/已忽略的批注
+  var annotSeq = 0;              // 批注编号自增
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -391,6 +395,230 @@
     els.paperStat.textContent = "";
   }
 
+  /* ---------------- 老师手批：朱红修改符号 + 逐条采纳 ---------------- */
+
+  var SYMBOL_LABEL = {
+    "delete": "删除号", "replace": "改正号", "insert": "增补号",
+    "swap": "调序号", "comment": "眉批"
+  };
+  var VALID_TYPES = ["delete", "replace", "insert", "swap", "comment"];
+  var annotPanelEl = null;
+
+  function trim(s) { return String(s == null ? "" : s).trim(); }
+
+  function pendingMarks() {
+    return annotations.filter(function (m) { return m.state === "pending"; });
+  }
+
+  function markNo(n) {
+    return n >= 1 && n <= 20 ? String.fromCharCode(0x2460 + n - 1) : "(" + n + ")";
+  }
+
+  // 在一段正文里定位所有待处理批注的片段，去掉重叠，返回可渲染的区间
+  function intervalsFor(paraText, marks) {
+    var list = [];
+    marks.forEach(function (m) {
+      var needles = m.type === "swap" ? m.anchor.split("|||") : [m.anchor];
+      needles.forEach(function (raw) {
+        var a = trim(raw);
+        if (!a) return;
+        var at = paraText.indexOf(a);
+        if (at < 0) return;
+        if (paraText.indexOf(a, at + a.length) >= 0) return; // 不唯一则跳过，避免标错
+        list.push({ mark: m, start: at, end: at + a.length, anchor: a });
+      });
+    });
+    list.sort(function (x, y) { return x.start - y.start; });
+    var out = [], lastEnd = -1;
+    list.forEach(function (it) {
+      if (it.start < lastEnd) return;
+      out.push(it);
+      lastEnd = it.end;
+    });
+    return out;
+  }
+
+  function buildMarkedParagraph(paraText, marks) {
+    var el = document.createElement("p");
+    var ivs = intervalsFor(paraText, marks);
+    var pos = 0;
+    ivs.forEach(function (it) {
+      if (it.start > pos) el.appendChild(document.createTextNode(paraText.slice(pos, it.start)));
+      var span = document.createElement("span");
+      span.className = "ink-mark ink-" + it.mark.type;
+      span.textContent = it.anchor;
+      span.setAttribute("data-mark-id", it.mark.id);
+      span.title = (SYMBOL_LABEL[it.mark.type] || "批注") + "：" + (it.mark.reason || "");
+      var no = document.createElement("sup");
+      no.className = "ink-no";
+      no.textContent = markNo(it.mark.no);
+      span.appendChild(no);
+      el.appendChild(span);
+      if ((it.mark.type === "replace" || it.mark.type === "insert") && it.mark.text) {
+        var sug = document.createElement("span");
+        sug.className = "ink-suggest";
+        sug.textContent = (it.mark.type === "insert" ? "∧" : "→") + it.mark.text;
+        el.appendChild(sug);
+      }
+      pos = it.end;
+    });
+    if (pos < paraText.length) el.appendChild(document.createTextNode(paraText.slice(pos)));
+    return el;
+  }
+
+  // 用 docTitle/docBody 重渲染稿纸（带修改符号），不依赖 fullText
+  function renderAnnotated() {
+    els.paperTitle.textContent = docTitle || "作文";
+    els.paperBody.textContent = "";
+    els.paperBody.classList.remove("paper-empty");
+    var marks = pendingMarks();
+    docBody.split(/\n+/).filter(function (p) { return p.trim(); }).forEach(function (p) {
+      els.paperBody.appendChild(buildMarkedParagraph(p.replace(/\n/g, ""), marks));
+    });
+    var count = Array.from(docBody.replace(/\s/g, "")).length;
+    var left = marks.length;
+    els.paperStat.textContent = count
+      ? ("字数 " + count + " 字" + (left ? " · " + left + " 处批注待处理" : ""))
+      : "";
+  }
+
+  function replaceOnce(src, a, b) {
+    var i = src.indexOf(a);
+    if (i < 0) return null;
+    return src.slice(0, i) + b + src.slice(i + a.length);
+  }
+
+  function applyMarkAction(id, action) {
+    var m = null;
+    for (var i = 0; i < annotations.length; i++) {
+      if (annotations[i].id === id) { m = annotations[i]; break; }
+    }
+    if (!m || m.state !== "pending") return;
+
+    if (action === "accept") {
+      var next = docBody;
+      if (m.type === "delete") next = replaceOnce(docBody, m.anchor, "");
+      else if (m.type === "replace") next = replaceOnce(docBody, m.anchor, m.text);
+      else if (m.type === "insert") next = replaceOnce(docBody, m.anchor, m.anchor + m.text);
+      else if (m.type === "swap") {
+        var pair = m.anchor.split("|||");
+        if (pair.length === 2 && trim(pair[0]) && trim(pair[1])) {
+          var A = trim(pair[0]), B = trim(pair[1]);
+          var tmp = "\u0001WY_SWAP\u0001";
+          var t1 = replaceOnce(docBody, A, tmp);
+          if (t1 !== null) {
+            var t2 = replaceOnce(t1, B, A);
+            if (t2 !== null) next = t2.replace(tmp, B);
+          }
+        }
+      }
+      // comment 眉批只阅不改字
+      if (next === null) {
+        m.state = "invalid";
+        renderAnnotPanel();
+        setPaperHint("这处原文已变化，无法应用；可点「忽略」。");
+        return;
+      }
+      docBody = next;
+      currentComposition = (docTitle ? docTitle + "\n\n" : "") + docBody;
+      m.state = "accepted";
+    } else {
+      m.state = "ignored";
+    }
+    renderAnnotated();
+    renderAnnotPanel();
+    // 提示写进批注面板头部，避免覆盖稿纸的字数统计
+    var cnt = annotPanelEl && annotPanelEl.querySelector(".annot-count");
+    if (cnt) {
+      var left = pendingMarks().length;
+      cnt.textContent = left ? (left + " 处待处理") : "批注已处理完 · 稿纸为最终稿";
+    }
+  }
+
+  function applyAll(action) {
+    pendingMarks().slice().forEach(function (m) { applyMarkAction(m.id, action); });
+  }
+
+  // 批注面板放在左侧对话区（该区本来就可滚动，不会撑高稿纸）
+  function renderAnnotPanel() {
+    if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
+    if (!annotPanelEl) {
+      annotPanelEl = document.createElement("div");
+      annotPanelEl.className = "annot-panel";
+      els.contextList.appendChild(annotPanelEl);
+    }
+    annotPanelEl.innerHTML = "";
+    if (!annotations.length) { annotPanelEl.setAttribute("hidden", ""); return; }
+    annotPanelEl.removeAttribute("hidden");
+
+    var head = document.createElement("div");
+    head.className = "annot-head";
+    head.innerHTML = '<span>老师手批</span><span class="annot-count"></span>';
+    head.querySelector(".annot-count").textContent = pendingMarks().length + " 处待处理";
+    annotPanelEl.appendChild(head);
+
+    var bar = document.createElement("div");
+    bar.className = "annot-actions";
+    var bAll = document.createElement("button");
+    bAll.className = "btn-outline";
+    bAll.textContent = "全部采纳";
+    bAll.addEventListener("click", function () { applyAll("accept"); });
+    var bNone = document.createElement("button");
+    bNone.className = "btn-outline";
+    bNone.textContent = "全部忽略";
+    bNone.addEventListener("click", function () { applyAll("ignore"); });
+    bar.appendChild(bAll);
+    bar.appendChild(bNone);
+    annotPanelEl.appendChild(bar);
+
+    annotations.forEach(function (m) {
+      var card = document.createElement("div");
+      card.className = "annot-card state-" + m.state;
+      var top = document.createElement("div");
+      top.className = "annot-card-top";
+      top.innerHTML = '<span class="annot-no"></span><span class="annot-sym"></span><span class="annot-state"></span>';
+      top.querySelector(".annot-no").textContent = markNo(m.no);
+      top.querySelector(".annot-sym").textContent = SYMBOL_LABEL[m.type] || m.type;
+      top.querySelector(".annot-state").textContent =
+        m.state === "accepted" ? "已采纳" : m.state === "ignored" ? "已忽略" :
+        m.state === "invalid" ? "原文已变" : "";
+      card.appendChild(top);
+
+      var orig = document.createElement("div");
+      orig.className = "annot-orig";
+      orig.textContent = m.type === "swap" ? m.anchor.replace("|||", " ⇄ ") : m.anchor;
+      card.appendChild(orig);
+      if (m.text && (m.type === "replace" || m.type === "insert")) {
+        var sug = document.createElement("div");
+        sug.className = "annot-sug";
+        sug.textContent = (m.type === "insert" ? "增补：∧" : "改为：") + m.text;
+        card.appendChild(sug);
+      }
+      if (m.reason) {
+        var why = document.createElement("div");
+        why.className = "annot-reason";
+        why.textContent = m.reason;
+        card.appendChild(why);
+      }
+      if (m.state === "pending") {
+        var row = document.createElement("div");
+        row.className = "annot-card-actions";
+        var ok = document.createElement("button");
+        ok.className = "btn-mini primary";
+        ok.textContent = "采纳";
+        ok.addEventListener("click", function () { applyMarkAction(m.id, "accept"); });
+        var no = document.createElement("button");
+        no.className = "btn-mini";
+        no.textContent = "忽略";
+        no.addEventListener("click", function () { applyMarkAction(m.id, "ignore"); });
+        row.appendChild(ok);
+        row.appendChild(no);
+        card.appendChild(row);
+      }
+      annotPanelEl.appendChild(card);
+    });
+  }
+
   /* ---------------- 对话气泡 ---------------- */
 
   function addUserBubble(text) {
@@ -435,6 +663,8 @@
     var hasMarker = /^\s*===作文===\s*$/m.test(fullText);
     var parts = splitTwo(fullText);
     var t = titledParts(parts.comp, hasMarker);
+    docTitle = t.title || "作文";
+    docBody = t.body;
     currentComposition = (t.title ? t.title + "\n\n" : "") + t.body;
   }
 
@@ -538,9 +768,10 @@
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
     var rule = categoryRule();
-    if (rule) lines.push(rule + "\n- 改稿同样受本类别的标题规则约束：命题不得改题；半命题不得更换已补好的词；自拟不得换成口号式标题。用户未明确要求改标题时，标题必须原样保留。");
-    lines.push("【当前作文】\n" + currentComposition);
-    lines.push("【修改要求】\n" + req);
+    if (rule) lines.push(rule + "\n- 批注同样受本类别的标题规则约束：命题不得改题；半命题不得更换已补好的词；自拟不得换成口号式标题。anchor 不要取标题。");
+    lines.push("【当前作文（只批注，不要重写）】\n" + currentComposition);
+    lines.push("【学生的修改要求】\n" + req);
+    lines.push("\n按系统提示输出批注 JSON：只标出该改的几处，不要输出修改后的完整作文。anchor 必须逐字取自上面的正文且在正文里唯一。");
     return lines.join("\n\n");
   }
 
@@ -615,6 +846,72 @@
     }
   }
 
+  /* ---------------- 老师手批：非流式请求 + 批注解析 ---------------- */
+
+  // 从模型输出里稳妥地抠出 JSON（容忍 ```json 包裹、前后多余文字）
+  function parseAnnotJSON(raw) {
+    var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a < 0 || b <= a) throw new Error("模型没有返回批注 JSON，可能该模型不擅长结构化输出。");
+    var obj;
+    try { obj = JSON.parse(s.slice(a, b + 1)); }
+    catch (e) { throw new Error("批注 JSON 解析失败，可换一个模型再试。"); }
+    if (!obj || !Array.isArray(obj.marks)) throw new Error("批注格式不对（缺 marks 数组）。");
+    return obj;
+  }
+
+  // 校验并规范化批注：丢掉 anchor 定位不到、类型不合法、缺字段的条目
+  function normalizeMarks(obj) {
+    var out = [];
+    obj.marks.slice(0, 12).forEach(function (m) {
+      if (!m || VALID_TYPES.indexOf(m.type) < 0) return;
+      var anchor = trim(m.anchor), text = trim(m.text), reason = trim(m.reason);
+      if (!anchor) return;
+      if ((m.type === "replace" || m.type === "insert") && !text) return;
+      var needles = m.type === "swap" ? anchor.split("|||").map(trim) : [anchor];
+      var ok = needles.every(function (n) { return n && docBody.indexOf(n) >= 0; });
+      if (!ok) return;
+      out.push({
+        id: ++annotSeq, no: out.length + 1, type: m.type,
+        anchor: anchor, text: text, reason: reason, state: "pending"
+      });
+    });
+    return out;
+  }
+
+  async function fetchAnnotation(systemPrompt, userContent) {
+    var c = currentConfig();
+    controller = new AbortController();
+    setBusy(true);
+    try {
+      var res = await fetch(endpoint(c), {
+        method: "POST",
+        headers: headers(c),
+        body: JSON.stringify({
+          model: c.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userContent }
+          ],
+          stream: false,
+          temperature: (function () { var t = parseFloat(c.temp); return isNaN(t) ? 0.7 : Math.min(2, Math.max(0, t)); })(),
+          max_tokens: (function () { var m = parseInt(c.maxTokens, 10); return isNaN(m) ? 2400 : Math.min(16000, Math.max(256, m)); })()
+        }),
+        signal: controller.signal
+      });
+      if (!res.ok) throw new Error(friendlyError(res, await res.text()));
+      var j = await res.json();
+      if (j.error) throw new Error(j.error.message || "接口返回错误");
+      var msg = j.choices && j.choices[0] && j.choices[0].message;
+      var content = (msg && msg.content) || "";
+      if (!content.trim()) throw new Error("接口没有返回内容，换一个模型或检查额度。");
+      return content;
+    } finally {
+      controller = null;
+      setBusy(false);
+    }
+  }
+
   /* ---------------- 入口 1：开始生成（写作引擎） ---------------- */
 
   async function startWriting() {
@@ -640,6 +937,8 @@
 
     saveConfig();
     currentComposition = "";
+    docTitle = ""; docBody = "";
+    annotations = []; annotSeq = 0; annotPanelEl = null;
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
 
@@ -667,12 +966,12 @@
     if (fullText.trim()) setPaperHint(els.paperStat.textContent);
   }
 
-  /* ---------------- 入口 2：发送修改要求（作文修改大师） ---------------- */
+  /* ---------------- 入口 2：发送修改要求（老师手批，逐条采纳） ---------------- */
 
   async function sendRevision() {
     var req = els.chatInput.value.trim();
     if (!req) { setPaperHint("先写下你的修改要求，再发送。"); els.chatInput.focus(); return; }
-    if (!currentComposition) { setPaperHint("还没有成稿，无法修改。"); return; }
+    if (!currentComposition) { setPaperHint("还没有成稿，无法批改。"); return; }
 
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
@@ -683,22 +982,51 @@
     addUserBubble(req);
     els.chatInput.value = "";
     assistantReplyEl = addAssistantBubble();
-    showEmpty();
-    setPaperHint("修改大师正在改稿…");
+    if (assistantReplyEl) assistantReplyEl.textContent = "正在读稿、写批注…";
+    setPaperHint("批改老师正在读稿…");
 
-    var reviseSys = window.WY_REVISER;
-    var reviseRule = categoryRule();
-    if (reviseRule) reviseSys += "\n\n" + reviseRule;
+    var sys = window.WY_ANNOTATOR;
+    var rule = categoryRule();
+    if (rule) sys += "\n\n" + rule;
     var revProv = activeProvince || selectedProvince;
-    var reviseSd = (window.WY_SCORING && window.WY_SCORING[revProv]) || "";
-    if (reviseSd) reviseSys += "\n\n【评分标准参照（" + revProv + "）】\n" + reviseSd;
-    await runStream(reviseSys, composeReviseUser(req));
-    if (fullText.trim()) setPaperHint(els.paperStat.textContent);
+    var sd = (window.WY_SCORING && window.WY_SCORING[revProv]) || "";
+    if (sd) sys += "\n\n【评分标准参照（" + revProv + "）】\n" + sd;
+
+    try {
+      var raw = await fetchAnnotation(sys, composeReviseUser(req));
+      var obj = parseAnnotJSON(raw);
+      annotations = normalizeMarks(obj);
+      // 新一轮批注：移除上一轮面板（正文已采纳的改动仍生效），在对话底部重建
+      if (annotPanelEl) { annotPanelEl.remove(); annotPanelEl = null; }
+      if (assistantReplyEl) assistantReplyEl.textContent = trim(obj.reply) || "已批注，看左侧批注逐条决定。";
+      renderAnnotated();                  // 稿纸上标出朱红修改符号
+      renderAnnotPanel();                 // 左侧列出可采纳/忽略的批注
+      if (!annotations.length) {
+        if (assistantReplyEl) assistantReplyEl.textContent =
+          (trim(obj.reply) || "已批注。") + " 但这轮没有能定位到原文的批注，可换个更具体的要求再试。";
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") {
+        if (assistantReplyEl) assistantReplyEl.textContent = "已停止批改，原稿保留。";
+        renderAnnotated();
+        setPaperHint("已停止，原稿保留。");
+        return;
+      }
+      var msg = (e && e.message) || "未知错误";
+      if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
+        msg = "请求发不出去：多为浏览器跨域被拦或网络不通。换支持 CORS 的接口，或改用本地代理。";
+      }
+      if (assistantReplyEl) assistantReplyEl.textContent = "批改失败：" + msg;
+      setPaperHint("批改失败：" + msg);
+      renderAnnotated();
+    }
   }
 
   /* ---------------- 输出操作 ---------------- */
 
   function compositionText() {
+    // 采纳批注后正文已变，优先用 docTitle/docBody（最终稿），而不是最初的 fullText
+    if (currentComposition) return { title: docTitle, body: docBody };
     var hasMarker = /^\s*===作文===\s*$/m.test(fullText);
     var parts = splitTwo(fullText);
     return titledParts(parts.comp, hasMarker);

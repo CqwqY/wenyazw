@@ -6,7 +6,7 @@
 <title>创建作文工作台 - 文芽作文</title>
 <meta name="description" content="文芽作文：流程式创建作文工作台，选类别、定题目、设字数、挑评分标准，再进入 AI 生成与修改界面。">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112e">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112f">
 </head>
 <body>
 
@@ -16,6 +16,9 @@
       <span class="brand-mark">文</span>
       <span>文芽作文</span>
     </a>
+    <div class="account-area" id="accountArea">
+      <button class="btn btn-ghost" id="loginBtn">登录 / 注册</button>
+    </div>
   </div>
 </header>
 
@@ -36,7 +39,7 @@
       <div class="config-grid">
         <div>
           <div class="config-note">
-            <strong>密钥只存在本机浏览器</strong>，不会上传到本站 —— 本站是纯静态页面，没有后端。
+            <strong>大模型密钥只存在本机浏览器</strong>，作文生成由浏览器直连你填的接口；本站后端只负责账号登录，不接触密钥。
             浏览器直连需要服务商允许跨域。公共电脑请勿勾选「记住 Key」，用完点清除配置。
           </div>
           <div class="field">
@@ -232,7 +235,40 @@
   </div>
 </footer>
 
-<script src="assets/js/prompt.js?v=20261112e"></script>
-<script src="assets/js/write.js?v=20261112e"></script>
+<!-- 登录 / 注册弹窗 -->
+<div class="modal-mask" id="authMask" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="modal-head">
+      <h2 id="authTitle">登录文芽作文</h2>
+      <button class="modal-close" id="authClose" aria-label="关闭">×</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="login">登录</button>
+      <button class="auth-tab" data-mode="register">注册</button>
+    </div>
+    <div class="field">
+      <label for="authUser">用户名</label>
+      <input class="input" id="authUser" type="text" autocomplete="username" placeholder="3～24 位，字母数字下划线" maxlength="24">
+    </div>
+    <div class="field">
+      <label for="authPass">密码</label>
+      <input class="input" id="authPass" type="password" autocomplete="current-password" placeholder="至少 6 位" maxlength="128">
+    </div>
+    <details class="auth-advanced">
+      <summary>后端地址（域名未生效时可改）</summary>
+      <input class="input" id="authEndpoint" type="url" placeholder="https://back.wenyazw.top">
+      <div class="auth-hint">默认 https://back.wenyazw.top。调试可填 http://100.127.187.92:3033（需同一 Tailscale 网络）。</div>
+    </details>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="authSubmit">登录</button>
+    </div>
+    <div class="auth-foot">账号仅用于标识身份，作文与密钥仍只存本机浏览器。</div>
+  </div>
+</div>
+
+<script src="assets/js/prompt.js?v=20261112f"></script>
+<script src="assets/js/write.js?v=20261112f"></script>
+<script src="assets/js/auth.js?v=20261112f"></script>
 </body>
 </html>
