@@ -436,6 +436,8 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  padding: 0 18px;
+  box-sizing: border-box;
 }
 
 .studio-top {
@@ -468,7 +470,7 @@
   margin-bottom: 0;
 }
 
-.studio-left { min-width: 0; }
+.studio-left { min-width: 0; min-height: 0; }
 
 .chat-panel {
   height: 100%;
@@ -500,7 +502,7 @@
 
 .chat-send-row .spacer { flex: 1; }
 
-.studio-right { min-width: 0; }
+.studio-right { min-width: 0; min-height: 0; }
 
 .studio-right .paper {
   height: 100%;
@@ -629,6 +631,7 @@
 @keyframes blink { 50% { opacity: 0; } }
 
 /* 进入生成界面时，隐藏页头/页脚，让 studio 真正占满整屏、不出现整页滚动 */
+body.studio-mode { overflow: hidden; }
 body.studio-mode .site-header,
 body.studio-mode .site-footer { display: none; }
 
