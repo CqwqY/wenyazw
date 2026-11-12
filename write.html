@@ -14,8 +14,8 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261112f">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112f">
+<link rel="stylesheet" href="assets/css/style.css?v=20261112g">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112g">
 </head>
 <body>
 
@@ -285,18 +285,14 @@
             <div class="paper" id="paperPane" hidden>
               <div class="paper-inner">
                 <div class="paper-title" id="paperTitle">作文稿纸</div>
-                <div class="paper-body paper-empty" id="paperBody"></div>
+                <div class="paper-cols">
+                  <div class="paper-main">
+                    <div class="paper-body paper-empty" id="paperBody"></div>
+                  </div>
+                  <!-- 右侧留白：不铺格子，专写旁批 -->
+                  <aside class="paper-notes" id="paperNotes" aria-label="旁批"></aside>
+                </div>
               </div>
-            </div>
-
-            <!-- 稿纸下方：当前批注操作条（点朱红符号时出现，不遮正文） -->
-            <div class="ink-dock" id="inkDock" hidden>
-              <span class="ink-dock-no" id="inkDockNo">1</span>
-              <span class="ink-dock-why" id="inkDockWhy"></span>
-              <span class="ink-dock-sug" id="inkDockSug" hidden></span>
-              <button class="ink-dock-accept" id="inkDockAccept" type="button">采纳</button>
-              <button class="ink-dock-btn" id="inkDockIgnore" type="button">忽略</button>
-              <button class="ink-dock-close" id="inkDockClose" type="button" aria-label="关闭">×</button>
             </div>
 
             <!-- 稿纸下方的 AI 评改批注坞 -->
@@ -363,8 +359,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261112f"></script>
-<script src="assets/js/write.js?v=20261112f"></script>
-<script src="assets/js/auth.js?v=20261112f"></script>
+<script src="assets/js/prompt.js?v=20261112g"></script>
+<script src="assets/js/write.js?v=20261112g"></script>
+<script src="assets/js/auth.js?v=20261112g"></script>
 </body>
 </html>

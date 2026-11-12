@@ -77,9 +77,7 @@
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"),
-    inkDock: $("inkDock"), inkDockNo: $("inkDockNo"), inkDockWhy: $("inkDockWhy"),
-    inkDockAccept: $("inkDockAccept"), inkDockIgnore: $("inkDockIgnore"),
-    inkDockClose: $("inkDockClose"), inkDockSug: $("inkDockSug"),
+    paperNotes: $("paperNotes"),
 
     docTabs: $("docTabs"), docTabHint: $("docTabHint"),
     outlinePane: $("outlinePane"), paperPane: $("paperPane"),
@@ -791,8 +789,12 @@
     if (p < text.length) appendPlainWithHighlights(el, text.slice(p));
   }
 
-  function buildMarkedParagraph(paraText, marks) {
+  /* 批注锚点所在的段落序号，渲染旁批时用来对齐行位置 */
+  var markPara = {};
+
+  function buildMarkedParagraph(paraText, marks, paraIndex) {
     var el = document.createElement("p");
+    if (typeof paraIndex === "number") el.setAttribute("data-para", String(paraIndex));
     var ivs = intervalsFor(paraText, marks);
     var pos = 0;
     ivs.forEach(function (it) {
@@ -802,6 +804,7 @@
       span.appendChild(charSpans(it.anchor));
       span.setAttribute("data-mark-id", it.mark.id);
       span.title = (SYMBOL_LABEL[it.mark.type] || "批注") + "：" + (it.mark.reason || "");
+      if (typeof paraIndex === "number") markPara[it.mark.id] = paraIndex;
       var no = document.createElement("sup");
       no.className = "ink-no";
       no.textContent = markNo(it.mark.no);
@@ -831,34 +834,139 @@
     return null;
   }
 
+  /* ---------------- 右侧旁批栏 ----------------
+     点稿纸上的朱红符号 → 右侧对应的旁批条目点亮，理由、建议、采纳/忽略都在那里，
+     不动正文、不遮字。 */
+
+  function noteEl(markId) {
+    if (!els.paperNotes) return null;
+    return els.paperNotes.querySelector('.note[data-mark-id="' + markId + '"]');
+  }
+
   function showInkDock(markId) {
     var m = findMark(markId);
-    if (!m || !els.inkDock) return;
-    els.inkDock.setAttribute("data-mark-id", String(markId));
-    els.inkDockNo.textContent = String(m.no);
-    els.inkDockWhy.textContent = (SYMBOL_LABEL[m.type] || "批注") + "：" +
-      (m.reason || "（这条没写原因）");
-    if (els.inkDockSug) {
-      if (m.text && (m.type === "replace" || m.type === "insert")) {
-        els.inkDockSug.textContent = (m.type === "insert" ? "增补：" : "改为：") + m.text;
-        els.inkDockSug.removeAttribute("hidden");
-      } else {
-        els.inkDockSug.textContent = "";
-        els.inkDockSug.setAttribute("hidden", "");
+    if (!m) return;
+    var n = noteEl(markId);
+    if (!n) return;
+    n.classList.add("active");
+    var paper = n.closest(".paper");
+    if (paper) {
+      var pr = paper.getBoundingClientRect();
+      var nr = n.getBoundingClientRect();
+      if (nr.top < pr.top + 6 || nr.bottom > pr.bottom - 6) {
+        n.scrollIntoView({ block: "nearest" });
       }
     }
-    els.inkDock.hidden = false;
   }
 
   function hideInkDock() {
-    if (!els.inkDock) return;
-    els.inkDock.hidden = true;
-    els.inkDock.removeAttribute("data-mark-id");
+    if (!els.paperNotes) return;
+    var list = els.paperNotes.querySelectorAll(".note.active");
+    for (var i = 0; i < list.length; i++) list[i].classList.remove("active");
   }
 
   function clearActiveMarks() {
     var list = els.paperBody.querySelectorAll(".ink-mark.active");
     for (var i = 0; i < list.length; i++) list[i].classList.remove("active");
+    hideInkDock();
+  }
+
+  /* 把待处理批注按所在段落排进右栏，同段的多条依次下移，不互相盖住 */
+  function renderMarginNotes() {
+    var host = els.paperNotes;
+    if (!host) return;
+    host.innerHTML = "";
+    var marks = pendingMarks();
+    if (!marks.length) {
+      host.style.height = "";
+      return;
+    }
+
+    var items = [];
+    marks.forEach(function (m) {
+      var idx = markPara[m.id];
+      if (typeof idx !== "number") return;
+      var p = els.paperBody.querySelector('p[data-para="' + idx + '"]');
+      if (!p) return;
+      items.push({ m: m, p: p });
+    });
+    if (!items.length) { host.style.height = ""; return; }
+
+    var hostTop = host.getBoundingClientRect().top;
+    items.forEach(function (it) {
+      it.top = it.p.getBoundingClientRect().top - hostTop;
+    });
+    items.sort(function (a, b) { return a.top - b.top; });
+
+    var lastBottom = -999;
+    items.forEach(function (it) {
+      var m = it.m;
+      var note = document.createElement("div");
+      note.className = "note note-" + m.type;
+      note.setAttribute("data-mark-id", String(m.id));
+
+      var head = document.createElement("div");
+      head.className = "note-head";
+      var no = document.createElement("span");
+      no.className = "note-no";
+      no.textContent = markNo(m.no);
+      var typ = document.createElement("span");
+      typ.className = "note-type";
+      typ.textContent = SYMBOL_LABEL[m.type] || "批注";
+      head.appendChild(no);
+      head.appendChild(typ);
+      note.appendChild(head);
+
+      var why = document.createElement("div");
+      why.className = "note-why";
+      why.textContent = m.reason || "（这条没写原因）";
+      note.appendChild(why);
+
+      if (m.text && (m.type === "replace" || m.type === "insert")) {
+        var sug = document.createElement("div");
+        sug.className = "note-sug";
+        sug.textContent = (m.type === "insert" ? "增补：" : "改为：") + m.text;
+        note.appendChild(sug);
+      }
+
+      var acts = document.createElement("div");
+      acts.className = "note-acts";
+      var ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "note-accept";
+      ok.textContent = "采纳";
+      ok.addEventListener("click", function (e) {
+        e.stopPropagation();
+        applyMarkAction(m.id, "accept");
+      });
+      var no2 = document.createElement("button");
+      no2.type = "button";
+      no2.className = "note-ignore";
+      no2.textContent = "忽略";
+      no2.addEventListener("click", function (e) {
+        e.stopPropagation();
+        applyMarkAction(m.id, "ignore");
+      });
+      acts.appendChild(ok);
+      acts.appendChild(no2);
+      note.appendChild(acts);
+
+      note.addEventListener("click", function () {
+        clearActiveMarks();
+        note.classList.add("active");
+        var sp = els.paperBody.querySelector('.ink-mark[data-mark-id="' + m.id + '"]');
+        if (sp) sp.classList.add("active");
+      });
+
+      var top = Math.max(0, it.top);
+      if (top < lastBottom + 6) top = lastBottom + 6;
+      note.style.top = top + "px";
+      host.appendChild(note);
+      lastBottom = top + note.offsetHeight;
+    });
+
+    var bodyH = els.paperBody.offsetHeight;
+    host.style.height = Math.max(bodyH, lastBottom) + "px";
   }
 
   /* 段落高度必须落在整格上，否则每段累积零点几像素，越往下字越歪 */
@@ -893,9 +1001,10 @@
     els.paperTitle.textContent = docTitle || "作文";
     els.paperBody.textContent = "";
     els.paperBody.classList.remove("paper-empty");
+    markPara = {};
     var marks = pendingMarks();
-    docBody.split(/\n+/).filter(function (p) { return p.trim(); }).forEach(function (p) {
-      els.paperBody.appendChild(buildMarkedParagraph(p.replace(/\n/g, ""), marks));
+    docBody.split(/\n+/).filter(function (p) { return p.trim(); }).forEach(function (p, idx) {
+      els.paperBody.appendChild(buildMarkedParagraph(p.replace(/\n/g, ""), marks, idx));
     });
     var count = Array.from(docBody.replace(/\s/g, "")).length;
     var left = marks.length;
@@ -903,7 +1012,7 @@
       ? ("字数 " + count + " 字" + (left ? " · " + left + " 处批注待处理" : ""))
       : "";
     alignPaperGrid();
-    hideInkDock();
+    renderMarginNotes();
   }
 
   function replaceOnce(src, a, b) {
@@ -1397,6 +1506,7 @@
     lines.push(wrapEssay());
     lines.push(wrapAsk(req));
     lines.push("按系统提示输出批注 JSON：只标出该改的几处，不要输出修改后的完整作文。anchor 必须逐字取自上面「作文原文」的正文，且在正文里唯一，不要取标题。");
+    lines.push("注意：学生上文的要求是硬指令，按他的原话逐条照办（改哪句、改成什么、删还是加），不要用写作铁律当理由拒绝、也不许只做一半或换成你自己更喜欢的写法。");
     return lines.join("\n\n");
   }
 
@@ -2885,19 +2995,9 @@
 
   on(els.paperBody, "click", function () { clearActiveMarks(); hideInkDock(); });
 
-  on(els.inkDockAccept, "click", function () {
-    var id = parseInt(els.inkDock.getAttribute("data-mark-id"), 10);
-    hideInkDock();
-    if (!isNaN(id)) applyMarkAction(id, "accept");
+  on(els.paperNotes, "click", function (e) {
+    if (e.target === els.paperNotes) { clearActiveMarks(); hideInkDock(); }
   });
-
-  on(els.inkDockIgnore, "click", function () {
-    var id = parseInt(els.inkDock.getAttribute("data-mark-id"), 10);
-    hideInkDock();
-    if (!isNaN(id)) applyMarkAction(id, "ignore");
-  });
-
-  on(els.inkDockClose, "click", function () { clearActiveMarks(); hideInkDock(); });
 
   on(els.stopBtn2, "click", function () {
     if (controller) controller.abort();
@@ -2932,7 +3032,10 @@
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(function () { alignPaperGrid(); });
   }
-  window.addEventListener("resize", function () { alignPaperGrid(); });
+  window.addEventListener("resize", function () {
+    alignPaperGrid();
+    if (els.paperPane && !els.paperPane.hidden) renderMarginNotes();
+  });
 
   /* 登录门槛：auth.js 在本脚本之后加载，等 DOM 就绪再挂监听 */
   function initLoginGate() {
