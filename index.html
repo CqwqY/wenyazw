@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI 写作工作台 - 文芽作文</title>
-<meta name="description" content="文芽作文 AI 写作工作台：左侧提示文本与输入，右侧方格稿纸流式出文。">
+<meta name="description" content="文芽作文 AI 写作工作台：左侧对话上下文与输入，右侧两页方格稿纸流式出文。">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="assets/css/write.css">
 </head>
@@ -32,7 +32,7 @@
   <div class="tool-head">
     <div>
       <h1>AI 写作工作台<span class="badge-new">核心功能</span></h1>
-      <p>左侧是提示文本与输入，右侧是作文稿纸。规则已固定，作文会逐字写进格子里。</p>
+      <p>左侧对话上下文与输入，右侧是两页方格稿纸。AI 先回应你，再把作文写进格子里。</p>
     </div>
     <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
   </div>
@@ -101,12 +101,19 @@
 
     <div class="left-col">
 
-      <section class="panel prompt-panel">
+      <section class="panel context-panel">
         <div class="panel-title">
-          <h2>提示文本</h2>
-          <span class="hint">本次发给 AI 的内容</span>
+          <h2>对话上下文</h2>
+          <span class="hint">本次会话</span>
         </div>
-        <div class="prompt-preview" id="promptPreview"></div>
+        <div class="context-list" id="contextList">
+          <div class="context-empty" id="contextEmpty">还没有对话。写下题目，点「生成作文」，AI 的回应和作文会依次出现在这里。</div>
+        </div>
+        <details class="ctx-raw">
+          <summary>本次发送给 AI 的上下文</summary>
+          <pre id="ctxRaw"></pre>
+          <button class="btn-outline" id="copyPromptBtn" style="margin-top:10px">复制完整上下文</button>
+        </details>
         <details class="rules-inline">
           <summary>生成规则已固定 · 12 条</summary>
           <div class="rules-body">
@@ -124,11 +131,6 @@
             <div><strong>关键段落处理</strong>该略的段落用重描写、动作白描带过，不写对话，不铺陈长句。</div>
           </div>
         </details>
-        <div class="actions" style="margin-top:12px">
-          <button class="btn-outline" id="copyPromptBtn">复制完整提示词</button>
-          <div class="spacer"></div>
-          <span class="hint" id="promptStat"></span>
-        </div>
       </section>
 
       <section class="panel input-panel">
@@ -186,19 +188,14 @@
 
     <section class="paper-col">
       <div class="paper-bar">
-        <h2>作文</h2>
+        <h2>作文稿纸</h2>
         <div class="tools">
           <span class="paper-stat" id="paperStat"></span>
           <button class="btn-outline" id="copyBtn">复制</button>
           <button class="btn-outline" id="downloadBtn">下载 txt</button>
         </div>
       </div>
-      <div class="paper">
-        <div class="paper-inner">
-          <div class="paper-title" id="paperTitle">作文稿纸</div>
-          <div class="paper-body paper-empty" id="paperBody"></div>
-        </div>
-      </div>
+      <div class="paper-scroll" id="paperScroll"></div>
     </section>
 
   </div>
