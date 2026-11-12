@@ -1,0 +1,53 @@
+/* 文芽作文 - 主页专属样式（其余复用 style.css 与 write.css） */
+
+/* 按钮在 <button> 上也要跟 <a> 一样的手感 */
+button.btn { border: 0; cursor: pointer; font-family: inherit; }
+
+/* 主按钮下方的一行小字：为什么需要登录 */
+.hero-note {
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-mute);
+  max-width: 46ch;
+}
+
+.hero-card h3 + .muted { margin-bottom: 14px; }
+
+.hero-card-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13.5px;
+  color: var(--brand);
+  font-weight: 500;
+}
+
+.hero-card-link:hover { color: var(--brand-deep); text-decoration: underline; }
+
+/* 底部行动区 */
+.home-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 36px 38px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(600px 260px at 88% -30%, rgba(47, 111, 78, .1), transparent 70%),
+    var(--paper);
+}
+
+.home-cta h2 { font-size: 25px; margin-bottom: 8px; }
+.home-cta p { font-size: 14.5px; color: var(--ink-soft); }
+
+/* 主页三列卡片里的图标位（数字与单字方块） */
+.card-icon { font-family: var(--serif); }
+
+@media (max-width: 860px) {
+  .hero { padding: 56px 0 48px; }
+  .hero-grid { grid-template-columns: 1fr; gap: 32px; }
+  .home-cta { padding: 26px 22px; }
+  .home-cta .btn { width: 100%; }
+}

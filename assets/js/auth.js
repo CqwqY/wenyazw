@@ -21,6 +21,13 @@
   var mode = "login";
   var countdown = 0;
   var countdownTimer = null;
+  var listeners = [];   // 登录态变化订阅（写作页用来放行生成、主页用来改按钮文案）
+
+  function notify(username) {
+    listeners.forEach(function (fn) {
+      try { fn(username || ""); } catch (e) { /* 单个订阅出错不影响其它 */ }
+    });
+  }
 
   function endpoint() { return API_BASE; }
 
@@ -59,6 +66,7 @@
       b.textContent = "登录 / 注册";
       b.addEventListener("click", function () { openModal("login"); });
       els.area.appendChild(b);
+      notify("");
       return;
     }
     var consoleLink = document.createElement("a");
@@ -84,6 +92,7 @@
       }
     });
     els.area.appendChild(out);
+    notify(username);
   }
 
   function stopCountdown() {
@@ -243,6 +252,10 @@
     token: token,
     user: function () { try { return localStorage.getItem(KEY_USER) || ""; } catch (e) { return ""; } },
     email: function () { try { return localStorage.getItem(KEY_EMAIL) || ""; } catch (e) { return ""; } },
-    endpoint: endpoint
+    endpoint: endpoint,
+    loggedIn: function () { return !!token(); },
+    open: openModal,          // 打开登录/注册弹窗：WY_AUTH.open("login")
+    close: closeModal,
+    onChange: function (fn) { if (typeof fn === "function") listeners.push(fn); }
   };
 })();

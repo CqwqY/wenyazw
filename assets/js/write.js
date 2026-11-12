@@ -51,6 +51,7 @@
     keyToggle: $("keyToggle"), resetCfg: $("resetCfg"), testBtn: $("testBtn"),
 
     wizard: $("wizard"), studio: $("studio"),
+    gateBar: $("gateBar"), gateLoginBtn: $("gateLoginBtn"),
     wizardSteps: $("wizardSteps"),
     catGrid: $("catGrid"), catTip: $("catTip"),
     genreGrid: $("genreGrid"), genreTip: $("genreTip"),
@@ -1959,9 +1960,39 @@
     applyResumedEssay(data);
   }
 
+  /* ---------------- 登录门槛：生成必须先登录 ----------------
+     页面本身上来就能看，但点「开始生成」会拦下并弹登录框；登录成功后自动续上这次生成。 */
+
+  var pendingStart = false;
+
+  function loginReady() {
+    return !!(window.WY_AUTH && window.WY_AUTH.loggedIn());
+  }
+
+  function syncGate() {
+    if (els.gateBar) els.gateBar.hidden = loginReady();
+  }
+
+  // 工作台里拦下：状态栏说明原因 + 弹登录框，登录成功后续跑
+  function requireLoginForStart() {
+    pendingStart = true;
+    setWizardStatus("生成作文需要先登录：登录后会自动接着生成，作文与大纲也会存进你的账号。", "error");
+    if (window.WY_AUTH) window.WY_AUTH.open("login");
+    return false;
+  }
+
+  // 已经在生成界面里（例如 token 中途失效）
+  function requireLoginInline() {
+    setDocHint("需要登录才能生成，请先登录。");
+    setPaperHint("未登录");
+    if (window.WY_AUTH) window.WY_AUTH.open("login");
+    return false;
+  }
+
   /* ---------------- 入口 1：开始生成（先写大纲） ---------------- */
 
   async function startWriting() {
+    if (!loginReady()) { requireLoginForStart(); return; }
     if (!selectedCat) { setWizardStatus("请先选择作文类别（命题/半命题/自拟）。", "error"); return; }
     if (!els.topic.value.trim()) {
       setWizardStatus(selectedCat === "自拟" ? "请先写一段题材或范围。" : "请先写下作文题目。", "error");
@@ -2059,6 +2090,7 @@
   /* ---------------- 入口 2：按大纲写正文 ---------------- */
 
   async function generateEssay() {
+    if (!loginReady()) { requireLoginInline(); return; }
     if (!currentConfig().key) { setPaperHint("接口未配置，先回工作台填好。"); return; }
     syncOutlineFromDOM();
     if (!outline.points.some(function (p) { return trim(p.text); })) {
@@ -2715,6 +2747,31 @@
     document.fonts.ready.then(function () { alignPaperGrid(); });
   }
   window.addEventListener("resize", function () { alignPaperGrid(); });
+
+  /* 登录门槛：auth.js 在本脚本之后加载，等 DOM 就绪再挂监听 */
+  function initLoginGate() {
+    syncGate();
+    on(els.gateLoginBtn, "click", function () {
+      pendingStart = false;
+      if (window.WY_AUTH) window.WY_AUTH.open("login");
+    });
+    if (window.WY_AUTH && window.WY_AUTH.onChange) {
+      window.WY_AUTH.onChange(function (user) {
+        syncGate();
+        // 刚才在工作台被登录拦下，登录成功后自动接着这次生成
+        if (user && pendingStart && !els.wizard.hasAttribute("hidden")) {
+          pendingStart = false;
+          startWriting();
+        }
+      });
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initLoginGate);
+  } else {
+    initLoginGate();
+  }
 
   /* 从控制台跳回来时恢复那篇作文。auth.js 在本脚本之后加载，
      所以延后到 DOM 就绪再读登录态。 */

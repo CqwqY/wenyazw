@@ -20,7 +20,7 @@
   var lastToken = "";
   var RESUME_KEY = "wy.resume.v1";
 
-  /* 把这篇作文交给写作页：localStorage 直传，index.html?resume=1 取走即删 */
+  /* 把这篇作文交给写作页：localStorage 直传，write.html?resume=1 取走即删 */
   function handoff(essay) {
     try {
       localStorage.setItem(RESUME_KEY, JSON.stringify({ essay: essay, ts: Date.now() }));
@@ -28,7 +28,7 @@
       setMsg("浏览器存储不可用，无法带回写作页。可先下载 txt 保留内容。", "error");
       return false;
     }
-    location.href = "index.html?resume=1";
+    location.href = "write.html?resume=1";
     return true;
   }
 

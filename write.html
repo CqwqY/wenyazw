@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 写作工作台 - 文芽作文</title>
+<meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112c">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">文</span>
+      <span>文芽作文</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-label="打开菜单">菜单</button>
+    <nav class="nav" id="nav">
+      <a href="index.html">首页</a>
+      <a href="write.html" class="active">AI 写作</a>
+      <a href="essays.html">范文库</a>
+      <a href="materials.html">素材库</a>
+      <a href="tips.html">写作方法</a>
+      <a href="about.html">关于</a>
+    </nav>
+    <div class="account-area" id="accountArea"></div>
+  </div>
+</header>
+
+<main>
+
+  <!-- 未登录提示条：只有登录后才能生成（write.js 根据登录态切换） -->
+  <div class="gate-bar" id="gateBar" hidden>
+    <div class="wrap">
+      <span class="gate-text" id="gateText">当前未登录，生成作文需要先登录。登录后作文与大纲会存进你的账号。</span>
+      <button class="btn-outline" id="gateLoginBtn" type="button">登录 / 注册</button>
+    </div>
+  </div>
+
+<main>
+
+  <!-- ============ 创建作文工作台 ============ -->
+  <section id="wizard" class="wrap">
+
+    <div class="tool-head">
+      <div>
+        <h1>创建作文工作台<span class="badge-new">核心功能</span></h1>
+        <p>五步定好类别、文体与题目，挑一个评分标准，再进入 AI 生成与修改界面。</p>
+      </div>
+      <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
+    </div>
+
+    <section class="config-panel" id="configPanel" hidden>
+      <div class="config-grid">
+        <div>
+          <div class="config-note">
+            <strong>大模型密钥只存在本机浏览器</strong>，作文生成由浏览器直连你填的接口；本站后端只负责账号登录，不接触密钥。
+            浏览器直连需要服务商允许跨域。公共电脑请勿勾选「记住 Key」，用完点清除配置。
+          </div>
+          <div class="field">
+            <label for="cfgPreset">服务商预设</label>
+            <select class="select" id="cfgPreset">
+              <option value="deepseek">DeepSeek</option>
+              <option value="moonshot">Moonshot / Kimi</option>
+              <option value="qwen">通义千问（兼容模式）</option>
+              <option value="openai">OpenAI</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cfgBase">Base URL</label>
+            <input class="input" id="cfgBase" placeholder="https://api.deepseek.com/v1" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="cfgKey">API Key</label>
+            <div class="key-row">
+              <input class="input" id="cfgKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off">
+              <button class="btn-mini" id="keyToggle">显示</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="field">
+            <label for="cfgModel">模型名</label>
+            <input class="input" id="cfgModel" placeholder="deepseek-chat" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="cfgPath">接口路径</label>
+            <input class="input" id="cfgPath" spellcheck="false">
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="cfgTemp">temperature</label>
+              <input class="input" id="cfgTemp" type="number" min="0" max="2" step="0.1">
+            </div>
+            <div class="field">
+              <label for="cfgMaxTokens">max_tokens</label>
+              <input class="input" id="cfgMaxTokens" type="number" min="64" max="16000" step="100">
+            </div>
+          </div>
+          <label style="font-size:13.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:center">
+            <input type="checkbox" id="cfgRemember"> 记住 Key（本机）
+          </label>
+          <div class="actions" style="margin-top:14px">
+            <button class="btn-outline" id="testBtn">测试连接</button>
+            <div class="spacer"></div>
+            <button class="btn-outline" id="resetCfg">清除配置</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 步骤条 -->
+    <ol class="wizard-steps" id="wizardSteps">
+      <li class="done" data-step="1"><span class="dot">1</span>选择类别</li>
+      <li class="done" data-step="2"><span class="dot">2</span>选择文体</li>
+      <li data-step="3"><span class="dot">3</span>输入题目</li>
+      <li data-step="4"><span class="dot">4</span>选择字数</li>
+      <li data-step="5"><span class="dot">5</span>额外要求</li>
+    </ol>
+
+    <div class="wizard-body">
+
+      <!-- 步骤 1：类别 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">1</span><h2>选择类别</h2></div>
+        <div class="cat-grid" id="catGrid">
+          <button class="cat-card" data-cat="命题">
+            <div class="cat-name">命题</div>
+            <div class="cat-desc">题目完整给定，AI 原样用作标题，一字不改，全文紧扣题眼。</div>
+          </button>
+          <button class="cat-card" data-cat="半命题">
+            <div class="cat-name">半命题</div>
+            <div class="cat-desc">题目留空，AI 先补全空缺，用补全后的完整题目作标题再写。</div>
+          </button>
+          <button class="cat-card" data-cat="自拟">
+            <div class="cat-name">自拟</div>
+            <div class="cat-desc">只给题材范围，AI 自己拟一个具体不落俗套的短标题。</div>
+          </button>
+        </div>
+        <p class="wstep-tip" id="catTip">三选一：命题 / 半命题 / 自拟。</p>
+      </div>
+
+      <!-- 步骤 2：文体（决定整篇的结构与语气，卡片由 WY_GENRE 动态生成） -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">2</span><h2>选择文体</h2></div>
+        <div class="genre-grid" id="genreGrid"></div>
+        <p class="wstep-tip" id="genreTip">散文、议论文与记叙文的写法差别很大，选错文体 AI 会按错的骨架写。</p>
+      </div>
+
+      <!-- 步骤 3：题目（标题/提示/示例随类别动态切换） -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">3</span><h2 id="topicStepTitle">输入题目</h2></div>
+        <div class="chat-box">
+          <textarea class="chat-input-area" id="topic" rows="3"
+            placeholder="先在上方选好类别，再按类别写题目"></textarea>
+          <div class="chat-hint" id="topicHint">先在上方选好类别，这里会告诉你该填什么。</div>
+          <div class="examples" id="topicExamples"><span class="examples-hint">选好类别后，这里会给出对应的示例。</span></div>
+        </div>
+      </div>
+
+      <!-- 步骤 3：字数 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">4</span><h2>选择字数</h2></div>
+        <div class="word-roller">
+          <button class="roller-btn" id="wordMinus" aria-label="减少">−</button>
+          <div class="roller-num" id="wordNum">800</div>
+          <button class="roller-btn" id="wordPlus" aria-label="增加">+</button>
+        </div>
+        <input type="range" class="word-range" id="wordRange" min="300" max="2000" step="50" value="800">
+        <div class="word-scale">
+          <span>300</span><span>800</span><span>1300</span><span>2000</span>
+        </div>
+        <p class="wstep-tip">目标字数（<strong>包含标点</strong>），拖动滚动条或点 ± 调整。</p>
+      </div>
+
+      <!-- 步骤 4：额外要求 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">5</span><h2>额外要求</h2><span class="wstep-opt">选填</span></div>
+        <div class="chat-box">
+          <textarea class="chat-input-area" id="extra" rows="3"
+            placeholder="例：分歧落在一只碗的釉色上；结尾用一句老师傅的话收住"></textarea>
+          <div class="chat-hint">补充立意、器物、风格等要求，没有就留空。</div>
+        </div>
+      </div>
+
+      <!-- 评分标准（可多选） -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">6</span><h2>评分标准（可多选）</h2><span class="wstep-opt">表格注入 AI</span></div>
+        <div class="scoring-grid" id="scoringGrid"></div>
+        <p class="wstep-tip" id="scoringTip">可同时选几个地方的评分标准，完整表格会注入提示词，生成界面顶部也能展开查看。</p>
+      </div>
+
+      <div class="wizard-actions">
+        <button class="btn btn-primary btn-lg" id="startBtn">开始生成</button>
+        <div class="status-line" id="wizardStatus" role="status"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 生成界面 ============ -->
+  <section id="studio" hidden>
+
+    <div class="studio-top">
+      <button class="btn-outline" id="backBtn">← 返回工作台</button>
+      <div class="studio-meta" id="studioMeta"></div>
+      <div class="studio-tools">
+        <span class="paper-stat" id="paperStat"></span>
+        <button class="btn-outline" id="acceptAllBtn" hidden>全部采纳</button>
+        <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
+        <button class="btn-outline" id="criticBtn">AI 评改</button>
+        <button class="btn-outline" id="copyBtn">复制</button>
+        <button class="btn-outline" id="downloadBtn">下载 txt</button>
+      </div>
+    </div>
+
+    <!-- 评分标准区：展开是完整表格，收起只显示所选省份与总分 -->
+    <section class="score-bar" id="scoreBar">
+      <button class="score-toggle" id="scoreToggle" type="button" aria-expanded="false">
+        <span class="score-title">评分标准区</span>
+        <span class="score-chips" id="scoreChips"></span>
+        <span class="score-caret" id="scoreCaret">展开表格</span>
+      </button>
+      <div class="score-body" id="scoreBody" hidden>
+        <div class="score-tables" id="scoreTables"></div>
+      </div>
+    </section>
+
+    <div class="studio-grid">
+      <div class="studio-left">
+        <div class="chat-panel">
+          <div class="chat-list" id="contextList">
+            <div class="context-empty" id="contextEmpty">先让 AI 拟大纲，改满意了再写正文。之后的提问、手批都在这里显示。</div>
+          </div>
+          <div class="chat-foot">
+            <div class="chat-mode" id="chatMode">
+              <button type="button" class="chat-mode-btn active" data-mode="annotate">手批改稿</button>
+              <button type="button" class="chat-mode-btn" data-mode="explain">只问不改</button>
+              <span class="chat-mode-hint" id="chatModeHint">给朱红批注，逐条采纳</span>
+            </div>
+            <textarea class="chat-input-area" id="chatInput" rows="2"
+              placeholder="对这篇作文提个修改要求，例如：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的话"></textarea>
+            <div class="chat-send-row">
+              <button class="btn-outline" id="stopBtn2" disabled>停止</button>
+              <div class="spacer"></div>
+              <button class="btn btn-primary" id="sendBtn">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="studio-right">
+        <div class="doc-wrap">
+          <div class="doc-tabs" id="docTabs">
+            <button type="button" class="doc-tab active" data-pane="outline">大纲</button>
+            <button type="button" class="doc-tab" data-pane="paper">稿纸</button>
+            <span class="doc-tab-hint" id="docTabHint">大纲可以先改、可以增补，再开始写</span>
+          </div>
+
+          <div class="doc-body">
+            <!-- 大纲 pane -->
+            <div class="outline-pane" id="outlinePane">
+              <div class="outline-title-row">
+                <span class="outline-label">标题</span>
+                <input class="outline-title-input" id="outlineTitle" placeholder="标题会由 AI 先拟好，可手动改">
+              </div>
+              <div class="outline-thesis-row">
+                <span class="outline-label">立意</span>
+                <input class="outline-thesis-input" id="outlineThesis" placeholder="一句话立意，落在具体器物或人物原话上">
+              </div>
+              <div class="outline-points" id="outlinePoints">
+                <div class="outline-empty" id="outlineEmpty">还没有大纲。点「开始生成」后，AI 会先拟一份可改的大纲。</div>
+              </div>
+              <div class="outline-foot">
+                <button class="btn-outline" id="outlineAddBtn" type="button">＋ 添加一段</button>
+                <button class="btn-outline" id="outlineAiBtn" type="button">让 AI 增补</button>
+                <button class="btn-outline" id="outlineRetryBtn" type="button">重新拟大纲</button>
+                <div class="spacer"></div>
+                <button class="btn btn-primary" id="writeEssayBtn" type="button" disabled>确认大纲，开始写正文</button>
+              </div>
+            </div>
+
+            <!-- 稿纸 pane -->
+            <div class="paper" id="paperPane" hidden>
+              <div class="paper-inner">
+                <div class="paper-title" id="paperTitle">作文稿纸</div>
+                <div class="paper-body paper-empty" id="paperBody"></div>
+              </div>
+            </div>
+
+            <!-- 稿纸下方：当前批注操作条（点朱红符号时出现，不遮正文） -->
+            <div class="ink-dock" id="inkDock" hidden>
+              <span class="ink-dock-no" id="inkDockNo">1</span>
+              <span class="ink-dock-why" id="inkDockWhy"></span>
+              <span class="ink-dock-sug" id="inkDockSug" hidden></span>
+              <button class="ink-dock-accept" id="inkDockAccept" type="button">采纳</button>
+              <button class="ink-dock-btn" id="inkDockIgnore" type="button">忽略</button>
+              <button class="ink-dock-close" id="inkDockClose" type="button" aria-label="关闭">×</button>
+            </div>
+
+            <!-- 稿纸下方的 AI 评改批注坞 -->
+            <div class="critic-dock" id="criticDock" hidden>
+              <div class="critic-dock-head">
+                <span class="critic-dock-title">AI 评改</span>
+                <span class="critic-stat" id="criticStat">逐句判好坏与 AI 味，不给总分的空头评价。</span>
+                <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>把认可的问题交给 AI 改</button>
+                <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
+              </div>
+              <div class="critic-list" id="criticList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="copyright">
+      <span>文芽作文 · 保留所有权利</span>
+      <span>生成内容仅供参考，请勿直接抄袭提交</span>
+    </div>
+  </div>
+</footer>
+
+<!-- 登录 / 注册弹窗 -->
+<div class="modal-mask" id="authMask" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="modal-head">
+      <h2 id="authTitle">登录文芽作文</h2>
+      <button class="modal-close" id="authClose" aria-label="关闭">×</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="login">登录</button>
+      <button class="auth-tab" data-mode="register">注册</button>
+    </div>
+    <div class="field" id="authUserField">
+      <label for="authUser">用户名</label>
+      <input class="input" id="authUser" type="text" autocomplete="username" placeholder="3～24 位，字母数字下划线" maxlength="24">
+    </div>
+    <div class="field">
+      <label for="authEmail">邮箱</label>
+      <input class="input" id="authEmail" type="email" autocomplete="email" placeholder="用于接收验证码" maxlength="120">
+    </div>
+    <div class="field">
+      <label for="authCode">邮箱验证码</label>
+      <div class="code-row">
+        <input class="input" id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" maxlength="6">
+        <button class="btn-outline" id="sendCodeBtn" type="button">发送验证码</button>
+      </div>
+      <div class="auth-hint" id="codeHint">验证码 10 分钟内有效，每个邮箱 60 秒可重发一次。</div>
+    </div>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="authSubmit">登录</button>
+    </div>
+    <div class="auth-foot">注册与登录都用邮箱验证码，无需设置密码。作文与大模型密钥仍只存本机浏览器。</div>
+  </div>
+</div>
+
+<script src="assets/js/app.js"></script>
+<script src="assets/js/prompt.js?v=20261112c"></script>
+<script src="assets/js/write.js?v=20261112c"></script>
+<script src="assets/js/auth.js?v=20261112c"></script>
+</body>
+</html>

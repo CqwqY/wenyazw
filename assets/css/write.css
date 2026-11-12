@@ -1591,3 +1591,39 @@ table.score-table .score-table-key {
 .critic-card.critic-yes { box-shadow: inset 0 0 0 1.5px rgba(47, 111, 78, .35); }
 .critic-card.critic-no { opacity: .62; }
 .critic-card.critic-focus { box-shadow: 0 0 0 3px rgba(47, 111, 78, .22); }
+
+/* ============ 未登录提示条（生成需登录） ============ */
+
+.gate-bar {
+  border-bottom: 1px solid var(--line);
+  background: rgba(184, 87, 42, .07);
+}
+
+.gate-bar[hidden] { display: none; }
+
+.gate-bar .wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+
+.gate-text {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.gate-bar .btn-outline {
+  margin-left: auto;
+  flex: none;
+  font-size: 12.5px;
+  height: 32px;
+  padding: 0 14px;
+}
+
+@media (max-width: 640px) {
+  .gate-bar .wrap { flex-wrap: wrap; }
+  .gate-bar .btn-outline { margin-left: 0; width: 100%; }
+}
