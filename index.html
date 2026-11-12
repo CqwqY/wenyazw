@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI 写作工作台 - 文芽作文</title>
-<meta name="description" content="文芽作文 AI 写作工作台：左侧对话上下文与输入，右侧两页方格稿纸流式出文。">
+<meta name="description" content="文芽作文 AI 写作工作台：输入题目与接口，AI 先回应你，再把作文逐字写进方格稿纸。">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112">
 </head>
 <body>
 
@@ -16,14 +16,6 @@
       <span class="brand-mark">文</span>
       <span>文芽作文</span>
     </a>
-    <button class="nav-toggle" id="navToggle" aria-label="打开菜单">菜单</button>
-    <nav class="nav" id="nav">
-      <a href="index.html" class="active">AI 写作</a>
-      <a href="essays.html">范文库</a>
-      <a href="materials.html">素材库</a>
-      <a href="tips.html">写作方法</a>
-      <a href="about.html">关于</a>
-    </nav>
   </div>
 </header>
 
@@ -32,7 +24,7 @@
   <div class="tool-head">
     <div>
       <h1>AI 写作工作台<span class="badge-new">核心功能</span></h1>
-      <p>左侧对话上下文与输入，右侧是两页方格稿纸。AI 先回应你，再把作文写进格子里。</p>
+      <p>输入题目与接口，AI 先回应你，再把作文逐字写进方格稿纸。</p>
     </div>
     <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
   </div>
@@ -109,28 +101,6 @@
         <div class="context-list" id="contextList">
           <div class="context-empty" id="contextEmpty">还没有对话。写下题目，点「生成作文」，AI 的回应和作文会依次出现在这里。</div>
         </div>
-        <details class="ctx-raw">
-          <summary>本次发送给 AI 的上下文</summary>
-          <pre id="ctxRaw"></pre>
-          <button class="btn-outline" id="copyPromptBtn" style="margin-top:10px">复制完整上下文</button>
-        </details>
-        <details class="rules-inline">
-          <summary>生成规则已固定 · 12 条</summary>
-          <div class="rules-body">
-            <div><strong>忌空泛</strong>不要无实质作用的修辞与描写，禁止「啊～原来……」式假大空抒情，不喊口号，不硬升华。</div>
-            <div><strong>重引用寄托</strong>多引用、多寄托，选材偏门，避开端午粽子、中秋赏月、书法练字等烂大街素材。</div>
-            <div><strong>以人物之言承载主旨</strong>深意靠人物的话点透，不靠作者议论；作者只记录、执行、沉默。</div>
-            <div><strong>白描为主</strong>少叙事铺陈，少对话堆砌，用动作、实物、细节说话，长句少用。</div>
-            <div><strong>内核要实</strong>立意必须有真东西（如「真——不藏」），在事例和人物语言中体现，不与主题脱钩。</div>
-            <div><strong>冲突要具体</strong>老一辈守规矩（「礼崩乐坏」「倒反天罡」），小辈想创新，分歧落在具体器物上。</div>
-            <div><strong>人物要立体</strong>老师傅嘴上骂、夜里帮，帮助都是暗的；小辈嘴上硬、手上做。只写暗处的托底。</div>
-            <div><strong>双线结构</strong>明线是器物的生死成败，暗线是不说的情分与手艺的传递。</div>
-            <div><strong>金句与过渡</strong>要有一句撑起全文的过渡金句，用于转折并在结尾呼应。</div>
-            <div><strong>危险素材避开</strong>不写低俗、敏感、易争议内容，换成「蛤蟆送福」「立马发财」等安全民间意象。</div>
-            <div><strong>语言规范</strong>不讲方言，全部普通话。</div>
-            <div><strong>关键段落处理</strong>该略的段落用重描写、动作白描带过，不写对话，不铺陈长句。</div>
-          </div>
-        </details>
       </section>
 
       <section class="panel input-panel">
@@ -188,14 +158,19 @@
 
     <section class="paper-col">
       <div class="paper-bar">
-        <h2>作文稿纸</h2>
+        <h2>作文</h2>
         <div class="tools">
           <span class="paper-stat" id="paperStat"></span>
           <button class="btn-outline" id="copyBtn">复制</button>
           <button class="btn-outline" id="downloadBtn">下载 txt</button>
         </div>
       </div>
-      <div class="paper-scroll" id="paperScroll"></div>
+      <div class="paper">
+        <div class="paper-inner">
+          <div class="paper-title" id="paperTitle">作文稿纸</div>
+          <div class="paper-body paper-empty" id="paperBody"></div>
+        </div>
+      </div>
     </section>
 
   </div>
@@ -204,31 +179,6 @@
 
 <footer class="site-footer">
   <div class="wrap">
-    <div class="footer-grid">
-      <div>
-        <div class="brand" style="margin-bottom:12px">
-          <span class="brand-mark">文</span>
-          <span>文芽作文</span>
-        </div>
-        <p>新概念作文平台。让每一篇作文，都长出自己的一枝。</p>
-      </div>
-      <div>
-        <h4>内容</h4>
-        <ul class="footer-links">
-          <li><a href="index.html">AI 写作</a></li>
-          <li><a href="essays.html">范文库</a></li>
-          <li><a href="materials.html">素材库</a></li>
-          <li><a href="tips.html">写作方法</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4>关于</h4>
-        <ul class="footer-links">
-          <li><a href="about.html">平台介绍</a></li>
-          <li><a href="about.html#contact">内容说明</a></li>
-        </ul>
-      </div>
-    </div>
     <div class="copyright">
       <span>文芽作文 · 保留所有权利</span>
       <span>生成内容仅供参考，请勿直接抄袭提交</span>
@@ -236,7 +186,7 @@
   </div>
 </footer>
 
-<script src="assets/js/prompt.js"></script>
-<script src="assets/js/write.js"></script>
+<script src="assets/js/prompt.js?v=20261112"></script>
+<script src="assets/js/write.js?v=20261112"></script>
 </body>
 </html>

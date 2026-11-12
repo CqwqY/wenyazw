@@ -17,9 +17,6 @@
     custom: { base: "", model: "" }
   };
 
-  var COLS = 15;   // 每页列数（与 CSS --cols 一致）
-  var ROWS = 18;   // 每页行数（与 CSS --rows 一致）
-
   var els = {
     topic: $("topic"), grade: $("grade"), length: $("length"), extra: $("extra"),
     preset: $("cfgPreset"), base: $("cfgBase"), path: $("cfgPath"),
@@ -30,8 +27,7 @@
     keyToggle: $("keyToggle"), resetCfg: $("resetCfg"),
     toggleConfig: $("toggleConfig"), configPanel: $("configPanel"),
     contextList: $("contextList"), contextEmpty: $("contextEmpty"),
-    ctxRaw: $("ctxRaw"), copyPromptBtn: $("copyPromptBtn"),
-    status: $("status"), paperScroll: $("paperScroll"), paperStat: $("paperStat")
+    status: $("status"), paperTitle: $("paperTitle"), paperBody: $("paperBody"), paperStat: $("paperStat")
   };
 
   var controller = null;
@@ -196,131 +192,37 @@
     return { title: "", body: src.replace(/^\n+/, "") };
   }
 
-  /* ---------------- 逐字入格：把正文排进 ROWS×COLS 的格子 ---------------- */
+  /* ---------------- 稿纸：流动文字铺在方格底纹上，随内容增高（初版） ---------------- */
 
-  // 把若干段落排成「行」序列：每段首行缩进两格，段间空一行
-  function flowRows(paragraphs) {
-    var rows = [];
-    var cur = [];
-    var col = 0;
-
-    function pushRow() {
-      while (cur.length < COLS) cur.push("");
-      rows.push(cur);
-      cur = [];
-      col = 0;
-    }
-
-    paragraphs.forEach(function (p, pi) {
-      if (pi > 0) pushRow();          // 段间空一行
-      col = 2;                        // 段首缩进两格
-      for (var i = 0; i < p.length; i++) {
-        if (col >= COLS) { pushRow(); }  // 换行：续行不缩进
-        cur[col] = p[i];
-        col++;
-      }
-      pushRow();
-    });
-    if (cur.length) pushRow();
-    return rows;
-  }
-
-  // 把行序列切成每页 ROWS 行
-  function paginateRows(rows) {
-    var pages = [];
-    for (var i = 0; i < rows.length; i += ROWS) pages.push(rows.slice(i, i + ROWS));
-    return pages;
-  }
-
-  function makeCell(ch) {
-    var span = document.createElement("span");
-    span.className = "c";
-    if (ch) span.textContent = ch;
-    return span;
-  }
-
-  function renderPages(pages, streaming) {
-    els.paperScroll.innerHTML = "";
-    var lastCell = null;
-    pages.forEach(function (rowList, pi) {
-      var pageEl = document.createElement("div");
-      pageEl.className = "paper-page";
-      var inner = document.createElement("div");
-      inner.className = "page-inner";
-
-      if (pi === 0) {
-        var t = document.createElement("div");
-        t.className = "page-title";
-        t.textContent = lastTitle;
-        inner.appendChild(t);
-      }
-      var grid = document.createElement("div");
-      grid.className = "page-grid";
-      grid.style.gridTemplateColumns = "repeat(" + COLS + ", var(--cell))";
-      rowList.forEach(function (row) {
-        for (var c = 0; c < COLS; c++) {
-          var cell = makeCell(row[c]);
-          grid.appendChild(cell);
-          if (pi === pages.length - 1 && row[c]) lastCell = cell;
-        }
-      });
-      inner.appendChild(grid);
-
-      var num = document.createElement("div");
-      num.className = "page-num";
-      num.textContent = "第 " + (pi + 1) + " 页";
-      inner.appendChild(num);
-
-      pageEl.appendChild(inner);
-      els.paperScroll.appendChild(pageEl);
-    });
-    if (streaming && lastCell) {
-      var caret = document.createElement("span");
-      caret.className = "caret";
-      lastCell.appendChild(caret);
-      els.paperScroll.scrollTop = els.paperScroll.scrollHeight;
-    }
-  }
-
-  function showPaperPlaceholder() {
-    els.paperScroll.innerHTML = "";
-    var pageEl = document.createElement("div");
-    pageEl.className = "paper-page";
-    var inner = document.createElement("div");
-    inner.className = "page-inner";
-    var t = document.createElement("div");
-    t.className = "page-title";
-    t.textContent = "作文稿纸";
-    inner.appendChild(t);
-    var hint = document.createElement("div");
-    hint.className = "page-hint";
-    hint.textContent = "填好题目与接口，点「生成作文」，作文会逐字写进这里。";
-    inner.appendChild(hint);
-    var grid = document.createElement("div");
-    grid.className = "page-grid";
-    grid.style.gridTemplateColumns = "repeat(" + COLS + ", var(--cell))";
-    for (var r = 0; r < ROWS; r++) {
-      for (var c = 0; c < COLS; c++) grid.appendChild(makeCell(""));
-    }
-    inner.appendChild(grid);
-    var num = document.createElement("div");
-    num.className = "page-num";
-    num.textContent = "第 1 页";
-    inner.appendChild(num);
-    pageEl.appendChild(inner);
-    els.paperScroll.appendChild(pageEl);
-  }
-
-  function renderComposition(text, streaming) {
+  function render(text, streaming) {
     var parts = splitText(text);
-    lastTitle = parts.title || "作文";
+    lastTitle = parts.title || "作文稿纸";
+    els.paperTitle.textContent = lastTitle;
+    els.paperBody.textContent = "";
+    els.paperBody.classList.remove("paper-empty");
+
     var paras = parts.body.split(/\n+/).filter(function (p) { return p.trim(); });
-    if (!paras.length) paras = [""];
-    var rows = flowRows(paras);
-    var pages = paginateRows(rows);
-    renderPages(pages, streaming);
+    if (!paras.length && streaming) paras = [""];
+
+    paras.forEach(function (p, idx) {
+      var el = document.createElement("p");
+      el.textContent = p.replace(/\n/g, "");
+      if (streaming && idx === paras.length - 1) {
+        var caret = document.createElement("span");
+        caret.className = "caret";
+        el.appendChild(caret);
+      }
+      els.paperBody.appendChild(el);
+    });
     var count = Array.from(parts.body.replace(/\s/g, "")).length;
     els.paperStat.textContent = count ? ("字数 " + count + (streaming ? " · 生成中" : "")) : "";
+  }
+
+  function showEmpty() {
+    els.paperTitle.textContent = "作文稿纸";
+    els.paperBody.textContent = "填好题目与接口，点「生成作文」，内容会逐字写在这里。";
+    els.paperBody.className = "paper-body paper-empty";
+    els.paperStat.textContent = "";
   }
 
   /* ---------------- 对话上下文气泡 ---------------- */
@@ -344,15 +246,6 @@
     return b.querySelector(".bubble-text");
   }
 
-  function updateContextRaw() {
-    var parts = ["【系统提示】\n" + (window.WY_PROMPT || "")];
-    history.slice(-4).forEach(function (it) {
-      parts.push((it.role === "user" ? "【用户（上一次）】" : "【文芽（上一次）】") + "\n" + it.content);
-    });
-    parts.push("【用户（本次）】\n" + userMessage());
-    els.ctxRaw.textContent = parts.join("\n\n----------\n\n");
-  }
-
   /* ---------------- 输出更新（流式驱动） ---------------- */
 
   function updateOutput(streaming) {
@@ -360,17 +253,17 @@
     if (!hasMarker) {
       if (streaming) {
         if (assistantReplyEl) assistantReplyEl.textContent = "正在理解你的要求…";
-        showPaperPlaceholder();
+        showEmpty();
         return;
       }
       // 收尾但没有分隔标记：整段当作作文
       if (assistantReplyEl) assistantReplyEl.textContent = "（模型未按两段格式输出，已作为作文呈现）";
-      renderComposition(fullText, false);
+      render(fullText, false);
       return;
     }
     var parts = splitTwo(fullText);
     if (assistantReplyEl) assistantReplyEl.textContent = parts.reply || "（已生成回应）";
-    renderComposition(parts.comp, streaming);
+    render(parts.comp, streaming);
   }
 
   function setBusy(busy) {
@@ -488,8 +381,7 @@
 
     addUserBubble(topicLines());
     assistantReplyEl = addAssistantBubble();
-    showPaperPlaceholder();
-    updateContextRaw();
+    showEmpty();
 
     try {
       var res = await fetch(endpoint(c), {
@@ -623,10 +515,6 @@
     copyString(text, "作文已复制。");
   }
 
-  function copyPrompt() {
-    copyString(els.ctxRaw.textContent || "", "完整上下文已复制。");
-  }
-
   function downloadText() {
     var text = plainOutput();
     if (!text.trim()) { setStatus("稿纸还是空的。", "error"); return; }
@@ -648,7 +536,6 @@
   els.genBtn.addEventListener("click", generate);
   els.testBtn.addEventListener("click", testConnection);
   els.copyBtn.addEventListener("click", copyText);
-  els.copyPromptBtn.addEventListener("click", copyPrompt);
   els.downloadBtn.addEventListener("click", downloadText);
 
   els.stopBtn.addEventListener("click", function () {
@@ -667,7 +554,7 @@
     empty.textContent = "还没有对话。写下题目，点「生成作文」，AI 的回应和作文会依次出现在这里。";
     els.contextList.appendChild(empty);
     els.contextEmpty = empty;
-    showPaperPlaceholder();
+    showEmpty();
     els.paperStat.textContent = "";
     setStatus("已清空。", "");
   });
@@ -684,6 +571,6 @@
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") generate();
   });
 
-  showPaperPlaceholder();
+  showEmpty();
   setBusy(false);
 })();

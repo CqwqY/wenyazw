@@ -1,11 +1,9 @@
 /* 文芽作文 - AI 写作页 */
 
 :root {
-  --cell: 30px;          /* 单格尺寸 */
-  --cols: 15;            /* 每页列数 */
-  --rows: 18;            /* 每页行数 */
-  --page-h: 600px;       /* 单页可视高度（仅用于滚动视口尺寸） */
-  --grid-line: rgba(200, 70, 70, .26);  /* 作文纸红格线 */
+  --cell: 36px;          /* 单格尺寸（初版：流动文字铺在方格底纹上） */
+  --grid-line: #e7e2d6;  /* 浅灰方格线 */
+  --grid-line-strong: #d8d1c0;
 }
 
 .tool-head {
@@ -357,13 +355,15 @@
 .status-line.error { color: var(--accent); }
 .status-line.ok { color: var(--brand); }
 
-/* ---------- 右栏：作文纸（两页，固定高度，内部滚动） ---------- */
+/* ---------- 右栏：作文纸（初版：流动文字铺在方格底纹上，随内容增高） ---------- */
 
 .paper-col {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
+
+.paper-col .paper { flex: 1 1 auto; }
 
 .paper-bar {
   display: flex;
@@ -380,96 +380,83 @@
 
 .paper-stat { font-size: 12.5px; color: var(--ink-mute); }
 
-.paper-scroll {
-  flex: none;
-  height: calc(2 * var(--page-h) + 16px);
-  overflow-y: auto;
-  overflow-x: auto;
-  padding: 4px;
-  background: var(--paper-2);
+.paper {
+  position: relative;
+  background: #fffdf8;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
-.paper-page {
-  width: calc(var(--cols) * var(--cell) + 34px);
-  margin: 0 auto 16px;
-  background: #fdf7e7;
-  border: 1px solid #e0cda6;
-  border-radius: 3px;
-  box-shadow: 0 2px 12px rgba(120, 90, 40, .12);
-  position: relative;
-}
-
-.paper-page:last-child { margin-bottom: 4px; }
-
-.page-inner { padding: 16px 17px 12px; position: relative; }
-
-/* 左侧红色装订线 / 边距线 */
-.page-inner::before {
+.paper::before {
   content: "";
   position: absolute;
-  left: 11px;
+  left: 0;
   top: 0;
   bottom: 0;
-  width: 2px;
-  background: rgba(200, 70, 70, .34);
+  width: 3px;
+  background: linear-gradient(var(--brand), #a8c9b3);
+  z-index: 2;
 }
 
-.page-title {
+.paper-inner {
+  padding: calc(var(--cell) / 2) calc(var(--cell) / 2) calc(var(--cell) * 1.5);
+  min-height: 460px;
+}
+
+.paper-title {
   font-family: var(--serif);
-  font-size: 18px;
+  font-size: 21px;
   font-weight: 600;
   text-align: center;
-  letter-spacing: .08em;
+  letter-spacing: .1em;
+  margin-bottom: 24px;
+  min-height: 30px;
   color: var(--ink);
-  margin-bottom: 14px;
 }
 
-.page-grid {
-  display: grid;
-  grid-auto-rows: var(--cell);
+.paper-body {
   font-family: var(--serif);
-  font-size: calc(var(--cell) * 0.62);
-  color: #2a2f2a;
+  font-size: calc(var(--cell) / 2);
+  line-height: var(--cell);
+  letter-spacing: calc(var(--cell) / 2);
+  padding-left: calc(var(--cell) / 4);
+  color: #262b27;
+  white-space: pre-wrap;
+  word-break: break-word;
   background-image:
     repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--cell)),
     repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--cell));
   background-position: 0 0;
+  min-height: 340px;
 }
 
-.page-grid .c {
-  width: var(--cell);
-  height: var(--cell);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  line-height: 1;
+.paper-body p {
+  margin: 0 0 var(--cell);
+  text-indent: calc(var(--cell) * 2);
 }
 
-.page-hint {
+.paper-body p:last-child { margin-bottom: 0; }
+
+.paper-empty {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: var(--cell);
+  letter-spacing: 0;
   color: var(--ink-mute);
   text-align: center;
-  margin: 10px 0 16px;
-}
-
-.page-num {
-  text-align: center;
-  font-family: var(--sans);
-  font-size: 12px;
-  color: var(--ink-mute);
-  margin-top: 10px;
+  padding-top: 100px;
 }
 
 .caret {
   display: inline-block;
   width: 2px;
-  height: 0.8em;
-  background: var(--brand, #2f6f4e);
+  height: 1em;
+  vertical-align: -.15em;
+  background: var(--brand);
   animation: blink .9s step-end infinite;
+  letter-spacing: 0;
 }
 
 @keyframes blink { 50% { opacity: 0; } }
@@ -498,12 +485,12 @@
   .stage { grid-template-columns: 1fr; }
   .config-grid { grid-template-columns: 1fr; }
   .context-list { max-height: 260px; }
-  .paper-scroll { height: calc(2 * var(--page-h) + 16px); }
+  .paper-col .paper { min-height: 420px; }
   .rules-body { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 680px) {
-  :root { --cell: 24px; --cols: 12; --page-h: 480px; }
+  :root { --cell: 32px; }
   .tool-head {
     padding: 32px 0 20px;
     flex-direction: column;
@@ -512,9 +499,7 @@
   .tool-head h1 { font-size: 26px; }
   .panel { padding: 18px; }
   .row-2 { grid-template-columns: 1fr; }
+  .paper-inner { padding: calc(var(--cell) / 2) 12px calc(var(--cell) * 1.5); }
+  .paper-title { font-size: 18px; }
   .paper-bar h2 { font-size: 17px; }
-}
-
-@media (max-width: 420px) {
-  :root { --cell: 22px; --cols: 11; --page-h: 440px; }
 }
