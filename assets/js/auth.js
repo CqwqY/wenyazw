@@ -1,28 +1,23 @@
 /* 文芽作文 - 账号登录（纯前端，token 存 localStorage）
-   后端地址默认 https://back.wenyazw.top，可在弹窗「后端地址」里临时覆盖。 */
+   后端地址固定为已上线的 https://back.wenyazw.top，不向访客暴露也不让其填写。 */
 (function () {
   "use strict";
 
-  var DEFAULT_ENDPOINT = "https://back.wenyazw.top";
-  var KEY_ENDPOINT = "wenyazw.auth.endpoint";
+  var API_BASE = "https://back.wenyazw.top";
   var KEY_TOKEN = "wenyazw.auth.token";
   var KEY_USER = "wenyazw.auth.user";
 
   function $(id) { return document.getElementById(id); }
   var els = {
     area: $("accountArea"), mask: $("authMask"), close: $("authClose"),
-    user: $("authUser"), pass: $("authPass"), endpoint: $("authEndpoint"),
+    user: $("authUser"), pass: $("authPass"),
     msg: $("authMsg"), submit: $("authSubmit"), title: $("authTitle")
   };
   if (!els.area || !els.mask) return;
 
   var mode = "login";
 
-  function endpoint() {
-    var v = "";
-    try { v = (localStorage.getItem(KEY_ENDPOINT) || "").trim(); } catch (e) { v = ""; }
-    return (v || DEFAULT_ENDPOINT).replace(/\/+$/, "");
-  }
+  function endpoint() { return API_BASE; }
 
   function token() {
     try { return localStorage.getItem(KEY_TOKEN) || ""; } catch (e) { return ""; }
@@ -88,9 +83,6 @@
     document.querySelectorAll(".auth-tab").forEach(function (t) {
       t.classList.toggle("active", t.getAttribute("data-mode") === mode);
     });
-    els.endpoint.value = (function () {
-      try { return localStorage.getItem(KEY_ENDPOINT) || ""; } catch (e) { return ""; }
-    })();
     setMsg("");
     els.mask.removeAttribute("hidden");
     setTimeout(function () { els.user.focus(); }, 30);
@@ -120,11 +112,6 @@
     var p = els.pass.value;
     if (!/^[A-Za-z0-9_]{3,24}$/.test(u)) { setMsg("用户名需 3～24 位，只能用字母、数字、下划线。", "error"); return; }
     if (p.length < 6) { setMsg("密码至少 6 位。", "error"); return; }
-    var ep = els.endpoint.value.trim().replace(/\/+$/, "");
-    try {
-      if (ep) localStorage.setItem(KEY_ENDPOINT, ep);
-      else localStorage.removeItem(KEY_ENDPOINT);
-    } catch (e) { /* ignore */ }
 
     els.submit.disabled = true;
     setMsg(mode === "login" ? "正在登录…" : "正在注册…", "");
@@ -136,7 +123,7 @@
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
-        msg = "连不上后端。请确认服务已启动，或在「后端地址」里改用 http://100.127.187.92:3033（需同一 Tailscale 网络）。";
+        msg = "暂时连不上账号服务，请稍后再试。";
       }
       setMsg(msg, "error");
     } finally {
@@ -144,9 +131,7 @@
     }
   }
 
-  els.area.addEventListener("click", function (e) {
-    if (e.target && e.target.id === "loginBtn") openModal("login");
-  });
+  // 登录按钮在 renderAccount 里已单独绑定 click，这里不要再委托，避免点一次触发两次
   document.querySelectorAll(".auth-tab").forEach(function (t) {
     t.addEventListener("click", function () { openModal(t.getAttribute("data-mode")); });
   });

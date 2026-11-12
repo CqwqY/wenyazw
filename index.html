@@ -6,7 +6,7 @@
 <title>创建作文工作台 - 文芽作文</title>
 <meta name="description" content="文芽作文：流程式创建作文工作台，选类别、定题目、设字数、挑评分标准，再进入 AI 生成与修改界面。">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112f">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112g">
 </head>
 <body>
 
@@ -16,9 +16,7 @@
       <span class="brand-mark">文</span>
       <span>文芽作文</span>
     </a>
-    <div class="account-area" id="accountArea">
-      <button class="btn btn-ghost" id="loginBtn">登录 / 注册</button>
-    </div>
+    <div class="account-area" id="accountArea"></div>
   </div>
 </header>
 
@@ -254,11 +252,6 @@
       <label for="authPass">密码</label>
       <input class="input" id="authPass" type="password" autocomplete="current-password" placeholder="至少 6 位" maxlength="128">
     </div>
-    <details class="auth-advanced">
-      <summary>后端地址（域名未生效时可改）</summary>
-      <input class="input" id="authEndpoint" type="url" placeholder="https://back.wenyazw.top">
-      <div class="auth-hint">默认 https://back.wenyazw.top。调试可填 http://100.127.187.92:3033（需同一 Tailscale 网络）。</div>
-    </details>
     <div class="auth-msg" id="authMsg"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="authSubmit">登录</button>
@@ -267,8 +260,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261112f"></script>
-<script src="assets/js/write.js?v=20261112f"></script>
-<script src="assets/js/auth.js?v=20261112f"></script>
+<script src="assets/js/prompt.js?v=20261112g"></script>
+<script src="assets/js/write.js?v=20261112g"></script>
+<script src="assets/js/auth.js?v=20261112g"></script>
 </body>
 </html>
