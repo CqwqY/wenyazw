@@ -216,8 +216,8 @@
       var d = window.WY_SCORING[prov];
       btn.innerHTML = '<div class="scoring-name"></div><div class="scoring-desc"></div>';
       btn.querySelector(".scoring-name").textContent = prov;
-      btn.querySelector(".scoring-desc").textContent = d.length > 40 ? d.slice(0, 40) + "…" : d;
-      btn.title = d;
+      btn.querySelector(".scoring-desc").textContent = d;
+      btn.title = prov + "：" + d;
       els.scoringGrid.appendChild(btn);
     });
   }
@@ -432,8 +432,8 @@
     if (els.extra.value.trim()) lines.push("额外要求：" + els.extra.value.trim());
     lines.push("目标字数（含标点）：约 " + wordCount + " 字");
     var sd = (window.WY_SCORING && window.WY_SCORING[selectedProvince]) || "";
-    lines.push("评分标准参照：" + selectedProvince + (sd ? " —— " + sd : ""));
-    lines.push("\n请先写一段给用户的「回应」，再写「作文」正文，严格按系统提示中的格式与全部条款。");
+    lines.push("评分标准（" + selectedProvince + "）完整要求：" + sd);
+    lines.push("\n这是首次生成，请直接输出「===作文===」和作文正文，不用写「回应」部分。严格按系统提示（写作铁律 + 上述评分标准）的全部条款执行。");
     return lines.join("\n");
   }
 
@@ -536,13 +536,17 @@
 
     els.wizard.setAttribute("hidden", "");
     els.studio.removeAttribute("hidden");
+    document.body.classList.add("studio-mode");
 
     addUserBubble(summary);
-    assistantReplyEl = addAssistantBubble();
+    assistantReplyEl = null;          // 首次生成：不在对话里显示「回应」
     showEmpty();
     setPaperHint("正在生成…");
 
-    await runStream(window.WY_PROMPT, composeWriteUser());
+    // 系统提示词 = 写作铁律 + 本次所选省份评分标准（完整文本，而非只发名字）
+    var sd = (window.WY_SCORING && window.WY_SCORING[selectedProvince]) || "";
+    var sysPrompt = window.WY_PROMPT + (sd ? "\n\n【评分标准参照（" + selectedProvince + "）】\n" + sd : "");
+    await runStream(sysPrompt, composeWriteUser());
     if (fullText.trim()) setPaperHint(els.paperStat.textContent);
   }
 
@@ -676,6 +680,7 @@
     if (controller) controller.abort();
     els.studio.setAttribute("hidden", "");
     els.wizard.removeAttribute("hidden");
+    document.body.classList.remove("studio-mode");
   });
 
   els.chatInput.addEventListener("keydown", function (e) {

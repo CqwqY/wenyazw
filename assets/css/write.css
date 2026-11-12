@@ -432,12 +432,19 @@
 
 #studio[hidden] { display: none; }
 
+#studio {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 .studio-top {
   display: flex;
   align-items: center;
   gap: 14px;
   flex-wrap: wrap;
-  padding: 28px 0 16px;
+  flex: none;
+  padding: 14px 0 12px;
 }
 
 .studio-meta {
@@ -456,9 +463,9 @@
   display: grid;
   grid-template-columns: 35% 65%;
   gap: 20px;
-  height: calc(100vh - 200px);
-  min-height: 540px;
-  margin-bottom: 40px;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: 0;
 }
 
 .studio-left { min-width: 0; }
@@ -621,6 +628,10 @@
 
 @keyframes blink { 50% { opacity: 0; } }
 
+/* 进入生成界面时，隐藏页头/页脚，让 studio 真正占满整屏、不出现整页滚动 */
+body.studio-mode .site-header,
+body.studio-mode .site-footer { display: none; }
+
 /* ============ 响应式 ============ */
 
 @media (max-width: 960px) {
@@ -630,6 +641,20 @@
   .studio-left { height: 60vh; min-height: 360px; }
   .studio-right .paper { height: 70vh; min-height: 420px; }
   .row-2 { grid-template-columns: 1fr; }
+  body.studio-mode #studio { height: auto; min-height: 100vh; }
+}
+
+@media (max-width: 680px) {
+  :root { --cell: 32px; }
+  .tool-head {
+    padding: 32px 0 20px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .tool-head h1 { font-size: 26px; }
+  .wizard-body { padding: 18px 16px 22px; }
+  .paper-inner { padding: calc(var(--cell) / 2) 12px calc(var(--cell) * 1.5); }
+  body.studio-mode #studio { padding: 0 12px; }
 }
 
 @media (max-width: 680px) {
