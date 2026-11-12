@@ -7,12 +7,18 @@
 }
 
 .tool-head {
-  padding: 44px 0 24px;
+  padding: 40px 0 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
 }
 
 .tool-head h1 { font-size: 32px; margin-bottom: 8px; }
 
 .tool-head p { color: var(--ink-soft); max-width: 68ch; font-size: 15px; }
+
+.tool-head .btn { flex: none; }
 
 .badge-new {
   display: inline-block;
@@ -28,15 +34,119 @@
   letter-spacing: 0;
 }
 
-/* ---------- 工作区 ---------- */
+/* ---------- 接口配置（可收起） ---------- */
 
-.workbench {
+.config-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.config-panel[hidden] { display: none; }
+
+.config-grid {
   display: grid;
-  grid-template-columns: 1.05fr .95fr;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 28px;
+}
+
+.config-grid .field:last-child { margin-bottom: 0; }
+
+/* ---------- 主体：左窄右宽 ---------- */
+
+.stage {
+  display: grid;
+  grid-template-columns: 350px minmax(0, 1fr);
   gap: 20px;
   align-items: stretch;
-  margin-bottom: 32px;
+  margin-bottom: 48px;
 }
+
+.left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.prompt-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 240px;
+}
+
+.prompt-preview {
+  flex: 1 1 auto;
+  overflow: auto;
+  max-height: 380px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-2);
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.prompt-preview .ph { color: var(--ink-mute); font-style: normal; }
+
+.prompt-preview .k { color: var(--brand-deep); font-weight: 600; }
+
+.rules-inline,
+.more-options {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.rules-inline > summary,
+.more-options > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-soft);
+  list-style: none;
+  user-select: none;
+}
+
+.rules-inline > summary::-webkit-details-marker,
+.more-options > summary::-webkit-details-marker { display: none; }
+
+.rules-inline > summary::before,
+.more-options > summary::before {
+  content: "+";
+  display: inline-block;
+  width: 14px;
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.rules-inline[open] > summary::before,
+.more-options[open] > summary::before { content: "-"; }
+
+.more-options .body { padding-top: 14px; }
+
+.rules-inline .rules-body {
+  grid-template-columns: 1fr;
+  border-top: 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 14px 0 0;
+}
+
+.input-panel { flex: none; }
+
+.paper-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.paper-col .paper { flex: 1 1 auto; }
 
 .panel {
   background: var(--card);
@@ -211,11 +321,6 @@
 
 /* ---------- 稿纸 ---------- */
 
-.paper-wrap {
-  max-width: 940px;
-  margin: 0 auto 48px;
-}
-
 .paper-bar {
   display: flex;
   align-items: center;
@@ -314,36 +419,6 @@
 
 /* ---------- 规则说明 ---------- */
 
-.rules {
-  max-width: 940px;
-  margin: 0 auto 64px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--card);
-}
-
-.rules > summary {
-  padding: 16px 20px;
-  cursor: pointer;
-  font-family: var(--serif);
-  font-size: 16px;
-  font-weight: 600;
-  list-style: none;
-}
-
-.rules > summary::-webkit-details-marker { display: none; }
-
-.rules > summary::after {
-  content: "展开";
-  float: right;
-  font-family: var(--sans);
-  font-size: 12.5px;
-  font-weight: 400;
-  color: var(--brand);
-}
-
-.rules[open] > summary::after { content: "收起"; }
-
 .rules-body {
   border-top: 1px solid var(--line);
   padding: 20px;
@@ -358,14 +433,26 @@
 
 /* ---------- 响应式 ---------- */
 
+@media (max-width: 1100px) {
+  .stage { grid-template-columns: 310px minmax(0, 1fr); }
+}
+
 @media (max-width: 960px) {
-  .workbench { grid-template-columns: 1fr; }
+  .stage { grid-template-columns: 1fr; }
+  .config-grid { grid-template-columns: 1fr; }
+  .prompt-panel { min-height: 200px; }
+  .prompt-preview { max-height: 220px; }
   .rules-body { grid-template-columns: 1fr; }
+  .paper-col .paper { min-height: 420px; }
 }
 
 @media (max-width: 680px) {
   :root { --cell: 32px; }
-  .tool-head { padding: 32px 0 20px; }
+  .tool-head {
+    padding: 32px 0 20px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .tool-head h1 { font-size: 26px; }
   .panel { padding: 18px; }
   .row-2 { grid-template-columns: 1fr; }

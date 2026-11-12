@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI 写作工作台 - 文芽作文</title>
-<meta name="description" content="文芽作文 AI 写作工作台：填题目、配接口、稿纸流式出文。按新概念写作铁律生成，忌空泛、重寄托、白描为主。">
+<meta name="description" content="文芽作文 AI 写作工作台：左侧提示文本与输入，右侧方格稿纸流式出文。">
 <link rel="stylesheet" href="assets/css/style.css">
 <link rel="stylesheet" href="assets/css/write.css">
 </head>
@@ -30,170 +30,178 @@
 <main class="wrap">
 
   <div class="tool-head">
-    <h1>AI 写作工作台<span class="badge-new">核心功能</span></h1>
-    <p>填一句题目，配好自己的接口，作文会逐字写进下面的稿纸。生成规则已固定：忌空泛、重引用寄托、白描为主、以人物之言承载主旨。</p>
-  </div>
-
-  <div class="workbench">
-
-    <section class="panel">
-      <div class="panel-title">
-        <h2>写什么</h2>
-        <span class="hint">Ctrl + Enter 快速生成</span>
-      </div>
-
-      <div class="field">
-        <label for="topic">作文题目 / 题材</label>
-        <textarea class="textarea" id="topic" placeholder="例：老窑厂那批蛤蟆纹茶碗，老师傅守旧纹样，徒弟想换成招财猫"></textarea>
-        <div class="examples">
-          <button class="ex-chip" data-topic="窑上那批蛤蟆纹茶碗：老师傅守老纹样，小辈想改成招财的样式">蛤蟆纹茶碗</button>
-          <button class="ex-chip" data-topic="老木匾上刻着「立马发财」，招牌要翻新，老师傅说这是倒反天罡">立马发财匾</button>
-          <button class="ex-chip" data-topic="修伞铺最后一把伞，师父嘴上骂，夜里把伞骨换了新的">修伞铺</button>
-        </div>
-      </div>
-
-      <div class="row-2">
-        <div class="field">
-          <label for="grade">学段 <span class="opt">（选填）</span></label>
-          <select class="select" id="grade">
-            <option value="">不限</option>
-            <option value="小学">小学</option>
-            <option value="初中">初中</option>
-            <option value="高中">高中</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="length">篇幅 <span class="opt">（选填）</span></label>
-          <select class="select" id="length">
-            <option value="约 800 字">约 800 字</option>
-            <option value="约 600 字">约 600 字</option>
-            <option value="约 1000 字">约 1000 字</option>
-            <option value="不限">不限</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="extra">额外要求 <span class="opt">（选填，如指定器物、行当、结尾方式）</span></label>
-        <input class="input" id="extra" placeholder="例：分歧落在一只碗的釉色上">
-      </div>
-
-      <div class="actions">
-        <button class="btn btn-primary" id="genBtn">生成作文</button>
-        <button class="btn-outline" id="stopBtn" disabled>停止</button>
-        <button class="btn-outline" id="clearBtn">清空稿纸</button>
-      </div>
-
-      <div class="status-line" id="status" role="status"></div>
-    </section>
-
-    <section class="panel">
-      <div class="panel-title">
-        <h2>接口配置</h2>
-        <span class="hint">OpenAI 兼容格式</span>
-      </div>
-
-      <div class="config-note">
-        <strong>密钥只存在本机浏览器</strong>，不会上传到本站 —— 本站是纯静态页面，没有后端。
-        浏览器直连需要服务商允许跨域。公共电脑请勿勾选「记住 Key」，用完点清除配置。
-      </div>
-
-      <div class="field">
-        <label for="cfgPreset">服务商预设</label>
-        <select class="select" id="cfgPreset">
-          <option value="deepseek">DeepSeek</option>
-          <option value="moonshot">Moonshot / Kimi</option>
-          <option value="qwen">通义千问（兼容模式）</option>
-          <option value="openai">OpenAI</option>
-          <option value="custom">自定义</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="cfgBase">Base URL</label>
-        <input class="input" id="cfgBase" placeholder="https://api.deepseek.com/v1" spellcheck="false">
-      </div>
-
-      <div class="field">
-        <label for="cfgKey">API Key</label>
-        <div class="key-row">
-          <input class="input" id="cfgKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off">
-          <button class="btn-mini" id="keyToggle">显示</button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="cfgModel">模型名</label>
-        <input class="input" id="cfgModel" placeholder="deepseek-chat" spellcheck="false">
-      </div>
-
-      <div class="actions" style="margin-top:0">
-        <button class="btn-outline" id="testBtn">测试连接</button>
-        <div class="spacer"></div>
-        <button class="btn-outline" id="resetCfg">清除配置</button>
-      </div>
-
-      <details class="advanced">
-        <summary>高级参数</summary>
-        <div class="body">
-          <div class="field">
-            <label for="cfgPath">接口路径</label>
-            <input class="input" id="cfgPath" spellcheck="false">
-          </div>
-          <div class="row-2">
-            <div class="field">
-              <label for="cfgTemp">temperature</label>
-              <input class="input" id="cfgTemp" type="number" min="0" max="2" step="0.1">
-            </div>
-            <div class="field">
-              <label for="cfgMaxTokens">max_tokens</label>
-              <input class="input" id="cfgMaxTokens" type="number" min="64" max="16000" step="100">
-            </div>
-          </div>
-          <label style="font-size:13.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:center">
-            <input type="checkbox" id="cfgRemember"> 记住 Key（本机）
-          </label>
-        </div>
-      </details>
-    </section>
-
-  </div>
-
-  <section class="paper-wrap">
-    <div class="paper-bar">
-      <h2>作文稿纸</h2>
-      <div class="tools">
-        <span class="paper-stat" id="paperStat"></span>
-        <button class="btn-outline" id="copyBtn">复制</button>
-        <button class="btn-outline" id="downloadBtn">下载 txt</button>
-      </div>
+    <div>
+      <h1>AI 写作工作台<span class="badge-new">核心功能</span></h1>
+      <p>左侧是提示文本与输入，右侧是作文稿纸。规则已固定，作文会逐字写进格子里。</p>
     </div>
+    <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
+  </div>
 
-    <div class="paper">
-      <div class="paper-inner">
-        <div class="paper-title" id="paperTitle">作文稿纸</div>
-        <div class="paper-body paper-empty" id="paperBody"></div>
+  <section class="config-panel" id="configPanel" hidden>
+    <div class="config-grid">
+      <div>
+        <div class="config-note">
+          <strong>密钥只存在本机浏览器</strong>，不会上传到本站 —— 本站是纯静态页面，没有后端。
+          浏览器直连需要服务商允许跨域。公共电脑请勿勾选「记住 Key」，用完点清除配置。
+        </div>
+        <div class="field">
+          <label for="cfgPreset">服务商预设</label>
+          <select class="select" id="cfgPreset">
+            <option value="deepseek">DeepSeek</option>
+            <option value="moonshot">Moonshot / Kimi</option>
+            <option value="qwen">通义千问（兼容模式）</option>
+            <option value="openai">OpenAI</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="cfgBase">Base URL</label>
+          <input class="input" id="cfgBase" placeholder="https://api.deepseek.com/v1" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="cfgKey">API Key</label>
+          <div class="key-row">
+            <input class="input" id="cfgKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off">
+            <button class="btn-mini" id="keyToggle">显示</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="field">
+          <label for="cfgModel">模型名</label>
+          <input class="input" id="cfgModel" placeholder="deepseek-chat" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="cfgPath">接口路径</label>
+          <input class="input" id="cfgPath" spellcheck="false">
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="cfgTemp">temperature</label>
+            <input class="input" id="cfgTemp" type="number" min="0" max="2" step="0.1">
+          </div>
+          <div class="field">
+            <label for="cfgMaxTokens">max_tokens</label>
+            <input class="input" id="cfgMaxTokens" type="number" min="64" max="16000" step="100">
+          </div>
+        </div>
+        <label style="font-size:13.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:center">
+          <input type="checkbox" id="cfgRemember"> 记住 Key（本机）
+        </label>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn-outline" id="testBtn">测试连接</button>
+          <div class="spacer"></div>
+          <button class="btn-outline" id="resetCfg">清除配置</button>
+        </div>
       </div>
     </div>
   </section>
 
-  <details class="rules">
-    <summary>生成规则（已写进提示词，不可在页面上关闭）</summary>
-    <div class="rules-body">
-      <div><strong>忌空泛</strong>不要无实质作用的修辞与描写，禁止「啊～原来……」式假大空抒情，不喊口号，不硬升华。</div>
-      <div><strong>重引用寄托</strong>多引用、多寄托，选材偏门，避开端午粽子、中秋赏月、书法练字等烂大街素材。</div>
-      <div><strong>以人物之言承载主旨</strong>深意靠人物的话点透，不靠作者议论；作者只记录、执行、沉默。</div>
-      <div><strong>白描为主</strong>少叙事铺陈，少对话堆砌，用动作、实物、细节说话，长句少用。</div>
-      <div><strong>内核要实</strong>立意必须有真东西（如「真——不藏」），在事例和人物语言中体现，不与主题脱钩。</div>
-      <div><strong>冲突要具体</strong>老一辈守规矩（「礼崩乐坏」「倒反天罡」），小辈想创新，分歧落在具体器物上。</div>
-      <div><strong>人物要立体</strong>老师傅嘴上骂、夜里帮，帮助都是暗的；小辈嘴上硬、手上做。只写暗处的托底。</div>
-      <div><strong>双线结构</strong>明线是器物的生死成败，暗线是不说的情分与手艺的传递。</div>
-      <div><strong>金句与过渡</strong>要有一句撑起全文的过渡金句，用于转折并在结尾呼应。</div>
-      <div><strong>危险素材避开</strong>不写低俗、敏感、易争议内容，换成「蛤蟆送福」「立马发财」等安全民间意象。</div>
-      <div><strong>语言规范</strong>不讲方言，全部普通话。</div>
-      <div><strong>关键段落处理</strong>该略的段落用重描写、动作白描带过，不写对话，不铺陈长句。</div>
+  <div class="stage">
+
+    <div class="left-col">
+
+      <section class="panel prompt-panel">
+        <div class="panel-title">
+          <h2>提示文本</h2>
+          <span class="hint">本次发给 AI 的内容</span>
+        </div>
+        <div class="prompt-preview" id="promptPreview"></div>
+        <details class="rules-inline">
+          <summary>生成规则已固定 · 12 条</summary>
+          <div class="rules-body">
+            <div><strong>忌空泛</strong>不要无实质作用的修辞与描写，禁止「啊～原来……」式假大空抒情，不喊口号，不硬升华。</div>
+            <div><strong>重引用寄托</strong>多引用、多寄托，选材偏门，避开端午粽子、中秋赏月、书法练字等烂大街素材。</div>
+            <div><strong>以人物之言承载主旨</strong>深意靠人物的话点透，不靠作者议论；作者只记录、执行、沉默。</div>
+            <div><strong>白描为主</strong>少叙事铺陈，少对话堆砌，用动作、实物、细节说话，长句少用。</div>
+            <div><strong>内核要实</strong>立意必须有真东西（如「真——不藏」），在事例和人物语言中体现，不与主题脱钩。</div>
+            <div><strong>冲突要具体</strong>老一辈守规矩（「礼崩乐坏」「倒反天罡」），小辈想创新，分歧落在具体器物上。</div>
+            <div><strong>人物要立体</strong>老师傅嘴上骂、夜里帮，帮助都是暗的；小辈嘴上硬、手上做。只写暗处的托底。</div>
+            <div><strong>双线结构</strong>明线是器物的生死成败，暗线是不说的情分与手艺的传递。</div>
+            <div><strong>金句与过渡</strong>要有一句撑起全文的过渡金句，用于转折并在结尾呼应。</div>
+            <div><strong>危险素材避开</strong>不写低俗、敏感、易争议内容，换成「蛤蟆送福」「立马发财」等安全民间意象。</div>
+            <div><strong>语言规范</strong>不讲方言，全部普通话。</div>
+            <div><strong>关键段落处理</strong>该略的段落用重描写、动作白描带过，不写对话，不铺陈长句。</div>
+          </div>
+        </details>
+        <div class="actions" style="margin-top:12px">
+          <button class="btn-outline" id="copyPromptBtn">复制完整提示词</button>
+          <div class="spacer"></div>
+          <span class="hint" id="promptStat"></span>
+        </div>
+      </section>
+
+      <section class="panel input-panel">
+        <div class="panel-title">
+          <h2>输入</h2>
+          <span class="hint">Ctrl + Enter 生成</span>
+        </div>
+        <div class="field">
+          <label for="topic">作文题目 / 题材</label>
+          <textarea class="textarea" id="topic" placeholder="例：老窑厂那批蛤蟆纹茶碗，老师傅守旧纹样，徒弟想换成招财猫"></textarea>
+          <div class="examples">
+            <button class="ex-chip" data-topic="窑上那批蛤蟆纹茶碗：老师傅守老纹样，小辈想改成招财的样式">蛤蟆纹茶碗</button>
+            <button class="ex-chip" data-topic="老木匾上刻着「立马发财」，招牌要翻新，老师傅说这是倒反天罡">立马发财匾</button>
+            <button class="ex-chip" data-topic="修伞铺最后一把伞，师父嘴上骂，夜里把伞骨换了新的">修伞铺</button>
+          </div>
+        </div>
+        <details class="more-options">
+          <summary>更多选项（学段、篇幅、额外要求）</summary>
+          <div class="body">
+            <div class="row-2">
+              <div class="field">
+                <label for="grade">学段</label>
+                <select class="select" id="grade">
+                  <option value="">不限</option>
+                  <option value="小学">小学</option>
+                  <option value="初中">初中</option>
+                  <option value="高中">高中</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="length">篇幅</label>
+                <select class="select" id="length">
+                  <option value="约 800 字">约 800 字</option>
+                  <option value="约 600 字">约 600 字</option>
+                  <option value="约 1000 字">约 1000 字</option>
+                  <option value="不限">不限</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label for="extra">额外要求 <span class="opt">（选填）</span></label>
+              <input class="input" id="extra" placeholder="例：分歧落在一只碗的釉色上">
+            </div>
+          </div>
+        </details>
+        <div class="actions">
+          <button class="btn btn-primary" id="genBtn">生成作文</button>
+          <button class="btn-outline" id="stopBtn" disabled>停止</button>
+          <button class="btn-outline" id="clearBtn">清空</button>
+        </div>
+        <div class="status-line" id="status" role="status"></div>
+      </section>
+
     </div>
-  </details>
+
+    <section class="paper-col">
+      <div class="paper-bar">
+        <h2>作文</h2>
+        <div class="tools">
+          <span class="paper-stat" id="paperStat"></span>
+          <button class="btn-outline" id="copyBtn">复制</button>
+          <button class="btn-outline" id="downloadBtn">下载 txt</button>
+        </div>
+      </div>
+      <div class="paper">
+        <div class="paper-inner">
+          <div class="paper-title" id="paperTitle">作文稿纸</div>
+          <div class="paper-body paper-empty" id="paperBody"></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
 
 </main>
 

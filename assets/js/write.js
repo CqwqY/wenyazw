@@ -24,6 +24,9 @@
     genBtn: $("genBtn"), stopBtn: $("stopBtn"), clearBtn: $("clearBtn"),
     copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"), testBtn: $("testBtn"),
     keyToggle: $("keyToggle"), resetCfg: $("resetCfg"),
+    toggleConfig: $("toggleConfig"), configPanel: $("configPanel"),
+    promptPreview: $("promptPreview"), promptStat: $("promptStat"),
+    copyPromptBtn: $("copyPromptBtn"),
     status: $("status"), paperTitle: $("paperTitle"),
     paperBody: $("paperBody"), paperStat: $("paperStat")
   };
@@ -86,6 +89,39 @@
   }
 
   fillForm(readConfig());
+
+  /* ---------------- 配置面板与提示文本 ---------------- */
+
+  function setConfigOpen(open) {
+    if (open) els.configPanel.removeAttribute("hidden");
+    else els.configPanel.setAttribute("hidden", "");
+    els.toggleConfig.setAttribute("aria-expanded", String(!!open));
+    els.toggleConfig.textContent = open ? "收起配置" : "接口配置";
+  }
+
+  function updatePromptPreview() {
+    var rulesCount = Array.from(window.WY_PROMPT || "").length;
+    var msg = userMessage();
+    els.promptPreview.textContent =
+      "【系统提示】12 条写作规则已固定 · " + rulesCount + " 字（可在下方展开查看）\n\n" +
+      "【本次输入】\n" + msg;
+    els.promptStat.textContent = Array.from(msg.replace(/\s/g, "")).length + " 字";
+  }
+
+  function fullPrompt() {
+    return window.WY_PROMPT + "\n\n=====\n\n" + userMessage();
+  }
+
+  els.toggleConfig.addEventListener("click", function () {
+    setConfigOpen(els.configPanel.hasAttribute("hidden"));
+  });
+  setConfigOpen(!readConfig().key);
+
+  ["topic", "grade", "length", "extra"].forEach(function (name) {
+    els[name].addEventListener("input", updatePromptPreview);
+    els[name].addEventListener("change", updatePromptPreview);
+  });
+  updatePromptPreview();
 
   ["preset", "base", "path", "key", "model", "temp", "maxTokens", "remember"].forEach(function (name) {
     els[name].addEventListener("change", saveConfig);
@@ -293,7 +329,12 @@
 
   async function generate() {
     var err = validate();
-    if (err) { setStatus(err, "error"); return; }
+    if (err) {
+      setStatus(err, "error");
+      if (/Base URL|API Key|模型名/.test(err)) setConfigOpen(true);
+      return;
+    }
+    updatePromptPreview();
 
     var c = currentConfig();
     saveConfig();
@@ -410,16 +451,24 @@
     return ok;
   }
 
-  async function copyText() {
-    var text = plainOutput();
-    if (!text.trim()) { setStatus("稿纸还是空的。", "error"); return; }
+  async function copyString(text, okMsg) {
     try {
       await navigator.clipboard.writeText(text);
-      setStatus("已复制到剪贴板。", "ok");
+      setStatus(okMsg, "ok");
     } catch (e) {
       var ok = fallbackCopy(text);
-      setStatus(ok ? "已复制到剪贴板。" : "复制失败，请手动选中文字。", ok ? "ok" : "error");
+      setStatus(ok ? okMsg : "复制失败，请手动选中文字。", ok ? "ok" : "error");
     }
+  }
+
+  function copyText() {
+    var text = plainOutput();
+    if (!text.trim()) { setStatus("稿纸还是空的。", "error"); return; }
+    copyString(text, "作文已复制。");
+  }
+
+  function copyPrompt() {
+    copyString(fullPrompt(), "完整提示词已复制。");
   }
 
   function downloadText() {
@@ -443,6 +492,7 @@
   els.genBtn.addEventListener("click", generate);
   els.testBtn.addEventListener("click", testConnection);
   els.copyBtn.addEventListener("click", copyText);
+  els.copyPromptBtn.addEventListener("click", copyPrompt);
   els.downloadBtn.addEventListener("click", downloadText);
 
   els.stopBtn.addEventListener("click", function () {
@@ -459,6 +509,7 @@
   document.querySelectorAll("[data-topic]").forEach(function (btn) {
     btn.addEventListener("click", function () {
       els.topic.value = btn.getAttribute("data-topic");
+      updatePromptPreview();
       els.topic.focus();
       setStatus("已填入示例题目，可直接生成。", "");
     });
