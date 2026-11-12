@@ -74,6 +74,7 @@
     scoreToggle: $("scoreToggle"), scoreBody: $("scoreBody"), scoreChips: $("scoreChips"),
     scoreCaret: $("scoreCaret"), scoreTables: $("scoreTables"),
     criticBtn: $("criticBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
+    criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"),
     inkDock: $("inkDock"), inkDockNo: $("inkDockNo"), inkDockWhy: $("inkDockWhy"),
@@ -116,6 +117,7 @@
   var stage = "outline";         // outline：还在改大纲；draft：正文已生成
   var chatMode = "annotate";     // annotate：手批改稿；explain：只问不改
   var criticItems = [];          // AI 评改的逐句结果
+  var criticScores = [];         // AI 评改给出的分数（每份评分标准一条）
   var criticSeq = 0;             // 评改条目自增 id（用于稿纸标记与卡片互跳）
   var criticDockClosed = false;  // 用户手动收起稿纸下方的评改批注坞
 
@@ -681,6 +683,49 @@
     return frag;
   }
 
+  /* 行首禁则：这些符号不能出现在某行第一个格子里（会跑到上一行末尾挤一格）。
+     做法是把「字 + 紧跟的标点」包成一个不可拆的 .chu 单位，换行时整对一起走。 */
+  var NO_LINE_START = "，。、；：？！）〕〉》」』】·…—～,.;:?!)]}%”’";
+
+  function isNoLineStart(ch) {
+    return !!ch && NO_LINE_START.indexOf(ch) >= 0;
+  }
+
+  function lastChIn(node) {
+    if (node.nodeType === 1) {
+      if (node.classList.contains("ch")) return node;
+      var all = node.querySelectorAll(".ch");
+      return all.length ? all[all.length - 1] : null;
+    }
+    return null;
+  }
+
+  function groupPunctIn(el) {
+    var kids = Array.prototype.slice.call(el.childNodes);
+    var prevCh = null;
+    kids.forEach(function (node) {
+      if (node.nodeType !== 1) { prevCh = null; return; }
+      if (node.classList.contains("ch")) {
+        var txt = node.textContent;
+        if (prevCh && prevCh.parentNode === el && isNoLineStart(txt)) {
+          var unit = document.createElement("span");
+          unit.className = "chu";
+          el.insertBefore(unit, prevCh);
+          unit.appendChild(prevCh);
+          unit.appendChild(node);
+          prevCh = null;       // 一个单位最多两个字，避免整句不可拆
+          return;
+        }
+        prevCh = node;
+        return;
+      }
+      // 容器（黄标、批注、评改标记）：先处理内部，再决定是否承接后面的标点
+      groupPunctIn(node);
+      prevCh = lastChIn(node) || prevCh;
+    });
+    return el;
+  }
+
   // 把一段普通文本按"上一轮改动"区间切成节点（黄底）
   function appendPlainWithHighlights(el, text) {
     var hs = prevIntervals(text);
@@ -774,6 +819,7 @@
       pos = it.end;
     });
     if (pos < paraText.length) appendRichText(el, paraText.slice(pos));
+    groupPunctIn(el);   // 行首禁则：标点不许单独落到下一行开头
     return el;
   }
 
@@ -1885,6 +1931,7 @@
     annotations = []; annotSeq = 0; annotPanelEl = null;
     prevAcceptedTexts = [];
     criticItems = [];
+    criticScores = [];
     els.criticList.innerHTML = "";
     els.criticStat.textContent = "逐句判好坏与 AI 味，不给总分的空头评价。";
     syncAnnotTools();
@@ -2021,6 +2068,7 @@
     prevAcceptedTexts = [];
     currentEssayId = null;
     criticItems = [];
+    criticScores = [];
     outline = { title: "", thesis: "", points: [], note: "" };
     stage = "outline";
     setChatMode("annotate");
@@ -2307,6 +2355,63 @@
 
   /* ---------------- AI 评改：逐句判好坏与 AI 味 ---------------- */
 
+  // 评改分数：以本地评分标准为真值（满分、维度上限、档次区间都从 WY_SCORING 取），
+  // 模型给的分数只作参考，越界一律夹回范围内，避免出现 45/60 却标「一类」这种矛盾。
+  function bandOf(std, total) {
+    var bands = std.bands || [];
+    for (var i = 0; i < bands.length; i++) {
+      var m = String(bands[i][1]).match(/(\d+)\s*[-–—~]\s*(\d+)/);
+      if (m && total >= parseInt(m[1], 10) && total <= parseInt(m[2], 10)) return bands[i][0];
+    }
+    return "";
+  }
+
+  function normalizeScores(raw) {
+    var arr = Array.isArray(raw) ? raw : [];
+    var wanted = provinceList();
+    var all = window.WY_SCORING || {};
+    var out = [];
+    arr.forEach(function (r, i) {
+      if (!r) return;
+      var prov = trim(r.province);
+      if (!all[prov]) {
+        var hit = "";
+        wanted.forEach(function (p) {
+          if (hit) return;
+          if (prov && (prov.indexOf(p) >= 0 || p.indexOf(prov) >= 0)) hit = p;
+        });
+        prov = hit || wanted[i] || wanted[0] || "";
+      }
+      var std = all[prov];
+      if (!std) return;
+      var full = Number(std.total) || 60;
+      var total = Math.round(Number(r.total));
+      if (isNaN(total)) return;
+      total = Math.max(0, Math.min(full, total));
+      var dims = [];
+      (std.dims || []).forEach(function (d) {
+        var name = d[0], cap = parseInt(d[1], 10);
+        if (isNaN(cap)) return;          // 「降档条款」这类不参与赋分
+        var got = null;
+        (Array.isArray(r.dims) ? r.dims : []).forEach(function (x) {
+          if (got === null && trim(x && x.name) === name) got = x;
+        });
+        var v = got ? Math.round(Number(got.score)) : NaN;
+        if (isNaN(v)) v = Math.round(total * cap / full);
+        dims.push({ name: name, score: Math.max(0, Math.min(cap, v)), full: cap });
+      });
+      out.push({
+        province: prov,
+        total: total,
+        full: full,
+        band: bandOf(std, total) || trim(r.band),   // 档次必须真的含这个分数，算得出来就以算的为准
+        dims: dims,
+        why: trim(r.why)
+      });
+    });
+    return out;
+  }
+
   function parseCriticJSON(raw) {
     var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
     var a = s.indexOf("{"), b = s.lastIndexOf("}");
@@ -2317,6 +2422,7 @@
     var items = Array.isArray(obj.items) ? obj.items : [];
     return {
       overall: trim(obj.overall),
+      scores: normalizeScores(obj.scores),
       items: items.slice(0, 14).map(function (it, i) {
         return {
           id: ++criticSeq,
@@ -2382,9 +2488,65 @@
       : it.agreed === "no" ? ("已否决 #" + it.no + "，这条不会交给 AI") : "已取消表态");
   }
 
+  function renderCriticScores() {
+    if (!els.criticScore) return;
+    els.criticScore.innerHTML = "";
+    if (!criticScores.length) { els.criticScore.hidden = true; return; }
+    els.criticScore.hidden = false;
+
+    criticScores.forEach(function (s) {
+      var card = document.createElement("div");
+      card.className = "cs-card";
+
+      var prov = document.createElement("div");
+      prov.className = "cs-prov";
+      prov.textContent = s.province;
+      card.appendChild(prov);
+
+      var total = document.createElement("div");
+      total.className = "cs-total";
+      var strong = document.createElement("strong");
+      strong.textContent = String(s.total);
+      var full = document.createElement("span");
+      full.textContent = "/" + s.full;
+      total.appendChild(strong);
+      total.appendChild(full);
+      card.appendChild(total);
+
+      if (s.band) {
+        var band = document.createElement("div");
+        band.className = "cs-band";
+        band.textContent = s.band;
+        card.appendChild(band);
+      }
+
+      if (s.dims && s.dims.length) {
+        var dims = document.createElement("div");
+        dims.className = "cs-dims";
+        s.dims.forEach(function (d) {
+          var it = document.createElement("span");
+          it.className = "cs-dim";
+          it.textContent = d.name + " " + d.score + "/" + d.full;
+          dims.appendChild(it);
+        });
+        card.appendChild(dims);
+      }
+
+      if (s.why) {
+        var why = document.createElement("div");
+        why.className = "cs-why";
+        why.textContent = s.why;
+        card.appendChild(why);
+      }
+
+      els.criticScore.appendChild(card);
+    });
+  }
+
   function renderCritic() {
     els.criticList.innerHTML = "";
-    if (!criticItems.length) {
+    renderCriticScores();
+    if (!criticItems.length && !criticScores.length) {
       if (els.criticDock) els.criticDock.hidden = true;
       syncCriticApply();
       return;
@@ -2394,7 +2556,11 @@
     var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
     var aiCnt = criticItems.filter(function (x) { return x.ai; }).length;
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; }).length;
-    els.criticStat.textContent = "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt +
+    var scoreTxt = criticScores.map(function (s) {
+      return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
+    }).join(" · ");
+    els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
+      "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt +
       " 句" + (picked ? " · 已认可 " + picked + " 条" : " · 逐条点「认可」再一起交给 AI 改");
     syncCriticApply();
 
@@ -2481,6 +2647,12 @@
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; });
     if (!picked.length) return "";
     var lines = ["下面这些是我认可的评改问题，请照它们出手批：每处只标该改的原文片段，不要重写全篇。"];
+    if (criticScores.length) {
+      lines.push("上一轮评卷给分：" + criticScores.map(function (s) {
+        return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "") +
+          (s.why ? "，扣在：" + s.why : "");
+      }).join("；") + "。先解决扣分最狠的地方，分数才能上来。");
+    }
     picked.forEach(function (it, i) {
       lines.push((i + 1) + ". 原句：" + it.sentence);
       if (it.reason) lines.push("   问题：" + it.reason);
@@ -2496,15 +2668,17 @@
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) { setPaperHint("接口未配置，先回工作台填好。"); return; }
 
-    els.criticStat.textContent = "正在逐句判…";
+    els.criticStat.textContent = "正在打分并逐句判…";
     els.criticList.innerHTML = "";
+    if (els.criticScore) { els.criticScore.innerHTML = ""; els.criticScore.hidden = true; }
     criticItems = [];
+    criticScores = [];
     criticDockClosed = false;
     if (els.criticDock) els.criticDock.hidden = false;
     switchPane("paper");
     if (els.criticDock) els.criticDock.hidden = false;
     var bubble = addAssistantBubble("评改");
-    bubble.textContent = "正在逐句判好坏与 AI 味…";
+    bubble.textContent = "正在按评分标准打分，并逐句判好坏与 AI 味…";
 
     try {
       var sysCritic = window.WY_CRITIC;
@@ -2513,18 +2687,30 @@
       var raw = await fetchAnnotation(sysCritic, composeCriticUser());
       var obj = parseCriticJSON(raw);
       criticItems = obj.items;
+      criticScores = obj.scores || [];
       renderCritic();
       renderAnnotated();   // 评改句子直接标在原文相应位置
       switchPane("paper");
+
+      var scoreTxt = criticScores.map(function (s) {
+        return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
+      }).join("，");
+
+      if (!criticItems.length && !criticScores.length) {
+        els.criticStat.textContent = "这轮没拿到分数也没挑出句子，可再点一次。";
+        bubble.textContent = "这轮没有结果，再点一次「AI 评改」试试。";
+        return;
+      }
       if (!criticItems.length) {
-        els.criticStat.textContent = "这轮没挑出可定位的句子，可再点一次。";
-        bubble.textContent = "这轮没挑出可定位的句子，再点一次「AI 评改」试试。";
+        els.criticStat.textContent = scoreTxt + " ｜ 没挑出可定位的句子";
+        bubble.textContent = (obj.overall ? obj.overall + " " : "") + "得分：" + scoreTxt + "。可再点一次评改取逐句批注。";
         return;
       }
       var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
       bubble.textContent = (obj.overall ? obj.overall + " " : "") +
+        (scoreTxt ? "得分 " + scoreTxt + "；" : "") +
         "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），批注在稿纸下方，点一条可以跳到那句。";
-      setDocHint("评改 " + criticItems.length + " 条在稿纸下方 · 点条目可定位");
+      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评改 " + criticItems.length + " 条在稿纸下方");
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {

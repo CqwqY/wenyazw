@@ -648,6 +648,7 @@
   line-height: var(--cell);
   text-align: center;
   vertical-align: top;
+  text-indent: 0;   /* inline-block 会继承 p 的段首缩进，不清零字就被顶出去两格 */
 }
 
 .paper-body p {
@@ -1626,4 +1627,97 @@ table.score-table .score-table-key {
 @media (max-width: 640px) {
   .gate-bar .wrap { flex-wrap: wrap; }
   .gate-bar .btn-outline { margin-left: 0; width: 100%; }
+}
+
+/* ============ 行首禁则：字 + 标点 绑成一个不可拆单位 ============ */
+
+.paper-body .chu {
+  display: inline-block;
+  white-space: nowrap;
+  vertical-align: top;
+  letter-spacing: 0;
+  text-indent: 0;   /* 同上：单位是 inline-block，也要清掉继承来的缩进 */
+}
+
+.paper-body .chu > .ch {
+  vertical-align: top;
+}
+
+/* ============ AI 评改：分数卡 ============ */
+
+.critic-score {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 2px 12px 12px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.critic-score[hidden] { display: none; }
+
+.cs-card {
+  flex: 1 1 190px;
+  min-width: 168px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf8;
+  padding: 12px 14px 11px;
+}
+
+.cs-prov {
+  font-size: 12px;
+  color: var(--ink-mute);
+  letter-spacing: .02em;
+  margin-bottom: 2px;
+}
+
+.cs-total {
+  font-family: var(--serif);
+  color: #a8322a;
+  line-height: 1.2;
+}
+
+.cs-total strong {
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.cs-total span {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin-left: 2px;
+}
+
+.cs-band {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #fff;
+  background: var(--brand);
+  border-radius: 999px;
+  padding: 1px 9px;
+}
+
+.cs-dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 7px;
+}
+
+.cs-dim {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.cs-why {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ink-mute);
+}
+
+@media (max-width: 720px) {
+  .cs-card { flex: 1 1 100%; }
+  .cs-total strong { font-size: 26px; }
 }

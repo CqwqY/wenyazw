@@ -14,8 +14,8 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261112e">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112e">
+<link rel="stylesheet" href="assets/css/style.css?v=20261112f">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112f">
 </head>
 <body>
 
@@ -303,10 +303,11 @@
             <div class="critic-dock" id="criticDock" hidden>
               <div class="critic-dock-head">
                 <span class="critic-dock-title">AI 评改</span>
-                <span class="critic-stat" id="criticStat">逐句判好坏与 AI 味，不给总分的空头评价。</span>
+                <span class="critic-stat" id="criticStat">按所选评分标准给分，并逐句判好坏与 AI 味。</span>
                 <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>把认可的问题交给 AI 改</button>
                 <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
               </div>
+              <div class="critic-score" id="criticScore" hidden></div>
               <div class="critic-list" id="criticList"></div>
             </div>
           </div>
@@ -362,8 +363,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261112e"></script>
-<script src="assets/js/write.js?v=20261112e"></script>
-<script src="assets/js/auth.js?v=20261112e"></script>
+<script src="assets/js/prompt.js?v=20261112f"></script>
+<script src="assets/js/write.js?v=20261112f"></script>
+<script src="assets/js/auth.js?v=20261112f"></script>
 </body>
 </html>
