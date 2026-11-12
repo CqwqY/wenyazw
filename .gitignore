@@ -40,3 +40,4 @@ __e2e_server.js
 __t_*.html
 __dump.html
 __shot_*.png
+__api_test.js
