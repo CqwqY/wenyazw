@@ -12,12 +12,41 @@
     viewMask: $("viewMask"), viewTitle: $("viewTitle"),
     viewMeta: $("viewMeta"), viewBody: $("viewBody"), viewOutline: $("viewOutline"),
     viewClose: $("viewClose"), viewClose2: $("viewClose2"),
-    viewCopy: $("viewCopy"), viewDownload: $("viewDownload"),
+    viewCopy: $("viewCopy"), viewDownload: $("viewDownload"), viewResume: $("viewResume"),
     authMask: $("authMask")
   };
 
   var current = null;   // 当前打开的作文
   var lastToken = "";
+  var RESUME_KEY = "wy.resume.v1";
+
+  /* 把这篇作文交给写作页：localStorage 直传，index.html?resume=1 取走即删 */
+  function handoff(essay) {
+    try {
+      localStorage.setItem(RESUME_KEY, JSON.stringify({ essay: essay, ts: Date.now() }));
+    } catch (e) {
+      setMsg("浏览器存储不可用，无法带回写作页。可先下载 txt 保留内容。", "error");
+      return false;
+    }
+    location.href = "index.html?resume=1";
+    return true;
+  }
+
+  async function resumeEssay(id) {
+    setMsg("正在打开这篇作文…", "");
+    try {
+      var j = await api("/api/essays/" + id);
+      if (!j.essay) throw new Error("没有取到内容");
+      handoff(j.essay);
+    } catch (e) {
+      setMsg("打开失败：" + ((e && e.message) || "未知错误"), "error");
+    }
+  }
+
+  function resumeCurrent() {
+    if (!current) return;
+    handoff(current);
+  }
 
   function token() { return (window.WY_AUTH && window.WY_AUTH.token()) || ""; }
   function setMsg(t, kind) {
@@ -85,6 +114,10 @@
 
       var acts = document.createElement("div");
       acts.className = "essay-actions";
+      var go = document.createElement("button");
+      go.className = "btn-outline primary";
+      go.textContent = "继续修改";
+      go.addEventListener("click", function () { resumeEssay(r.id); });
       var view = document.createElement("button");
       view.className = "btn-outline";
       view.textContent = "查看";
@@ -97,6 +130,7 @@
       del.className = "btn-outline danger";
       del.textContent = "删除";
       del.addEventListener("click", function () { deleteEssay(r.id, r.title); });
+      acts.appendChild(go);
       acts.appendChild(view);
       acts.appendChild(dl);
       acts.appendChild(del);
@@ -225,6 +259,7 @@
   els.viewClose.addEventListener("click", closeView);
   els.viewClose2.addEventListener("click", closeView);
   els.viewMask.addEventListener("click", function (e) { if (e.target === els.viewMask) closeView(); });
+  els.viewResume.addEventListener("click", resumeCurrent);
   els.viewCopy.addEventListener("click", copyCurrent);
   els.viewDownload.addEventListener("click", function () {
     if (current) downloadText(current.body, current.title);

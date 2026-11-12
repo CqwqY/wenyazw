@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261113b">
+<link rel="stylesheet" href="assets/css/write.css?v=20261113d">
 </head>
 <body>
 
@@ -186,6 +186,7 @@
         <span class="paper-stat" id="paperStat"></span>
         <button class="btn-outline" id="acceptAllBtn" hidden>全部采纳</button>
         <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
+        <button class="btn-outline" id="criticBtn">AI 评改</button>
         <button class="btn-outline" id="copyBtn">复制</button>
         <button class="btn-outline" id="downloadBtn">下载 txt</button>
       </div>
@@ -199,11 +200,6 @@
         <span class="score-caret" id="scoreCaret">展开表格</span>
       </button>
       <div class="score-body" id="scoreBody" hidden>
-        <div class="score-actions">
-          <button class="btn-outline" id="criticBtn">AI 评改</button>
-          <span class="critic-stat" id="criticStat">逐句判好坏与 AI 味，不给总分的空头评价。</span>
-        </div>
-        <div class="critic-list" id="criticList"></div>
         <div class="score-tables" id="scoreTables"></div>
       </div>
     </section>
@@ -269,6 +265,25 @@
                 <div class="paper-body paper-empty" id="paperBody"></div>
               </div>
             </div>
+
+            <!-- 稿纸下方：当前批注操作条（点朱红符号时出现，不遮正文） -->
+            <div class="ink-dock" id="inkDock" hidden>
+              <span class="ink-dock-no" id="inkDockNo">1</span>
+              <span class="ink-dock-why" id="inkDockWhy"></span>
+              <button class="ink-dock-accept" id="inkDockAccept" type="button">采纳</button>
+              <button class="ink-dock-btn" id="inkDockIgnore" type="button">忽略</button>
+              <button class="ink-dock-close" id="inkDockClose" type="button" aria-label="关闭">×</button>
+            </div>
+
+            <!-- 稿纸下方的 AI 评改批注坞 -->
+            <div class="critic-dock" id="criticDock" hidden>
+              <div class="critic-dock-head">
+                <span class="critic-dock-title">AI 评改</span>
+                <span class="critic-stat" id="criticStat">逐句判好坏与 AI 味，不给总分的空头评价。</span>
+                <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
+              </div>
+              <div class="critic-list" id="criticList"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -322,8 +337,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261113b"></script>
-<script src="assets/js/write.js?v=20261113b"></script>
-<script src="assets/js/auth.js?v=20261113b"></script>
+<script src="assets/js/prompt.js?v=20261113d"></script>
+<script src="assets/js/write.js?v=20261113d"></script>
+<script src="assets/js/auth.js?v=20261113d"></script>
 </body>
 </html>

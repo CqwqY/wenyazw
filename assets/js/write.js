@@ -72,6 +72,10 @@
     scoreToggle: $("scoreToggle"), scoreBody: $("scoreBody"), scoreChips: $("scoreChips"),
     scoreCaret: $("scoreCaret"), scoreTables: $("scoreTables"),
     criticBtn: $("criticBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
+    criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
+    inkDock: $("inkDock"), inkDockNo: $("inkDockNo"), inkDockWhy: $("inkDockWhy"),
+    inkDockAccept: $("inkDockAccept"), inkDockIgnore: $("inkDockIgnore"),
+    inkDockClose: $("inkDockClose"),
 
     docTabs: $("docTabs"), docTabHint: $("docTabHint"),
     outlinePane: $("outlinePane"), paperPane: $("paperPane"),
@@ -108,6 +112,7 @@
   var stage = "outline";         // outline：还在改大纲；draft：正文已生成
   var chatMode = "annotate";     // annotate：手批改稿；explain：只问不改
   var criticItems = [];          // AI 评改的逐句结果
+  var criticDockClosed = false;  // 用户手动收起稿纸下方的评改批注坞
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -639,25 +644,15 @@
         sug.textContent = (it.mark.type === "insert" ? "∧" : "→") + it.mark.text;
         el.appendChild(sug);
       }
-      // 采纳 / 忽略按钮直接放在被改文字旁边
-      var tools = document.createElement("span");
-      tools.className = "ink-tools";
-      var why = document.createElement("span");
-      why.className = "ink-reason";
-      why.textContent = it.mark.reason || SYMBOL_LABEL[it.mark.type] || "批注";
-      tools.appendChild(why);
-      var ok = document.createElement("button");
-      ok.type = "button";
-      ok.className = "ink-accept";
-      ok.textContent = "采纳";
-      ok.addEventListener("click", function () { applyMarkAction(it.mark.id, "accept"); });
-      var no2 = document.createElement("button");
-      no2.type = "button";
-      no2.textContent = "忽略";
-      no2.addEventListener("click", function () { applyMarkAction(it.mark.id, "ignore"); });
-      tools.appendChild(ok);
-      tools.appendChild(no2);
-      el.appendChild(tools);
+      // 点符号 -> 稿纸下方固定批注条（不占行内空间、不遮正文）
+      span.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var was = span.classList.contains("active");
+        clearActiveMarks();
+        if (was) { hideInkDock(); return; }
+        span.classList.add("active");
+        showInkDock(it.mark.id);
+      });
       pos = it.end;
     });
     if (pos < paraText.length) appendPlainWithHighlights(el, paraText.slice(pos));
@@ -665,6 +660,62 @@
   }
 
   // 用 docTitle/docBody 重渲染稿纸（带修改符号），不依赖 fullText
+  function findMark(id) {
+    for (var i = 0; i < annotations.length; i++) {
+      if (annotations[i].id === id) return annotations[i];
+    }
+    return null;
+  }
+
+  function showInkDock(markId) {
+    var m = findMark(markId);
+    if (!m || !els.inkDock) return;
+    els.inkDock.setAttribute("data-mark-id", String(markId));
+    els.inkDockNo.textContent = String(m.no);
+    els.inkDockWhy.textContent = (SYMBOL_LABEL[m.type] || "批注") + "：" +
+      (m.reason || "（这条没写原因）");
+    els.inkDock.hidden = false;
+  }
+
+  function hideInkDock() {
+    if (!els.inkDock) return;
+    els.inkDock.hidden = true;
+    els.inkDock.removeAttribute("data-mark-id");
+  }
+
+  function clearActiveMarks() {
+    var list = els.paperBody.querySelectorAll(".ink-mark.active");
+    for (var i = 0; i < list.length; i++) list[i].classList.remove("active");
+  }
+
+  /* 段落高度必须落在整格上，否则每段累积零点几像素，越往下字越歪 */
+  function alignPaperGrid() {
+    var body = els.paperBody;
+    if (!body || body.classList.contains("paper-empty")) return;
+    var cell = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--cell")) || 36;
+    var cs = getComputedStyle(body);
+    var padL = parseFloat(cs.paddingLeft) || 0;
+    var borderBox = cs.boxSizing === "border-box";
+    // 正文宽度取整格，行尾不留半格，格子线与字才对得齐
+    body.style.width = "";
+    var avail = body.clientWidth;
+    var cols = Math.floor((borderBox ? avail - padL : avail) / cell);
+    if (cols >= 4) {
+      var want = cols * cell + (borderBox ? padL : 0);
+      if (Math.abs(avail - want) > 0.5) body.style.width = want + "px";
+    }
+    var ps = body.querySelectorAll("p");
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      p.style.height = "";
+      var h = p.getBoundingClientRect().height;
+      var rows = Math.max(1, Math.round(h / cell));
+      var want = rows * cell;
+      if (Math.abs(h - want) > 0.4) p.style.height = want + "px";
+      p.style.marginBottom = cell + "px";
+    }
+  }
+
   function renderAnnotated() {
     els.paperTitle.textContent = docTitle || "作文";
     els.paperBody.textContent = "";
@@ -678,6 +729,8 @@
     els.paperStat.textContent = count
       ? ("字数 " + count + " 字" + (left ? " · " + left + " 处批注待处理" : ""))
       : "";
+    alignPaperGrid();
+    hideInkDock();
   }
 
   function replaceOnce(src, a, b) {
@@ -1443,6 +1496,9 @@
     var paper = name === "paper";
     els.outlinePane.hidden = paper;
     els.paperPane.hidden = !paper;
+    if (els.criticDock) {
+      els.criticDock.hidden = !paper || !criticItems.length || criticDockClosed;
+    }
     els.docTabs.querySelectorAll(".doc-tab").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-pane") === name);
     });
@@ -1461,6 +1517,147 @@
 
   function setDocHint(msg) {
     if (msg) els.docTabHint.textContent = msg;
+  }
+
+  /* ---------------- 从控制台回到写作台：恢复一篇云端作文 ---------------- */
+
+  var RESUME_KEY = "wy.resume.v1";
+  var API_BASE = "https://back.wenyazw.top";
+
+  // 存下来的 body 是「标题 + 空行 + 正文」，这里拆回去
+  function splitStoredEssay(text) {
+    var src = String(text || "").replace(/\r/g, "").replace(/^\n+/, "");
+    if (!src.trim()) return { title: "", body: "" };
+    var i = src.indexOf("\n");
+    var first = (i >= 0 ? src.slice(0, i) : src).trim();
+    var rest = i >= 0 ? src.slice(i + 1).replace(/^\n+/, "") : "";
+    var isTitle = first && first.length <= 40 && !/[。！？；.!?]$/.test(first);
+    if (!isTitle) return { title: "", body: src };
+    return {
+      title: first.replace(/^#+\s*/, "").replace(/[《》]/g, "").trim(),
+      body: rest
+    };
+  }
+
+  function resumeProvinceList(str) {
+    var all = String(str || "").split(/[、,，]/).map(trim).filter(Boolean);
+    var ok = all.filter(function (p) { return window.WY_SCORING && window.WY_SCORING[p]; });
+    return ok.length ? ok : selectedProvinces.slice();
+  }
+
+  async function fetchEssayDetail(id) {
+    var t = authToken();
+    if (!t || !id) return null;
+    try {
+      var res = await fetch(API_BASE + "/api/essays/" + encodeURIComponent(id), {
+        headers: { "Authorization": "Bearer " + t }
+      });
+      var j = await res.json();
+      if (res.ok && j && j.ok && j.essay) return j.essay;
+    } catch (e) { /* 离线则交给上层提示 */ }
+    return null;
+  }
+
+  function applyResumedEssay(data) {
+    if (!data) return false;
+
+    currentEssayId = data.id || null;
+    activeCat = data.category || "";
+    activeTopic = data.title || "";
+    activeProvinces = resumeProvinceList(data.province);
+
+    var parts = splitStoredEssay(data.body || "");
+    docTitle = (data.title || parts.title || "作文").trim();
+    docBody = parts.body || "";
+    currentComposition = docBody.trim() ? (docTitle + "\n\n" + docBody) : "";
+
+    var ol = null;
+    try { ol = data.outline ? JSON.parse(data.outline) : null; } catch (e) { ol = null; }
+    var pts = (ol && Array.isArray(ol.points)) ? ol.points : [];
+    outline = {
+      title: (ol && ol.title) || docTitle || "",
+      thesis: (ol && ol.thesis) || "",
+      note: (ol && ol.note) || "",
+      points: pts.map(function (p) { return newPoint(p && p.label, p && p.text); })
+    };
+
+    stage = docBody.trim() ? "draft" : "outline";
+
+    annotations = []; annotSeq = 0; annotPanelEl = null;
+    prevAcceptedTexts = []; roundAcceptedTexts = [];
+    criticItems = [];
+    els.criticList.innerHTML = "";
+    els.criticStat.textContent = "逐句判好坏与 AI 味，不给总分的空头评价。";
+    syncAnnotTools();
+    setChatMode("annotate");
+
+    els.wizard.setAttribute("hidden", "");
+    els.studio.removeAttribute("hidden");
+    document.body.classList.add("studio-mode");
+
+    els.studioMeta.textContent = [
+      activeCat ? "类别：" + activeCat : "",
+      "题目：" + (docTitle || "作文"),
+      activeProvinces.join("、"),
+      "已存档"
+    ].filter(Boolean).join(" ｜ ");
+
+    renderScoreTables();
+    setScoreOpen(false);
+    renderOutline();
+    updateWriteBtn();
+
+    if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
+    els.contextList.innerHTML = "";
+
+    addUserBubble("从控制台打开《" + (docTitle || "作文") + "》继续改", "你");
+    if (stage === "draft") {
+      switchPane("paper");
+      renderAnnotated();
+      setDocHint("已载入云端稿 · 直接提问就是手批改稿");
+      addAssistantBubble("文芽").textContent =
+        "已载入《" + docTitle + "》。接着改就行：直接提要求会出朱红批注，选「只问不改」则只讲不动字。";
+    } else {
+      switchPane("outline");
+      showEmpty();
+      setDocHint("这篇只存了大纲 · 改完点「确认大纲，开始写正文」");
+      addAssistantBubble("文芽").textContent =
+        "这篇当时只存了大纲，还没写正文。大纲可以继续改，确认后点右下开始写。";
+    }
+    setPaperHint("");
+    return true;
+  }
+
+  async function tryResumeEssay() {
+    var q, want = "";
+    try {
+      q = new URLSearchParams(location.search || "");
+      want = q.get("essay") || (q.get("resume") ? "1" : "");
+    } catch (e) { return; }
+    if (!want) return;
+
+    var data = null;
+    try {
+      var raw = localStorage.getItem(RESUME_KEY);
+      if (raw) {
+        var box = JSON.parse(raw);
+        var e0 = box && box.essay;
+        if (e0 && (want === "1" || String(e0.id) === String(want))) data = e0;
+      }
+    } catch (e) { data = null; }
+    try { localStorage.removeItem(RESUME_KEY); } catch (e) { /* ignore */ }
+
+    if (!data) data = await fetchEssayDetail(want === "1" ? "" : want);
+
+    try {
+      if (history.replaceState) history.replaceState(null, "", location.pathname);
+    } catch (e) { /* ignore */ }
+
+    if (!data) {
+      setWizardStatus("没能取回这篇作文：登录状态可能过期了，重新登录后再从控制台打开。", "error");
+      return;
+    }
+    applyResumedEssay(data);
   }
 
   /* ---------------- 入口 1：开始生成（先写大纲） ---------------- */
@@ -1588,6 +1785,7 @@
     if (ok && docBody.trim()) {
       stage = "draft";
       updateWriteBtn();
+      setChatMode(chatMode);
       switchPane("paper");
       setDocHint("正文已生成 · 左上可切回大纲");
       saveEssayToCloud();
@@ -1783,15 +1981,41 @@
     };
   }
 
+  // 点评改条目，滚到稿纸里那句并短暂高亮
+  function focusSentence(sentence) {
+    var needle = trim(sentence).slice(0, 24);
+    if (!needle) return;
+    var paras = els.paperBody.querySelectorAll("p");
+    for (var i = 0; i < paras.length; i++) {
+      if ((paras[i].textContent || "").indexOf(needle) >= 0) {
+        var el = paras[i];
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        el.classList.add("para-focus");
+        setTimeout(function () { el.classList.remove("para-focus"); }, 1800);
+        return;
+      }
+    }
+    setDocHint("这句在稿纸里没找到，可能已经被改掉了");
+  }
+
   function renderCritic() {
     els.criticList.innerHTML = "";
-    if (!criticItems.length) return;
+    if (!criticItems.length) {
+      if (els.criticDock) els.criticDock.hidden = true;
+      return;
+    }
+    criticDockClosed = false;
+    if (els.criticDock) els.criticDock.hidden = els.paperPane.hidden;
     var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
     var aiCnt = criticItems.filter(function (x) { return x.ai; }).length;
     els.criticStat.textContent = "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt + " 句";
     criticItems.forEach(function (it) {
       var card = document.createElement("div");
       card.className = "critic-card verdict-" + (it.verdict === "好" ? "good" : "bad");
+      card.title = "点一下定位到稿纸里这句话";
+      (function (sentence) {
+        card.addEventListener("click", function () { focusSentence(sentence); });
+      })(it.sentence);
 
       var top = document.createElement("div");
       top.className = "critic-top";
@@ -1843,9 +2067,13 @@
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) { setPaperHint("接口未配置，先回工作台填好。"); return; }
 
-    setScoreOpen(true);
     els.criticStat.textContent = "正在逐句判…";
     els.criticList.innerHTML = "";
+    criticItems = [];
+    criticDockClosed = false;
+    if (els.criticDock) els.criticDock.hidden = false;
+    switchPane("paper");
+    if (els.criticDock) els.criticDock.hidden = false;
     var bubble = addAssistantBubble("评改");
     bubble.textContent = "正在逐句判好坏与 AI 味…";
 
@@ -1854,10 +2082,16 @@
       var obj = parseCriticJSON(raw);
       criticItems = obj.items;
       renderCritic();
-      if (!criticItems.length) els.criticStat.textContent = "这轮没挑出可定位的句子，可再点一次。";
-      bubble.textContent = obj.overall
-        ? ("评改完成。" + obj.overall + " 逐句结果在上方评分区。")
-        : "评改完成，逐句结果在上方评分区。";
+      switchPane("paper");
+      if (!criticItems.length) {
+        els.criticStat.textContent = "这轮没挑出可定位的句子，可再点一次。";
+        bubble.textContent = "这轮没挑出可定位的句子，再点一次「AI 评改」试试。";
+        return;
+      }
+      var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
+      bubble.textContent = (obj.overall ? obj.overall + " " : "") +
+        "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），批注在稿纸下方，点一条可以跳到那句。";
+      setDocHint("评改 " + criticItems.length + " 条在稿纸下方 · 点条目可定位");
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
@@ -2018,6 +2252,27 @@
     setChatMode(btn.getAttribute("data-mode"));
   });
 
+  on(els.criticDockClose, "click", function () {
+    criticDockClosed = true;
+    if (els.criticDock) els.criticDock.hidden = true;
+  });
+
+  on(els.paperBody, "click", function () { clearActiveMarks(); hideInkDock(); });
+
+  on(els.inkDockAccept, "click", function () {
+    var id = parseInt(els.inkDock.getAttribute("data-mark-id"), 10);
+    hideInkDock();
+    if (!isNaN(id)) applyMarkAction(id, "accept");
+  });
+
+  on(els.inkDockIgnore, "click", function () {
+    var id = parseInt(els.inkDock.getAttribute("data-mark-id"), 10);
+    hideInkDock();
+    if (!isNaN(id)) applyMarkAction(id, "ignore");
+  });
+
+  on(els.inkDockClose, "click", function () { clearActiveMarks(); hideInkDock(); });
+
   on(els.stopBtn2, "click", function () {
     if (controller) controller.abort();
   });
@@ -2035,10 +2290,27 @@
 
 
 
+
+
   /* ---------------- 初始化 ---------------- */
 
   updateSteps();
   showEmpty();
   setBusy(false);
   setChatMode("annotate");
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { alignPaperGrid(); });
+  }
+  window.addEventListener("resize", function () { alignPaperGrid(); });
+
+  /* 从控制台跳回来时恢复那篇作文。auth.js 在本脚本之后加载，
+     所以延后到 DOM 就绪再读登录态。 */
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(function () { tryResumeEssay(); }, 60);
+    });
+  } else {
+    setTimeout(function () { tryResumeEssay(); }, 60);
+  }
 })();

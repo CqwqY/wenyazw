@@ -681,24 +681,32 @@ body.studio-mode .site-footer { display: none; }
 
 /* ============ 老师手批：朱红修改符号 ============ */
 
+/* 符号本身不能加 padding / 上标不能撑行盒，否则该行后面的字全部错格 */
 .paper-body .ink-mark {
   position: relative;
   color: #a8322a;
   cursor: pointer;
   border-radius: 2px;
-  padding: 0 1px;
+  padding: 0;
 }
 .paper-body .ink-mark .ink-no {
+  position: absolute;
+  top: -.55em;
+  right: -.7em;
   font-family: var(--sans, sans-serif);
-  font-size: 13px;
+  font-size: 10px;
   line-height: 1;
-  vertical-align: super;
+  letter-spacing: 0;
   color: #fff;
   background: #a8322a;
-  border-radius: 50%;
-  padding: 2px 5px;
-  margin-left: 3px;
-  letter-spacing: 0;
+  border-radius: 999px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .paper-body .ink-delete { text-decoration: line-through; text-decoration-color: #a8322a; text-decoration-thickness: 2px; }
 .paper-body .ink-replace { text-decoration: line-through; text-decoration-color: #a8322a; text-decoration-thickness: 2px; background: rgba(168, 50, 42, .07); }
@@ -726,48 +734,94 @@ body.studio-mode .site-footer { display: none; }
   color: #5a4310;
 }
 
-/* 采纳/忽略按钮直接贴在被改文字旁边（稿纸内，不在对话区） */
-.paper-body .ink-tools {
-  display: inline-flex;
+/* 批注符号高亮 + 稿纸下方的固定批注条（点符号出现，绝不覆盖正文） */
+.paper-body .ink-mark.active {
+  background: rgba(168, 50, 42, .14);
+  box-shadow: 0 0 0 2px rgba(168, 50, 42, .2);
+}
+
+.ink-dock {
+  flex: none;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  vertical-align: middle;
-  margin: 0 4px;
-  padding: 2px 5px;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 9px 12px;
   background: #fffaf3;
   border: 1px solid #d9b6ac;
-  border-radius: 6px;
-  font-family: var(--sans, sans-serif);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.ink-dock[hidden] { display: none; }
+
+.ink-dock-no {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #a8322a;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ink-dock-why {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0;
-  white-space: nowrap;
-  box-shadow: 0 1px 4px rgba(120, 80, 40, .12);
-}
-.paper-body .ink-tools .ink-reason {
+  line-height: 1.65;
   color: #8c332b;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
 }
-.paper-body .ink-tools button {
+
+.ink-dock-accept,
+.ink-dock-btn,
+.ink-dock-close {
+  flex: none;
+  font-family: var(--sans);
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.ink-dock-accept {
+  border: 1px solid #2f6f4e;
+  background: #2f6f4e;
+  color: #fff;
+  font-size: 13px;
+  padding: 4px 12px;
+}
+
+.ink-dock-accept:hover { opacity: .88; }
+
+.ink-dock-btn {
   border: 1px solid #d9b6ac;
   background: #fff;
   color: #7a4a3a;
-  border-radius: 4px;
-  font-family: var(--sans, sans-serif);
   font-size: 13px;
-  line-height: 1.4;
-  padding: 3px 9px;
-  cursor: pointer;
+  padding: 4px 12px;
 }
-.paper-body .ink-tools button:hover { border-color: #a8322a; }
-.paper-body .ink-tools button.ink-accept {
-  background: #2f6f4e;
-  border-color: #2f6f4e;
-  color: #fff;
+
+.ink-dock-btn:hover { border-color: #a8322a; }
+
+.ink-dock-close {
+  border: 0;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 6px;
 }
-.paper-body .ink-tools button.ink-accept:hover { opacity: .88; }
+
+.ink-dock-close:hover { color: var(--ink); }
+
+/* 稿纸自身保底高度，底部两条坞同时出现时也不至于压没 */
+.studio-right .paper { min-height: 240px; }
 
 /* ============ 批注面板（左侧对话区内，可随对话一起滚） ============ */
 
@@ -1317,4 +1371,74 @@ table.score-table .score-table-key {
   .doc-wrap { height: auto; }
   .outline-pane { min-height: 60vh; }
   .outline-points { overflow: visible; }
+}
+
+/* ============ 稿纸下方的 AI 评改批注坞 ============ */
+
+.critic-dock {
+  flex: none;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  max-height: 34vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.critic-dock[hidden] { display: none; }
+
+.critic-dock-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.critic-dock-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #8c332b;
+  flex: none;
+}
+
+.critic-dock-btn {
+  margin-left: auto;
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-mute);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--sans);
+}
+
+.critic-dock-btn:hover { color: var(--ink); background: var(--paper-2); }
+
+.critic-dock .critic-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin-top: 0;
+  padding: 10px 12px 12px;
+}
+
+.critic-dock .critic-card { cursor: pointer; }
+.critic-dock .critic-card:hover { border-color: #c8a89f; }
+
+/* 从评改条目跳过去时，稿纸上那句短暂高亮 */
+.paper-body p.para-focus {
+  background: #fff3c4;
+  box-shadow: 0 0 0 4px #fff3c4;
+  border-radius: 3px;
+}
+
+@media (max-width: 960px) {
+  .critic-dock { max-height: 40vh; }
 }
