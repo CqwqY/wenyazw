@@ -27,7 +27,9 @@
     wizard: $("wizard"), studio: $("studio"),
     wizardSteps: $("wizardSteps"),
     catGrid: $("catGrid"), catTip: $("catTip"),
-    topic: $("topic"), extra: $("extra"),
+    topic: $("topic"), topicStepTitle: $("topicStepTitle"),
+    topicHint: $("topicHint"), topicExamples: $("topicExamples"),
+    extra: $("extra"),
     wordNum: $("wordNum"), wordRange: $("wordRange"),
     wordMinus: $("wordMinus"), wordPlus: $("wordPlus"),
     scoringGrid: $("scoringGrid"), scoringTip: $("scoringTip"),
@@ -51,6 +53,9 @@
   var lastTitle = "作文";
   var assistantReplyEl = null;
   var currentComposition = "";   // 当前作文纯文本（标题+正文），用于修改大师上下文
+  var activeCat = "";            // 本次成稿的类别快照（返回工作台改选项不影响已生成的稿）
+  var activeTopic = "";          // 本次成稿的题目原题快照
+  var activeProvince = "";       // 本次成稿所选省份快照
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -179,6 +184,49 @@
     if (els.topic.value.trim()) steps[1].classList.add("done");
   }
 
+  // 把该类别的输入引导（标题/placeholder/提示/示例）应用到向导
+  function applyCatUI(cat) {
+    var cfg = (window.WY_CATEGORY && window.WY_CATEGORY[cat]) || null;
+    if (!cfg) return;
+    els.topicStepTitle.textContent = cfg.stepTitle;
+    var step2 = els.wizardSteps.querySelector('li[data-step="2"]');
+    if (step2) {
+      step2.innerHTML = "";
+      var dot = document.createElement("span");
+      dot.className = "dot";
+      dot.textContent = "2";
+      step2.appendChild(dot);
+      step2.appendChild(document.createTextNode(cfg.stepShort || cfg.stepTitle));
+    }
+    els.topic.placeholder = cfg.placeholder;
+    els.topicHint.textContent = cfg.hint;
+    els.topicExamples.innerHTML = "";
+    (cfg.examples || []).forEach(function (ex) {
+      var btn = document.createElement("button");
+      btn.className = "ex-chip";
+      btn.setAttribute("type", "button");
+      btn.setAttribute("data-topic", ex.value);
+      btn.textContent = ex.label;
+      els.topicExamples.appendChild(btn);
+    });
+  }
+
+  // 半命题必须留出空缺；命题/自拟不允许出现未补的空位占位符
+  function validateTopic(cat, topic) {
+    // 半命题：宽松识别各种留空写法（下划线、空括号、省略号、XX 占位）
+    var anyBlank = /_{2,}|＿{2,}|（\s*）|\(\s*\)|［\s*］|\[\s*\]|…{2,}|\.{3,}|[X×]{2,}/.test(topic);
+    // 命题/自拟：只认明确的空括号/下划线占位，省略号不在此列，避免误伤题材描述里的标点
+    var strictBlank = /_{2,}|＿{2,}|（\s*）|\(\s*\)|［\s*］|\[\s*\]/.test(topic);
+    if (cat === "半命题" && !anyBlank) {
+      return "半命题题目需要留出空缺（推荐用 ____），AI 才知道补哪里、补完才能定标题。可点上方的示例。";
+    }
+    if (cat !== "半命题" && strictBlank) {
+      return (cat === "命题" ? "命题作文的题目应完整、确定，不能留空。" : "自拟题请直接写题材，不要留空位。") +
+        "若题目本来就有空缺，请把类别改成「半命题」。";
+    }
+    return "";
+  }
+
   els.catGrid.addEventListener("click", function (e) {
     var card = e.target.closest(".cat-card");
     if (!card) return;
@@ -186,7 +234,11 @@
     els.catGrid.querySelectorAll(".cat-card").forEach(function (c) {
       c.classList.toggle("selected", c === card);
     });
-    els.catTip.textContent = "已选：" + selectedCat + "。下一步写下题目。";
+    var cfg = window.WY_CATEGORY[selectedCat];
+    els.catTip.textContent = "已选 " + selectedCat + "。" + (cfg ? cfg.tip : "");
+    applyCatUI(selectedCat);
+    var warn = validateTopic(selectedCat, els.topic.value.trim());
+    if (warn) setWizardStatus(warn, "error");
     updateSteps();
   });
 
@@ -237,13 +289,13 @@
 
   /* ---------------- 向导：示例题目 ---------------- */
 
-  document.querySelectorAll("[data-topic]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      els.topic.value = btn.getAttribute("data-topic");
-      els.topic.focus();
-      updateSteps();
-      setWizardStatus("已填入示例题目，可直接开始生成。", "");
-    });
+  els.topicExamples.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-topic]");
+    if (!btn) return;
+    els.topic.value = btn.getAttribute("data-topic");
+    els.topic.focus();
+    updateSteps();
+    setWizardStatus("已填入示例" + (selectedCat === "自拟" ? "题材" : "题目") + "，可直接开始生成。", "");
   });
 
   els.topic.addEventListener("input", updateSteps);
@@ -258,7 +310,9 @@
     return { reply: reply, comp: comp };
   }
 
-  function splitText(text) {
+  // forceTitle=true 用于「===作文===」之后的作文块：按输出格式第一行必定是标题，直接剥掉首行，
+  // 避免长标题（如命题作文的完整题目）被启发式误判成正文第一行。
+  function splitText(text, forceTitle) {
     var src = text.replace(/\r/g, "");
     var lines = src.split("\n");
     var first = -1;
@@ -267,17 +321,47 @@
     }
     if (first === -1) return { title: "", body: "" };
     var raw = lines[first].trim().replace(/^#+\s*/, "").replace(/[《》]/g, "").trim();
-    var looksTitle = raw.length > 0 && raw.length <= 20 && !/[。！？，、；：]/.test(raw);
+    if (forceTitle) {
+      // 除非首行明显是个完整长句（>40 字且以句末标点收尾），一律当标题
+      var looksProse = raw.length > 40 && /[。！？；.!?]$/.test(raw);
+      if (!looksProse) {
+        return { title: raw, body: lines.slice(first + 1).join("\n").replace(/^\n+/, "") };
+      }
+      return { title: "", body: src.replace(/^\n+/, "") };
+    }
+    // 降级（模型没按格式输出）：启发式判定，标题行短、不以句末标点收尾、且下一行是空行。
+    // 允许逗号/顿号，否则「那一刻，我长大了」这类命题题目会被误判成正文。
+    var nextBlank = (first + 1 >= lines.length) || !lines[first + 1].trim();
+    var looksTitle = raw.length > 0 && raw.length <= 24 &&
+      !/[。！？；.!?]$/.test(raw) && (nextBlank || raw.length <= 12);
     if (looksTitle) {
       return { title: raw, body: lines.slice(first + 1).join("\n").replace(/^\n+/, "") };
     }
     return { title: "", body: src.replace(/^\n+/, "") };
   }
 
+  /* 命题作文：标题一律原样使用用户给的题目，不采信模型可能改动过的标题。
+     半命题用补全后的题目、自拟用自拟题，都取模型输出的第一行。 */
+  function titledParts(text, forceTitle) {
+    var parts = splitText(text, forceTitle);
+    var cat = activeCat || selectedCat;
+    var topic = activeTopic || els.topic.value.trim();
+    if (cat === "命题" && topic) {
+      var given = topic.replace(/^#+\s*/, "").replace(/[《》]/g, "").trim();
+      parts.title = given;
+      // 模型偶尔会把题目又抄进正文首行，去掉避免重复
+      var bl = parts.body.split("\n");
+      if (bl.length && bl[0].trim().replace(/[《》]/g, "").trim() === given) {
+        parts.body = bl.slice(1).join("\n").replace(/^\n+/, "");
+      }
+    }
+    return parts;
+  }
+
   /* ---------------- 稿纸渲染（初版：流动文字铺方格底纹） ---------------- */
 
-  function render(text, streaming) {
-    var parts = splitText(text);
+  function render(text, streaming, forceTitle) {
+    var parts = titledParts(text, forceTitle);
     lastTitle = parts.title || "作文";
     els.paperTitle.textContent = lastTitle;
     els.paperBody.textContent = "";
@@ -339,17 +423,18 @@
         return;
       }
       if (assistantReplyEl) assistantReplyEl.textContent = "（模型未按两段格式输出，已作为作文呈现）";
-      render(fullText, false);
+      render(fullText, false, false);
       return;
     }
     var parts = splitTwo(fullText);
     if (assistantReplyEl) assistantReplyEl.textContent = parts.reply || "（已生成回应）";
-    render(parts.comp, streaming);
+    render(parts.comp, streaming, true);
   }
 
   function cacheComposition() {
+    var hasMarker = /^\s*===作文===\s*$/m.test(fullText);
     var parts = splitTwo(fullText);
-    var t = splitText(parts.comp);
+    var t = titledParts(parts.comp, hasMarker);
     currentComposition = (t.title ? t.title + "\n\n" : "") + t.body;
   }
 
@@ -425,20 +510,38 @@
     if (leftover.trim()) readDataLine(leftover, onDelta);
   }
 
+  // 本次作文的类别规则（完整文本），同时拼进 system 和 user，避免模型忽略
+  function categoryRule() {
+    var cat = activeCat || selectedCat;
+    var cfg = window.WY_CATEGORY && window.WY_CATEGORY[cat];
+    return cfg ? cfg.rule : "";
+  }
+
+  function activeCatName() { return activeCat || selectedCat; }
+
   function composeWriteUser() {
     var lines = [];
-    lines.push("作文类别：" + selectedCat);
-    lines.push("题目：" + els.topic.value.trim());
-    if (els.extra.value.trim()) lines.push("额外要求：" + els.extra.value.trim());
-    lines.push("目标字数（含标点）：约 " + wordCount + " 字");
-    var sd = (window.WY_SCORING && window.WY_SCORING[selectedProvince]) || "";
-    lines.push("评分标准（" + selectedProvince + "）完整要求：" + sd);
-    lines.push("\n这是首次生成，请直接输出「===作文===」和作文正文，不用写「回应」部分。严格按系统提示（写作铁律 + 上述评分标准）的全部条款执行。");
+    lines.push("【本次作文类别】" + activeCatName());
+    var rule = categoryRule();
+    if (rule) lines.push(rule);
+    lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + els.topic.value.trim());
+    if (els.extra.value.trim()) lines.push("【额外要求】" + els.extra.value.trim());
+    lines.push("【目标字数（含标点）】约 " + wordCount + " 字，正文尽量逼近，宁可少写不可硬凑。");
+    var prov = activeProvince || selectedProvince;
+    var sd = (window.WY_SCORING && window.WY_SCORING[prov]) || "";
+    lines.push("【评分标准（" + prov + "）】" + sd);
+    lines.push("\n这是首次生成，请直接输出「===作文===」和作文正文，不用写「回应」部分。严格按系统提示的写作铁律、本类别的标题与扣题规则、以及上述评分标准执行。");
     return lines.join("\n");
   }
 
   function composeReviseUser(req) {
-    return "【当前作文】\n" + currentComposition + "\n\n【修改要求】\n" + req;
+    var lines = [];
+    lines.push("【本次作文类别】" + activeCatName());
+    var rule = categoryRule();
+    if (rule) lines.push(rule + "\n- 改稿同样受本类别的标题规则约束：命题不得改题；半命题不得更换已补好的词；自拟不得换成口号式标题。用户未明确要求改标题时，标题必须原样保留。");
+    lines.push("【当前作文】\n" + currentComposition);
+    lines.push("【修改要求】\n" + req);
+    return lines.join("\n\n");
   }
 
   async function runStream(systemPrompt, userContent) {
@@ -516,7 +619,17 @@
 
   async function startWriting() {
     if (!selectedCat) { setWizardStatus("请先选择作文类别（命题/半命题/自拟）。", "error"); return; }
-    if (!els.topic.value.trim()) { setWizardStatus("请先写一句作文题目或题材。", "error"); els.topic.focus(); return; }
+    if (!els.topic.value.trim()) {
+      setWizardStatus(selectedCat === "自拟" ? "请先写一段题材或范围。" : "请先写下作文题目。", "error");
+      els.topic.focus(); return;
+    }
+    var topicWarn = validateTopic(selectedCat, els.topic.value.trim());
+    if (topicWarn) { setWizardStatus(topicWarn, "error"); els.topic.focus(); return; }
+
+    // 锁定本次成稿的类别/题目/评分标准，后续改稿都以此为准
+    activeCat = selectedCat;
+    activeTopic = els.topic.value.trim();
+    activeProvince = selectedProvince;
 
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
@@ -543,9 +656,13 @@
     showEmpty();
     setPaperHint("正在生成…");
 
-    // 系统提示词 = 写作铁律 + 本次所选省份评分标准（完整文本，而非只发名字）
-    var sd = (window.WY_SCORING && window.WY_SCORING[selectedProvince]) || "";
-    var sysPrompt = window.WY_PROMPT + (sd ? "\n\n【评分标准参照（" + selectedProvince + "）】\n" + sd : "");
+    // 系统提示词 = 写作铁律 + 本类别标题/扣题规则 + 所选省份评分标准（都是完整文本）
+    var prov = activeProvince || selectedProvince;
+    var sd = (window.WY_SCORING && window.WY_SCORING[prov]) || "";
+    var sysPrompt = window.WY_PROMPT;
+    var rule = categoryRule();
+    if (rule) sysPrompt += "\n\n" + rule;
+    if (sd) sysPrompt += "\n\n【评分标准参照（" + prov + "）】\n" + sd;
     await runStream(sysPrompt, composeWriteUser());
     if (fullText.trim()) setPaperHint(els.paperStat.textContent);
   }
@@ -569,15 +686,22 @@
     showEmpty();
     setPaperHint("修改大师正在改稿…");
 
-    await runStream(window.WY_REVISER, composeReviseUser(req));
+    var reviseSys = window.WY_REVISER;
+    var reviseRule = categoryRule();
+    if (reviseRule) reviseSys += "\n\n" + reviseRule;
+    var revProv = activeProvince || selectedProvince;
+    var reviseSd = (window.WY_SCORING && window.WY_SCORING[revProv]) || "";
+    if (reviseSd) reviseSys += "\n\n【评分标准参照（" + revProv + "）】\n" + reviseSd;
+    await runStream(reviseSys, composeReviseUser(req));
     if (fullText.trim()) setPaperHint(els.paperStat.textContent);
   }
 
   /* ---------------- 输出操作 ---------------- */
 
   function compositionText() {
+    var hasMarker = /^\s*===作文===\s*$/m.test(fullText);
     var parts = splitTwo(fullText);
-    return splitText(parts.comp);
+    return titledParts(parts.comp, hasMarker);
   }
 
   function plainOutput() {

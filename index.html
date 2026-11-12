@@ -6,7 +6,7 @@
 <title>创建作文工作台 - 文芽作文</title>
 <meta name="description" content="文芽作文：流程式创建作文工作台，选类别、定题目、设字数、挑评分标准，再进入 AI 生成与修改界面。">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112d">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112e">
 </head>
 <body>
 
@@ -108,32 +108,28 @@
         <div class="cat-grid" id="catGrid">
           <button class="cat-card" data-cat="命题">
             <div class="cat-name">命题</div>
-            <div class="cat-desc">题目已经给定，照题写。</div>
+            <div class="cat-desc">题目完整给定，AI 原样用作标题，一字不改，全文紧扣题眼。</div>
           </button>
           <button class="cat-card" data-cat="半命题">
             <div class="cat-name">半命题</div>
-            <div class="cat-desc">题目留空，你来补全。</div>
+            <div class="cat-desc">题目留空，AI 先补全空缺，用补全后的完整题目作标题再写。</div>
           </button>
           <button class="cat-card" data-cat="自拟">
             <div class="cat-name">自拟</div>
-            <div class="cat-desc">题目与内容都由你定。</div>
+            <div class="cat-desc">只给题材范围，AI 自己拟一个具体不落俗套的短标题。</div>
           </button>
         </div>
         <p class="wstep-tip" id="catTip">三选一：命题 / 半命题 / 自拟。</p>
       </div>
 
-      <!-- 步骤 2：题目 -->
+      <!-- 步骤 2：题目（标题/提示/示例随类别动态切换） -->
       <div class="wstep">
-        <div class="wstep-head"><span class="wstep-no">2</span><h2>输入题目</h2></div>
+        <div class="wstep-head"><span class="wstep-no">2</span><h2 id="topicStepTitle">输入题目</h2></div>
         <div class="chat-box">
           <textarea class="chat-input-area" id="topic" rows="3"
-            placeholder="例：老窑厂那批蛤蟆纹茶碗，老师傅守旧纹样，徒弟想换成招财猫"></textarea>
-          <div class="chat-hint">把题目或题材写在这里，像给 AI 发一句话。</div>
-          <div class="examples">
-            <button class="ex-chip" data-topic="窑上那批蛤蟆纹茶碗：老师傅守老纹样，小辈想改成招财的样式">蛤蟆纹茶碗</button>
-            <button class="ex-chip" data-topic="老木匾上刻着「立马发财」，招牌要翻新，老师傅说这是倒反天罡">立马发财匾</button>
-            <button class="ex-chip" data-topic="修伞铺最后一把伞，师父嘴上骂，夜里把伞骨换了新的">修伞铺</button>
-          </div>
+            placeholder="先在上方选好类别，再按类别写题目"></textarea>
+          <div class="chat-hint" id="topicHint">先在上方选好类别，这里会告诉你该填什么。</div>
+          <div class="examples" id="topicExamples"><span class="examples-hint">选好类别后，这里会给出对应的示例。</span></div>
         </div>
       </div>
 
@@ -236,7 +232,7 @@
   </div>
 </footer>
 
-<script src="assets/js/prompt.js?v=20261112d"></script>
-<script src="assets/js/write.js?v=20261112d"></script>
+<script src="assets/js/prompt.js?v=20261112e"></script>
+<script src="assets/js/write.js?v=20261112e"></script>
 </body>
 </html>
