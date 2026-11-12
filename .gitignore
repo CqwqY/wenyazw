@@ -45,3 +45,9 @@ __api_test.js
 
 # 后端源码不入库（只在服务器与本地保留）
 server/
+
+# 本地调试临时文件
+.cdp-profile/
+__cdp.js
+__mock_srv.py
+check-icon*.png
