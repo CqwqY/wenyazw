@@ -13,9 +13,9 @@
 <title>账户控制台 - 文芽作文</title>
 <meta name="description" content="文芽作文账户控制台：查看与管理保存在云端的作文。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261112P">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112P">
-<link rel="stylesheet" href="assets/css/account.css?v=20261112P">
+<link rel="stylesheet" href="assets/css/style.css?v=20261112U">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112U">
+<link rel="stylesheet" href="assets/css/account.css?v=20261112U">
 </head>
 <body class="page-stick">
 
@@ -54,12 +54,13 @@
       </div>
       <button class="btn-outline" id="refreshBtn">刷新列表</button>
     </div>
-    <div class="credit-panel" id="creditPanel">
-      <div class="credit-head">
-        <span class="credit-balance" id="creditBalance">积分 —</span>
-        <span class="credit-tip">站内模型每次操作扣 1 积分；用自己填的接口不扣</span>
+    <div class="credit-entry">
+      <div class="credit-entry-main">
+        <span class="credit-entry-label">积分</span>
+        <strong class="credit-entry-num" id="creditBalance">—</strong>
+        <span class="credit-entry-tip">站内模型每次 AI 操作扣 1 分，失败自动退回</span>
       </div>
-      <div class="credit-log" id="creditLog" hidden></div>
+      <a class="btn-outline" href="credits.html">积分与兑换</a>
     </div>
     <div class="account-msg" id="accountMsg"></div>
     <div class="essay-list" id="essayList"></div>
@@ -129,7 +130,7 @@
   </div>
 </div>
 
-<script src="assets/js/auth.js?v=20261112P"></script>
-<script src="assets/js/account.js?v=20261112P"></script>
+<script src="assets/js/auth.js?v=20261112U"></script>
+<script src="assets/js/account.js?v=20261112U"></script>
 </body>
 </html>

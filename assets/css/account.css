@@ -120,9 +120,14 @@
 }
 .view-outline[hidden] { display: none; }
 
-/* ---------- 积分 ---------- */
+/* ---------- 积分入口（明细与兑换在 credits.html） ---------- */
 
-.credit-panel {
+.credit-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
   margin: 14px 0 6px;
   padding: 12px 14px;
   border: 1px solid var(--line);
@@ -130,54 +135,30 @@
   background: var(--paper-2);
 }
 
-.credit-head {
+.credit-entry-main {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.credit-balance {
-  font-family: var(--sans);
-  font-size: 15px;
-  font-weight: 600;
-  color: #2f6f4e;
-}
-
-.credit-tip {
-  font-size: 12px;
-  color: var(--ink-mute);
-}
-
-.credit-log {
-  margin-top: 10px;
-  border-top: 1px dashed var(--line);
-  padding-top: 8px;
-  max-height: 190px;
-  overflow: auto;
-}
-
-.credit-log[hidden] { display: none; }
-
-.credit-row {
-  display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 10px;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--ink-soft);
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
-.credit-time {
-  flex: 0 0 76px;
+.credit-entry-label {
+  font-family: var(--sans);
+  font-size: 12.5px;
   color: var(--ink-mute);
+}
+
+.credit-entry-num {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  color: #2f6f4e;
   font-variant-numeric: tabular-nums;
 }
 
-.credit-reason { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.credit-delta { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-
-.credit-delta.plus { color: #2f6f4e; }
-
-.credit-delta.minus { color: #a8322a; }
+.credit-entry-tip {
+  font-size: 12px;
+  color: var(--ink-mute);
+}

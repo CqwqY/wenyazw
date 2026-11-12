@@ -167,6 +167,36 @@
   padding: 1px 4px;
 }
 
+/* 站内模式：所有会扣分的按钮都挂一个「扣 1 分」角标 */
+body.cost-on .cost-btn { position: relative; }
+
+body.cost-on .cost-btn::after {
+  content: "扣 1 分";
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: 0;
+  vertical-align: 1px;
+  white-space: nowrap;
+  color: #8f2b24;
+  background: rgba(168, 50, 42, .09);
+  border: 1px solid rgba(168, 50, 42, .22);
+}
+
+body.cost-on .btn-primary.cost-btn::after,
+body.cost-on .critic-dock-send.cost-btn::after {
+  color: #fff4ef;
+  background: rgba(255, 255, 255, .18);
+  border-color: rgba(255, 255, 255, .34);
+}
+
+body.cost-on .cost-btn:disabled::after { opacity: .45; }
+
 .input:disabled {
   background: var(--paper-2);
   color: var(--ink-mute);
@@ -183,7 +213,12 @@
   border-radius: 999px;
   padding: 5px 10px;
   white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s ease;
 }
+
+a.account-credits:hover { background: rgba(47, 111, 78, .18); text-decoration: none; }
 
 .key-row { display: flex; gap: 8px; }
 

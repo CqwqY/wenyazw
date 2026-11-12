@@ -158,6 +158,24 @@ db.exec(`
     at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_reg_log_ip ON reg_log(ip, at DESC);
+  /* 兑换码：一次性或限次，兑换记录按「码 + 账号」唯一，杜绝同码重复兑给自己 */
+  CREATE TABLE IF NOT EXISTS redeem_codes (
+    code TEXT PRIMARY KEY,
+    credits INTEGER NOT NULL,
+    max_uses INTEGER NOT NULL DEFAULT 1,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT "",
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS redeem_log (
+    code TEXT NOT NULL,
+    email TEXT NOT NULL,
+    credits INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (code, email)
+  );
+  CREATE INDEX IF NOT EXISTS idx_redeem_log_email ON redeem_log(email, created_at DESC);
 `);
 // 兼容早期没有 purpose 列的库
 const sendLogCols = db.prepare("PRAGMA table_info(send_log)").all();
@@ -312,6 +330,25 @@ function spendOne(email, reason, ip) {
     .run(email, -COST_PER_CALL, String(reason || "").slice(0, 80), String(ip || "").slice(0, 60), Date.now());
   return creditsOf(email);
 }
+
+/* ---------------- 兑换码 ---------------- */
+
+// 兑换码只用无歧义字符：没有 I L O 0 1，避免手抄错
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function newCode() {
+  let out = "";
+  for (let i = 0; i < 12; i++) out += CODE_CHARS[crypto.randomInt(CODE_CHARS.length)];
+  return out;
+}
+
+// 用户怎么输都认：小写、带空格、带横线一律归一成大写纯字母数字
+function normalizeCode(raw) {
+  const s = String(raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return s.length >= 6 && s.length <= 32 ? s : "";
+}
+
+const redeemWin = new Map();
 
 /* ---------------- 限流 ---------------- */
 
@@ -562,9 +599,126 @@ async function handle(req, res) {
   if (p === "/api/credits" && method === "GET") {
     const user = verifyToken(bearer(req));
     if (!user) { send(req, res, 401, { ok: false, error: "未登录或登录已过期" }); return; }
-    const recent = db.prepare("SELECT delta, reason, created_at FROM credit_log WHERE email = ? ORDER BY id DESC LIMIT 20")
+    const recent = db.prepare("SELECT delta, reason, created_at FROM credit_log WHERE email = ? ORDER BY id DESC LIMIT 50")
       .all(user.email);
-    send(req, res, 200, { ok: true, credits: creditsOf(user.email), costPerCall: COST_PER_CALL, log: recent });
+    send(req, res, 200, {
+      ok: true,
+      credits: creditsOf(user.email),
+      costPerCall: COST_PER_CALL,
+      signupCredits: SIGNUP_CREDITS,
+      log: recent
+    });
+    return;
+  }
+
+  /* ---------------- 兑换码 ---------------- */
+
+  if (p === "/api/redeem" && method === "POST") {
+    const user = verifyToken(bearer(req));
+    if (!user) { send(req, res, 401, { ok: false, error: "请先登录再兑换" }); return; }
+    const ip = ipKey(clientIp(req));
+    // 防爆破：同一账号 10 分钟 8 次、同一 IP 10 分钟 20 次
+    if (hitWindow(redeemWin, "u:" + user.email, 8, 10 * 60 * 1000)) {
+      send(req, res, 429, { ok: false, error: "试得太频繁了，过 10 分钟再来" }); return;
+    }
+    if (hitWindow(redeemWin, "ip:" + (ip || "-"), 20, 10 * 60 * 1000)) {
+      send(req, res, 429, { ok: false, error: "这个网络试得太频繁了，过 10 分钟再来" }); return;
+    }
+    const body = await readBody(req);
+    const code = normalizeCode(body.code);
+    if (!code) { send(req, res, 400, { ok: false, error: "请输入兑换码" }); return; }
+
+    const row = db.prepare("SELECT * FROM redeem_codes WHERE code = ?").get(code);
+    if (!row) { send(req, res, 404, { ok: false, error: "兑换码不存在，检查一下有没有输错" }); return; }
+    if (row.expires_at && Date.now() > row.expires_at) {
+      send(req, res, 400, { ok: false, error: "这个兑换码已经过期了" }); return;
+    }
+    // 先看这个账号兑没兑过：比「已用完」更贴近用户实际遇到的问题
+    if (db.prepare("SELECT 1 FROM redeem_log WHERE code = ? AND email = ?").get(code, user.email)) {
+      send(req, res, 400, { ok: false, error: "这个码你已经兑换过了" }); return;
+    }
+    if (row.used_count >= row.max_uses) {
+      send(req, res, 400, { ok: false, error: "这个兑换码已经被用完了" }); return;
+    }
+
+    // 抢码用带条件的 UPDATE，靠 changes 判断是否抢到，避免并发超兑
+    const grab = db.transaction(() => {
+      const info = db.prepare("UPDATE redeem_codes SET used_count = used_count + 1 WHERE code = ? AND used_count < max_uses")
+        .run(code);
+      if (!info.changes) return false;
+      db.prepare("INSERT INTO redeem_log (code, email, credits, created_at) VALUES (?, ?, ?, ?)")
+        .run(code, user.email, row.credits, Date.now());
+      return true;
+    });
+    if (!grab()) { send(req, res, 400, { ok: false, error: "这个兑换码刚被用完了" }); return; }
+
+    const left = addCredits(user.email, row.credits, "兑换码 " + code, ip);
+    send(req, res, 200, { ok: true, credits: left, added: row.credits });
+    return;
+  }
+
+  /* 管理：批量生成兑换码。body { credits, count, maxUses, days, note } */
+  if (p === "/api/admin/redeem" && method === "POST") {
+    if (!ADMIN_TOKEN || !safeEqual(req.headers["x-admin-token"] || "", ADMIN_TOKEN)) {
+      send(req, res, 403, { ok: false, error: "无权操作" }); return;
+    }
+    const body = await readBody(req);
+    const credits = Math.trunc(Number(body.credits));
+    const count = Math.trunc(Number(body.count || 1));
+    const maxUses = Math.trunc(Number(body.maxUses || 1));
+    const days = Math.trunc(Number(body.days || 0));
+    if (!credits || credits < 1 || credits > 100000) { send(req, res, 400, { ok: false, error: "credits 不合法" }); return; }
+    if (!count || count < 1 || count > 200) { send(req, res, 400, { ok: false, error: "count 只能是 1-200" }); return; }
+    if (!maxUses || maxUses < 1 || maxUses > 1000) { send(req, res, 400, { ok: false, error: "maxUses 只能是 1-1000" }); return; }
+    if (days < 0 || days > 3650) { send(req, res, 400, { ok: false, error: "days 只能是 0-3650" }); return; }
+
+    const note = String(body.note || "").slice(0, 60);
+    const now = Date.now();
+    const expiresAt = days > 0 ? now + days * 24 * 3600 * 1000 : 0;
+    const insert = db.prepare(`
+      INSERT INTO redeem_codes (code, credits, max_uses, used_count, note, created_at, expires_at)
+      VALUES (?, ?, ?, 0, ?, ?, ?)`);
+    const exists = db.prepare("SELECT 1 FROM redeem_codes WHERE code = ?");
+    const codes = [];
+    const tx = db.transaction(() => {
+      for (let i = 0; i < count; i++) {
+        let code = "";
+        for (let k = 0; k < 12; k++) {
+          code = newCode();
+          if (!exists.get(code)) break;
+        }
+        insert.run(code, credits, maxUses, note, now, expiresAt);
+        codes.push(code);
+      }
+    });
+    tx();
+    send(req, res, 200, { ok: true, codes, credits, maxUses, expiresAt });
+    return;
+  }
+
+  /* 管理：查看最近生成的兑换码 */
+  if (p === "/api/admin/redeem" && method === "GET") {
+    if (!ADMIN_TOKEN || !safeEqual(req.headers["x-admin-token"] || "", ADMIN_TOKEN)) {
+      send(req, res, 403, { ok: false, error: "无权操作" }); return;
+    }
+    const rows = db.prepare(`
+      SELECT code, credits, max_uses, used_count, note, created_at, expires_at
+      FROM redeem_codes ORDER BY created_at DESC LIMIT 100`).all();
+    send(req, res, 200, { ok: true, codes: rows });
+    return;
+  }
+
+  /* 管理：作废兑换码 */
+  if (p === "/api/admin/redeem/revoke" && method === "POST") {
+    if (!ADMIN_TOKEN || !safeEqual(req.headers["x-admin-token"] || "", ADMIN_TOKEN)) {
+      send(req, res, 403, { ok: false, error: "无权操作" }); return;
+    }
+    const body = await readBody(req);
+    const code = normalizeCode(body.code);
+    if (!code) { send(req, res, 400, { ok: false, error: "缺少 code" }); return; }
+    const info = db.prepare("UPDATE redeem_codes SET max_uses = used_count WHERE code = ?").run(code);
+    if (!info.changes) { send(req, res, 404, { ok: false, error: "没有这个码" }); return; }
+    send(req, res, 200, { ok: true });
     return;
   }
 

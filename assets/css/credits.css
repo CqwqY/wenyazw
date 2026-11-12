@@ -1,0 +1,190 @@
+/* 文芽作文 - 积分页 */
+
+.credit-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  padding: 22px 24px;
+  margin-bottom: 18px;
+}
+
+.credit-hero-label {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  letter-spacing: .08em;
+  color: var(--ink-mute);
+}
+
+.credit-hero-num {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 6px 0 6px;
+}
+
+.credit-hero-num #creditBalance {
+  font-family: var(--sans);
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1;
+  color: #2f6f4e;
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-hero-unit {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink-mute);
+}
+
+.credit-hero-tip {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.credit-hero-side { flex: none; }
+
+.credit-cards {
+  display: grid;
+  grid-template-columns: 1.15fr .85fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.credit-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  padding: 18px 20px;
+}
+
+.credit-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.credit-title {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+
+.credit-panel-head .credit-title { margin: 0; }
+
+.credit-desc {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-mute);
+  margin: 0 0 12px;
+}
+
+.redeem-row {
+  display: flex;
+  gap: 10px;
+}
+
+.redeem-row .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.redeem-row .btn { flex: none; }
+
+.credit-msg {
+  min-height: 20px;
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-mute);
+}
+
+.credit-msg.ok { color: #2f6f4e; }
+.credit-msg.error { color: #a8322a; }
+.credit-msg.warn { color: #8a5a12; }
+
+.credit-rules {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+
+.credit-rules li { margin-bottom: 2px; }
+
+.credit-log {
+  max-height: 380px;
+  overflow: auto;
+  border-top: 1px dashed var(--line);
+  padding-top: 6px;
+}
+
+.credit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 2px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  border-bottom: 1px solid rgba(0, 0, 0, .045);
+}
+
+.credit-row:last-child { border-bottom: 0; }
+
+.credit-time {
+  flex: 0 0 84px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-reason {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.credit-delta {
+  flex: 0 0 auto;
+  font-family: var(--sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-delta.plus { color: #2f6f4e; }
+.credit-delta.minus { color: #a8322a; }
+
+.credit-empty {
+  padding: 26px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-mute);
+}
+
+.credit-empty.error { color: #a8322a; }
+
+.credit-foot {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+
+@media (max-width: 860px) {
+  .credit-cards { grid-template-columns: 1fr; }
+  .credit-hero { padding: 18px; }
+  .credit-hero-num #creditBalance { font-size: 36px; }
+}

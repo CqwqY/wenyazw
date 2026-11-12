@@ -29,6 +29,7 @@ build/
 
 # 后端运行时数据（用户账号 + token 签名密钥，绝不入库）
 server/data/
+server/data-test/
 
 # 临时文件
 *.tmp

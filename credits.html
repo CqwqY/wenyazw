@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="assets/img/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="assets/img/wenya-icon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/img/apple-touch-icon.png">
+<link rel="mask-icon" href="assets/img/wenya-icon.svg" color="#2C6B4A">
+<meta name="theme-color" content="#2C6B4A">
+<title>积分与兑换 - 文芽作文</title>
+<meta name="description" content="文芽作文积分：查看余额与明细，用兑换码换积分。站内模型每次 AI 操作扣 1 积分，生成失败自动退回。">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
+<link rel="stylesheet" href="assets/css/style.css?v=20261112U">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112U">
+<link rel="stylesheet" href="assets/css/account.css?v=20261112U">
+<link rel="stylesheet" href="assets/css/credits.css?v=20261112U">
+</head>
+<body class="page-stick">
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img class="brand-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="30" height="30">
+      <span>文芽作文</span>
+    </a>
+    <div class="account-area" id="accountArea"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tool-head">
+    <div>
+      <h1>积分</h1>
+      <p>站内模型每次 AI 操作扣 1 分，生成失败自动退回；换成自己填的接口不扣分。</p>
+    </div>
+    <a class="btn btn-ghost" href="write.html">返回工作台</a>
+  </div>
+
+  <section class="account-card" id="notLogged" hidden>
+    <h2>请先登录</h2>
+    <p>积分与账号绑定，登录后才能查看余额、明细和兑换。</p>
+    <button class="btn btn-primary" id="openLogin">登录 / 注册</button>
+  </section>
+
+  <section id="loggedPanel" hidden>
+    <div class="credit-hero">
+      <div>
+        <span class="credit-hero-label">当前余额</span>
+        <div class="credit-hero-num">
+          <span id="creditBalance">—</span><span class="credit-hero-unit">积分</span>
+        </div>
+        <p class="credit-hero-tip" id="creditHeroTip">注册送 15 分 · 每次 AI 操作扣 1 分 · 失败自动退回</p>
+      </div>
+      <div class="credit-hero-side">
+        <a class="btn btn-primary" href="write.html">去写作文</a>
+      </div>
+    </div>
+
+    <div class="credit-cards">
+      <div class="credit-panel">
+        <h2 class="credit-title">兑换码</h2>
+        <p class="credit-desc">输入兑换码换成积分。一个码每个账号只能兑一次，兑完即失效。</p>
+        <form class="redeem-row" id="redeemForm" autocomplete="off">
+          <input class="input" id="redeemInput" type="text" placeholder="输入兑换码，如 WY3K7M9QP2XA"
+                 maxlength="24" spellcheck="false" autocapitalize="characters">
+          <button class="btn btn-primary" id="redeemBtn" type="submit">兑换</button>
+        </form>
+        <div class="credit-msg" id="redeemMsg"></div>
+      </div>
+
+      <div class="credit-panel">
+        <h2 class="credit-title">积分怎么算</h2>
+        <ul class="credit-rules">
+          <li>注册即送 15 积分。</li>
+          <li>站内模型每发一次请求扣 1 分：拟大纲、写正文、AI 增补、批改、评改、提问、测试连接都算。</li>
+          <li>整次请求失败（所有模型都没出内容）会自动把那 1 分退回，明细里能看到「退回」记录。</li>
+          <li>切到「自填 Key」用自己的接口，不消耗积分。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="credit-panel">
+      <div class="credit-panel-head">
+        <h2 class="credit-title">收支明细</h2>
+        <button class="btn-outline" id="refreshBtn" type="button">刷新</button>
+      </div>
+      <div class="credit-log" id="creditLog">
+        <div class="credit-empty">正在加载…</div>
+      </div>
+      <p class="credit-foot">只显示最近 50 条。对不上账可以联系站务核对。</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="copyright">
+      <span>文芽作文 · 保留所有权利</span>
+      <span>积分不折现，仅用于站内 AI 服务</span>
+    </div>
+  </div>
+</footer>
+
+<!-- 登录弹窗（与其它页共用 auth.js 的 DOM 约定） -->
+<div class="modal-mask" id="authMask" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="modal-head">
+      <h2 id="authTitle">登录文芽作文</h2>
+      <button class="modal-close" id="authClose" aria-label="关闭">×</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="login">登录</button>
+      <button class="auth-tab" data-mode="register">注册</button>
+    </div>
+    <div class="field" id="authUserField">
+      <label for="authUser">用户名</label>
+      <input class="input" id="authUser" type="text" autocomplete="username" placeholder="3～24 位，字母数字下划线" maxlength="24">
+    </div>
+    <div class="field">
+      <label for="authEmail">邮箱</label>
+      <input class="input" id="authEmail" type="email" autocomplete="email" placeholder="用于接收验证码" maxlength="120">
+    </div>
+    <div class="field">
+      <label for="authCode">邮箱验证码</label>
+      <div class="code-row">
+        <input class="input" id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" maxlength="6">
+        <button class="btn-outline" id="sendCodeBtn" type="button">发送验证码</button>
+      </div>
+      <div class="auth-hint" id="codeHint">验证码 10 分钟内有效，每个邮箱 60 秒可重发一次。</div>
+    </div>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="authSubmit">登录</button>
+    </div>
+    <div class="auth-foot">注册与登录都用邮箱验证码，无需设置密码。</div>
+  </div>
+</div>
+
+<script src="assets/js/auth.js?v=20261112U"></script>
+<script src="assets/js/credits.js?v=20261112U"></script>
+</body>
+</html>

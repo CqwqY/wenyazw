@@ -110,10 +110,11 @@
     els.area.appendChild(name);
     var cr = credits();
     if (cr !== null) {
-      var cEl = document.createElement("span");
+      var cEl = document.createElement("a");
       cEl.className = "account-credits";
+      cEl.href = "credits.html";
       cEl.textContent = "积分 " + cr;
-      cEl.title = "站内模型每次操作消耗 1 积分";
+      cEl.title = "查看积分明细与兑换码";
       els.area.appendChild(cEl);
     }
     var out = document.createElement("button");

@@ -235,19 +235,44 @@
       lastCustomCfg = null;
     }
     [els.base, els.path, els.model, els.key].forEach(function (el) { el.disabled = site; });
-    // 站内模式把这些字段整块藏掉：地址、路径、模型名、Key 都不让用户看见也不用管
-    [els.fieldBase, els.fieldKey, els.fieldModel, els.fieldPath].forEach(function (f) {
-      if (f) f.hidden = site;
-    });
+    // 站内模式把这些字段整块藏掉：地址、路径、模型名、Key 都不让用户看见也不用管。
+    // 找不到 id 时退回到「输入框所在的 .field」，这样即使 HTML 是旧缓存（没有 id）也能藏住。
+    [["fieldBase", els.base], ["fieldKey", els.key], ["fieldModel", els.model], ["fieldPath", els.path]]
+      .forEach(function (pair) {
+        var f = document.getElementById(pair[0]) || (pair[1] && pair[1].closest ? pair[1].closest(".field") : null);
+        if (f) f.hidden = site;
+      });
     if (els.keyToggle) els.keyToggle.disabled = site;
     // 站内模式不需要「记住 Key」，隐藏掉免得误解；测试连接会扣 1 分，按钮上写明
     var rememberWrap = els.remember && els.remember.closest("label");
     // 这行 label 上有内联 display:flex，光加 hidden 属性压不住，得直接改 display
     if (rememberWrap) rememberWrap.style.display = site ? "none" : "flex";
-    if (els.testBtn) els.testBtn.textContent = site ? "测试站内模型（扣 1 积分）" : "测试连接";
+    if (els.testBtn) els.testBtn.textContent = site ? "测试站内模型" : "测试连接";
     if (els.cfgCredits) els.cfgCredits.hidden = !site;
     if (els.siteNote) els.siteNote.hidden = !site;
     refreshCreditLine();
+    syncCostBadges();
+  }
+
+  /* 站内模式下，凡是会扣分的按钮都挂一个角标（CSS 画，避免改 textContent 时被清掉） */
+  var COST_BTN_KEYS = [
+    "startBtn", "outlineAiBtn", "outlineRetryBtn", "writeEssayBtn",
+    "sendBtn", "criticBtn", "criticApplyBtn", "testBtn"
+  ];
+  function syncCostBadges() {
+    var site = els.preset.value === "site";
+    var logged = !!(window.WY_AUTH && window.WY_AUTH.loggedIn && window.WY_AUTH.loggedIn());
+    COST_BTN_KEYS.forEach(function (k) {
+      var el = els[k];
+      if (el) el.classList.add("cost-btn");
+    });
+    if (document.body) document.body.classList.toggle("cost-on", site && logged);
+  }
+
+  /* 失败提示统一补一句「积分退回去了」，免得用户以为白扣 */
+  function withRefund(msg, refunded) {
+    if (!refunded || els.preset.value !== "site") return msg;
+    return msg + "（这次扣的 1 积分已自动退回）";
   }
 
   function syncCreditsUI() {
@@ -272,7 +297,7 @@
   /* auth.js 在 write.js 之后加载，初始化时还拿不到登录态与积分，这里补两次 */
   function hookAuthCredits() {
     if (window.WY_AUTH && window.WY_AUTH.onChange) {
-      window.WY_AUTH.onChange(function () { refreshCreditLine(); syncCreditsUI(); });
+      window.WY_AUTH.onChange(function () { refreshCreditLine(); syncCreditsUI(); syncCostBadges(); });
       return true;
     }
     return false;
@@ -283,13 +308,15 @@
     }, 120);
     setTimeout(function () { clearInterval(hookTimer); }, 4000);
   }
-  window.addEventListener("load", function () { refreshCreditLine(); });
+  window.addEventListener("load", function () { refreshCreditLine(); syncCostBadges(); });
 
   function setConfigOpen(open) {
     if (open) els.configPanel.removeAttribute("hidden");
     else els.configPanel.setAttribute("hidden", "");
     els.toggleConfig.setAttribute("aria-expanded", String(!!open));
     els.toggleConfig.textContent = open ? "收起配置" : "接口配置";
+    // 每次展开都按当前预设重算一次，手机上 select 偶尔不触发 change 也能兜住
+    if (open) syncPresetUI();
   }
 
   on(els.toggleConfig, "click", function () {
@@ -1831,7 +1858,7 @@
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
         msg = "请求发不出去：多为浏览器跨域被拦或网络不通。换支持 CORS 的接口，或改用本地代理。";
       }
-      setPaperHint("生成失败：" + msg);
+      setPaperHint("生成失败：" + withRefund(msg, !fullText.trim()));
       if (!opts.onProgress) updateOutput(false);
       return false;
 
@@ -2014,6 +2041,10 @@
       var content = (msg && msg.content) || "";
       if (!content.trim()) throw new Error("接口没有返回内容，换一个模型或检查额度。");
       return content;
+    } catch (e) {
+      if (e && e.name === "AbortError") throw e;
+      // 非流式请求失败，后端会把这次扣的分退回来
+      throw new Error(withRefund((e && e.message) || "请求失败", true));
     } finally {
       controller = null;
       setBusy(false);
