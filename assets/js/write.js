@@ -9,6 +9,32 @@
   var $ = function (id) { return document.getElementById(id); };
   var STORE = "wy.api.config.v1";
 
+  // 安全注册：元素缺失时静默跳过，避免一个 null 把后面所有交互全部带死
+  function on(el, ev, fn) {
+    if (el && el.addEventListener) el.addEventListener(ev, fn);
+  }
+
+  // 脚本一旦报错，页面就会大面积“点不动”，这里直接把原因和强制刷新按钮摆到眼前
+  window.addEventListener("error", function (e) {
+    if (document.getElementById("wyJsErr")) return;
+    var bar = document.createElement("div");
+    bar.id = "wyJsErr";
+    bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;z-index:999;display:flex;align-items:center;gap:12px;" +
+      "padding:10px 16px;background:#8c332b;color:#fff;font-size:13px;font-family:system-ui,sans-serif";
+    var msg = document.createElement("span");
+    msg.textContent = "页面脚本出错，部分按钮可能失效：" + ((e && e.message) || "未知错误");
+    var btn = document.createElement("button");
+    btn.textContent = "强制刷新";
+    btn.style.cssText = "margin-left:auto;border:0;border-radius:999px;padding:6px 16px;cursor:pointer;" +
+      "background:#fff;color:#8c332b;font-size:13px";
+    btn.addEventListener("click", function () {
+      location.href = location.pathname + "?v=" + Date.now();
+    });
+    bar.appendChild(msg);
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  });
+
   var PRESETS = {
     deepseek: { base: "https://api.deepseek.com/v1", model: "deepseek-chat" },
     moonshot: { base: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
@@ -52,6 +78,7 @@
     outlineTitle: $("outlineTitle"), outlineThesis: $("outlineThesis"),
     outlinePoints: $("outlinePoints"), outlineEmpty: $("outlineEmpty"),
     outlineAddBtn: $("outlineAddBtn"), outlineAiBtn: $("outlineAiBtn"),
+    outlineRetryBtn: $("outlineRetryBtn"),
     writeEssayBtn: $("writeEssayBtn")
   };
 
@@ -144,7 +171,7 @@
     els.toggleConfig.textContent = open ? "收起配置" : "接口配置";
   }
 
-  els.toggleConfig.addEventListener("click", function () {
+  on(els.toggleConfig, "click", function () {
     setConfigOpen(els.configPanel.hasAttribute("hidden"));
   });
   setConfigOpen(!readConfig().key);
@@ -156,7 +183,7 @@
     }
   });
 
-  els.preset.addEventListener("change", function () {
+  on(els.preset, "change", function () {
     var p = PRESETS[els.preset.value];
     if (p && p.base) {
       els.base.value = p.base;
@@ -168,13 +195,13 @@
     }
   });
 
-  els.keyToggle.addEventListener("click", function () {
+  on(els.keyToggle, "click", function () {
     var show = els.key.type === "password";
     els.key.type = show ? "text" : "password";
     els.keyToggle.textContent = show ? "隐藏" : "显示";
   });
 
-  els.resetCfg.addEventListener("click", function () {
+  on(els.resetCfg, "click", function () {
     try { localStorage.removeItem(STORE); } catch (e) { /* noop */ }
     fillForm({
       preset: "deepseek", base: PRESETS.deepseek.base, path: "/chat/completions",
@@ -252,7 +279,7 @@
     return "";
   }
 
-  els.catGrid.addEventListener("click", function (e) {
+  on(els.catGrid, "click", function (e) {
     var card = e.target.closest(".cat-card");
     if (!card) return;
     selectedCat = card.getAttribute("data-cat");
@@ -276,9 +303,9 @@
     els.wordRange.value = n;
   }
 
-  els.wordRange.addEventListener("input", function () { setWord(parseInt(els.wordRange.value, 10)); });
-  els.wordMinus.addEventListener("click", function () { setWord(wordCount - 50); });
-  els.wordPlus.addEventListener("click", function () { setWord(wordCount + 50); });
+  on(els.wordRange, "input", function () { setWord(parseInt(els.wordRange.value, 10)); });
+  on(els.wordMinus, "click", function () { setWord(wordCount - 50); });
+  on(els.wordPlus, "click", function () { setWord(wordCount + 50); });
   setWord(800);
 
   /* ---------------- 向导：评分标准（可多选，动态生成表格卡片） ---------------- */
@@ -317,7 +344,7 @@
       : "至少选一份评分标准，AI 才知道该按什么尺度写。";
   }
 
-  els.scoringGrid.addEventListener("click", function (e) {
+  on(els.scoringGrid, "click", function (e) {
     var card = e.target.closest(".scoring-card");
     if (!card) return;
     var prov = card.getAttribute("data-province");
@@ -411,7 +438,7 @@
 
   /* ---------------- 向导：示例题目 ---------------- */
 
-  els.topicExamples.addEventListener("click", function (e) {
+  on(els.topicExamples, "click", function (e) {
     var btn = e.target.closest("[data-topic]");
     if (!btn) return;
     els.topic.value = btn.getAttribute("data-topic");
@@ -420,7 +447,7 @@
     setWizardStatus("已填入示例" + (selectedCat === "自拟" ? "题材" : "题目") + "，可直接开始生成。", "");
   });
 
-  els.topic.addEventListener("input", updateSteps);
+  on(els.topic, "input", updateSteps);
 
   /* ---------------- 两段解析：回应 + 作文 ---------------- */
 
@@ -874,11 +901,28 @@
     return (window.WY_AUTH && window.WY_AUTH.token()) || "";
   }
 
+  function outlineHasContent() {
+    return (outline.points || []).some(function (p) { return trim(p.text) || trim(p.label); });
+  }
+
+  function outlineStore() {
+    if (!outlineHasContent()) return "";
+    return JSON.stringify({
+      title: outline.title || "",
+      thesis: outline.thesis || "",
+      note: outline.note || "",
+      points: (outline.points || []).map(function (p) {
+        return { label: p.label || "", text: p.text || "" };
+      })
+    });
+  }
+
   function essayPayload() {
     return {
       id: currentEssayId || 0,
-      title: docTitle || "作文",
-      body: currentComposition || docBody,
+      title: docTitle || outline.title || activeTopic || "作文",
+      body: currentComposition || docBody || "",
+      outline: outlineStore(),
       category: activeCat || selectedCat || "",
       province: (activeProvinces.length ? activeProvinces : selectedProvinces).join("、"),
       wordCount: Array.from(docBody.replace(/\s/g, "")).length
@@ -898,7 +942,8 @@
   // 静默保存：没登录就不传；失败不打断写作流程
   async function saveEssayToCloud() {
     var t = authToken();
-    if (!t || !docBody.trim()) return;
+    if (!t) return;
+    if (!docBody.trim() && !outlineHasContent()) return;
     try {
       var res = await fetch("https://back.wenyazw.top/api/essays", {
         method: "POST",
@@ -1259,6 +1304,53 @@
     };
   }
 
+  /* JSON 解析失败时的兜底：把普通文本大纲拆成可编辑条目，绝不让大纲区变成只能看不能动的死块 */
+  function parseOutlineLoose(raw) {
+    var text = trim(raw).replace(/^```[a-z]*\s*/i, "").replace(/```\s*$/, "");
+    text = text.replace(/^===大纲===\s*/i, "");
+    var lines = text.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    var title = "";
+    var thesis = "";
+    var points = [];
+    var labelRe = /^(?:[0-9０-９]{1,2}[.、)）]|[一二三四五六七八九十]+[、.]|（[一二三四五六七八九十0-9]+）|\([0-9]+\))\s*/;
+    var labelOnly = /^(开头|起笔|起手|缘起|开端|主体|中间|发展|高潮|转折|结尾|收束|收尾|落点)[:：]?\s*$/;
+
+    lines.forEach(function (line) {
+      var m = /^(标题|题目|拟题)\s*[:：]\s*(.+)$/.exec(line);
+      if (m) { title = m[2].trim(); return; }
+      var t = /^(立意|主旨|内核)\s*[:：]\s*(.+)$/.exec(line);
+      if (t) { thesis = t[2].trim(); return; }
+      if (/^(备注|提醒|注意)\s*[:：]/.test(line)) return;
+
+      var label = "";
+      var body = line;
+      var bm = /^[【\[](.{1,8})[】\]]\s*(.*)$/.exec(line);
+      if (bm) { label = bm[1]; body = bm[2]; }
+      else if (labelRe.test(line)) {
+        body = line.replace(labelRe, "");
+        var lm = /^(.{1,8}?)[:：]\s*(.+)$/.exec(body);
+        if (lm) { label = lm[1]; body = lm[2]; }
+      } else if (labelOnly.test(line)) {
+        label = line.replace(/[:：]/g, "");
+        body = "";
+      }
+      points.push(newPoint(label, body.trim()));
+    });
+
+    // 还拆不出来就整段塞一条，至少能编辑
+    if (!points.length && text.trim()) points = [newPoint("", text.trim())];
+    return { title: title, thesis: thesis, note: "", points: points.slice(0, 12) };
+  }
+
+  function parseOutlineAny(raw) {
+    try { return parseOutlineJSON(raw); }
+    catch (e) {
+      var loose = parseOutlineLoose(raw);
+      if (!loose.points.length) throw e;
+      return loose;
+    }
+  }
+
   function syncOutlineFromDOM() {
     outline.title = els.outlineTitle.value;
     outline.thesis = els.outlineThesis.value;
@@ -1269,6 +1361,7 @@
     });
     outline.points = pts;
     els.writeEssayBtn.disabled = !outline.points.some(function (p) { return trim(p.text); });
+    scheduleEssaySave();
   }
 
   function autoGrow(ta) {
@@ -1342,6 +1435,7 @@
       points: (obj.points && obj.points.length) ? obj.points : outline.points
     };
     renderOutline();
+    scheduleEssaySave();
     if (outline.note) setDocHint("大纲提醒：" + outline.note);
   }
 
@@ -1445,20 +1539,20 @@
     }
     if (assistantReplyEl) {
       var got = fullText;
+      var strict = true;
       try {
-        var obj = parseOutlineJSON(got);
+        try { var obj = parseOutlineJSON(got); }
+        catch (e1) { strict = false; obj = parseOutlineLoose(got); }
         setOutline(obj);
-        assistantReplyEl.textContent = "大纲拟好了，可直接改每一条，或在下面提问让我增补。满意了点右下「按大纲开始写」。";
-        setDocHint("大纲可改 · 也可直接在左侧提问增补");
+        assistantReplyEl.textContent = strict
+          ? "大纲拟好了，可直接改每一条，或在下面提问让我增补。确认无误点右下「确认大纲，开始写正文」。"
+          : "模型这次没按 JSON 返回，已按行拆成可编辑的大纲条目，可以先改再写。";
+        setDocHint("大纲可改 · 点「确认大纲，开始写正文」再出稿");
         switchPane("outline");
       } catch (e) {
-        assistantReplyEl.textContent = "大纲没按 JSON 返回，已把原文放在下面，可点「让 AI 增补」重试。";
+        assistantReplyEl.textContent = "大纲没生成出来，点「重新拟大纲」或直接在右侧手写几条。";
         setDocHint(e.message || "大纲解析失败");
-        var fallback = document.createElement("div");
-        fallback.className = "outline-raw";
-        fallback.textContent = got;
-        els.outlinePoints.innerHTML = "";
-        els.outlinePoints.appendChild(fallback);
+        renderOutline();
       }
     }
   }
@@ -1497,6 +1591,7 @@
       switchPane("paper");
       setDocHint("正文已生成 · 左上可切回大纲");
       saveEssayToCloud();
+      scheduleEssaySave();
     } else {
       setDocHint("正文没生成出来，可再点一次「按大纲开始写」");
     }
@@ -1523,7 +1618,7 @@
   }
 
   function updateWriteBtn() {
-    els.writeEssayBtn.textContent = stage === "draft" ? "按大纲重写" : "按大纲开始写";
+    els.writeEssayBtn.textContent = stage === "draft" ? "按大纲重写正文" : "确认大纲，开始写正文";
   }
 
   // 用户明确说了「别动稿」时，即使停在手批模式也走只讲不改，避免模型硬改几处交差
@@ -1564,7 +1659,7 @@
 
     try {
       var res = await fetchAnnotation(sys, composeOutlineUser(true, req));
-      var obj = parseOutlineJSON(res);
+      var obj = parseOutlineAny(res);
       setOutline(obj);
       assistantReplyEl.textContent = outline.note ? ("大纲已更新。" + outline.note) : "大纲已更新，可继续改或在右侧直接编辑。";
       setDocHint("大纲已更新 · 可直接改条目");
@@ -1869,33 +1964,33 @@
 
   /* ---------------- 事件绑定 ---------------- */
 
-  els.startBtn.addEventListener("click", startWriting);
-  els.sendBtn.addEventListener("click", handleSend);
-  els.testBtn.addEventListener("click", testConnection);
-  els.copyBtn.addEventListener("click", copyText);
-  els.downloadBtn.addEventListener("click", downloadText);
+  on(els.startBtn, "click", startWriting);
+  on(els.sendBtn, "click", handleSend);
+  on(els.testBtn, "click", testConnection);
+  on(els.copyBtn, "click", copyText);
+  on(els.downloadBtn, "click", downloadText);
 
-  els.acceptAllBtn.addEventListener("click", function () { applyAll("accept"); });
-  els.ignoreAllBtn.addEventListener("click", function () { applyAll("ignore"); });
+  on(els.acceptAllBtn, "click", function () { applyAll("accept"); });
+  on(els.ignoreAllBtn, "click", function () { applyAll("ignore"); });
 
   // 评分区展开/收起
-  els.scoreToggle.addEventListener("click", function () {
+  on(els.scoreToggle, "click", function () {
     setScoreOpen(els.scoreBody.hasAttribute("hidden"));
   });
-  els.criticBtn.addEventListener("click", runCritic);
+  on(els.criticBtn, "click", runCritic);
 
   // 大纲 / 稿纸切换
-  els.docTabs.addEventListener("click", function (e) {
+  on(els.docTabs, "click", function (e) {
     var btn = e.target.closest(".doc-tab");
     if (!btn) return;
     switchPane(btn.getAttribute("data-pane"));
   });
 
   // 点击「大纲」时重新收集一次，避免手动改动没同步
-  els.outlineTitle.addEventListener("input", syncOutlineFromDOM);
-  els.outlineThesis.addEventListener("input", syncOutlineFromDOM);
+  on(els.outlineTitle, "input", syncOutlineFromDOM);
+  on(els.outlineThesis, "input", syncOutlineFromDOM);
 
-  els.outlineAddBtn.addEventListener("click", function () {
+  on(els.outlineAddBtn, "click", function () {
     syncOutlineFromDOM();
     outline.points.push(newPoint("", ""));
     renderOutline();
@@ -1904,32 +1999,37 @@
     if (last) last.querySelector(".op-text").focus();
   });
 
-  els.outlineAiBtn.addEventListener("click", function () {
+  on(els.outlineRetryBtn, "click", function () {
+    if (stage !== "outline" && !confirm("重新拟大纲不会动已有正文，但会覆盖当前大纲条目。继续吗？")) return;
+    askOutline("请重新拟一份大纲：换一个切入角度，每段必须落到具体器物、工序或一句人物原话，删掉空泛的抒情段。");
+  });
+
+  on(els.outlineAiBtn, "click", function () {
     if (stage !== "outline") { setDocHint("正文已生成，若要重写大纲请直接在条目里改。"); return; }
     askOutline("在当前大纲基础上增补一到两段：补一处具体细节或一处人物暗中的动作，其余段落保持原样。");
   });
 
-  els.writeEssayBtn.addEventListener("click", generateEssay);
+  on(els.writeEssayBtn, "click", generateEssay);
 
   // 对话模式切换
-  els.chatMode.addEventListener("click", function (e) {
+  on(els.chatMode, "click", function (e) {
     var btn = e.target.closest(".chat-mode-btn");
     if (!btn) return;
     setChatMode(btn.getAttribute("data-mode"));
   });
 
-  els.stopBtn2.addEventListener("click", function () {
+  on(els.stopBtn2, "click", function () {
     if (controller) controller.abort();
   });
 
-  els.backBtn.addEventListener("click", function () {
+  on(els.backBtn, "click", function () {
     if (controller) controller.abort();
     els.studio.setAttribute("hidden", "");
     els.wizard.removeAttribute("hidden");
     document.body.classList.remove("studio-mode");
   });
 
-  els.chatInput.addEventListener("keydown", function (e) {
+  on(els.chatInput, "keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSend();
   });
 

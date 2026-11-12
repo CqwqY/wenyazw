@@ -11,7 +11,7 @@
  *   POST /api/auth/logout
  *   GET  /api/essays          我的作文列表（不含正文）
  *   GET  /api/essays/:id      作文详情（含正文）
- *   POST /api/essays          新建或更新作文 { id?, title, body, category?, province?, wordCount? }
+ *   POST /api/essays          新建或更新作文 { id?, title, body, outline?, category?, province?, wordCount? }
  *   DELETE /api/essays/:id    删除作文
  */
 "use strict";
@@ -83,7 +83,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL,
     title TEXT NOT NULL,
-    body TEXT NOT NULL,
+    body TEXT NOT NULL DEFAULT "",
+    outline TEXT NOT NULL DEFAULT "",
     category TEXT NOT NULL DEFAULT "",
     province TEXT NOT NULL DEFAULT "",
     word_count INTEGER NOT NULL DEFAULT 0,
@@ -96,6 +97,11 @@ db.exec(`
 const sendLogCols = db.prepare("PRAGMA table_info(send_log)").all();
 if (sendLogCols.length && !sendLogCols.some((c) => c.name === "purpose")) {
   db.exec("ALTER TABLE send_log ADD COLUMN purpose TEXT NOT NULL DEFAULT 'register'");
+}
+// 兼容早期没有 outline 列的库（大纲单独存一列，正文可以为空）
+const essayCols = db.prepare("PRAGMA table_info(essays)").all();
+if (essayCols.length && !essayCols.some((c) => c.name === "outline")) {
+  db.exec('ALTER TABLE essays ADD COLUMN outline TEXT NOT NULL DEFAULT ""');
 }
 try { fs.chmodSync(DB_FILE, 0o600); } catch (e) { /* 新库可能还没生成 WAL 文件 */ }
 
@@ -381,7 +387,8 @@ async function handle(req, res) {
     const user = verifyToken(bearer(req));
     if (!user) { send(req, res, 401, { ok: false, error: "请先登录" }); return; }
     const rows = db.prepare(`
-      SELECT id, title, category, province, word_count, created_at, updated_at
+      SELECT id, title, category, province, word_count, created_at, updated_at,
+             CASE WHEN length(outline) > 0 THEN 1 ELSE 0 END AS has_outline
       FROM essays WHERE email = ? ORDER BY updated_at DESC LIMIT 200
     `).all(user.email);
     send(req, res, 200, { ok: true, essays: rows });
@@ -394,7 +401,11 @@ async function handle(req, res) {
     const body = await readBody(req);
     const title = String(body.title || "").trim().slice(0, 120) || "无题";
     const text = String(body.body || "").slice(0, 100000);
-    if (!text.trim()) { send(req, res, 400, { ok: false, error: "作文内容不能为空" }); return; }
+    const outline = String(body.outline || "").slice(0, 40000);
+    if (!text.trim() && !outline.trim()) {
+      send(req, res, 400, { ok: false, error: "大纲和正文至少要有一样" });
+      return;
+    }
     const category = String(body.category || "").trim().slice(0, 40);
     const province = String(body.province || "").trim().slice(0, 40);
     const words = Array.from(text.replace(/\s/g, "")).length;
@@ -403,16 +414,16 @@ async function handle(req, res) {
     if (id > 0) {
       const owned = db.prepare("SELECT 1 FROM essays WHERE id = ? AND email = ?").get(id, user.email);
       if (!owned) { send(req, res, 404, { ok: false, error: "作文不存在" }); return; }
-      db.prepare(`UPDATE essays SET title = ?, body = ?, category = ?, province = ?,
+      db.prepare(`UPDATE essays SET title = ?, body = ?, outline = ?, category = ?, province = ?,
                   word_count = ?, updated_at = ? WHERE id = ? AND email = ?`)
-        .run(title, text, category, province, words, now, id, user.email);
+        .run(title, text, outline, category, province, words, now, id, user.email);
       send(req, res, 200, { ok: true, id, wordCount: words });
       return;
     }
     const info = db.prepare(`INSERT INTO essays
-      (email, title, body, category, province, word_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(user.email, title, text, category, province, words, now, now);
+      (email, title, body, outline, category, province, word_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(user.email, title, text, outline, category, province, words, now, now);
     send(req, res, 200, { ok: true, id: Number(info.lastInsertRowid), wordCount: words });
     return;
   }

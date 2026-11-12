@@ -34,3 +34,9 @@ server/data/
 *.tmp
 *.bak
 *.swp
+
+# 本地临时测试文件
+__e2e_server.js
+__t_*.html
+__dump.html
+__shot_*.png

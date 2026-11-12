@@ -103,3 +103,19 @@
   .essay-list { grid-template-columns: 1fr; }
   .view-card { max-height: 88vh; overflow: auto; }
 }
+
+.view-outline {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f7faf7;
+  border: 1px solid #cfe0d3;
+  border-radius: 8px;
+  padding: 12px 14px;
+  max-height: 30vh;
+  overflow: auto;
+}
+.view-outline[hidden] { display: none; }

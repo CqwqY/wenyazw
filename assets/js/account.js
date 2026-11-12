@@ -10,7 +10,7 @@
     msg: $("accountMsg"), list: $("essayList"),
     refresh: $("refreshBtn"), openLogin: $("openLogin"),
     viewMask: $("viewMask"), viewTitle: $("viewTitle"),
-    viewMeta: $("viewMeta"), viewBody: $("viewBody"),
+    viewMeta: $("viewMeta"), viewBody: $("viewBody"), viewOutline: $("viewOutline"),
     viewClose: $("viewClose"), viewClose2: $("viewClose2"),
     viewCopy: $("viewCopy"), viewDownload: $("viewDownload"),
     authMask: $("authMask")
@@ -79,6 +79,7 @@
       if (r.category) bits.push(esc(r.category));
       if (r.province) bits.push(esc(r.province));
       bits.push((r.word_count || 0) + " 字");
+      if (r.has_outline) bits.push("含大纲");
       info.textContent = bits.join(" · ");
       card.appendChild(info);
 
@@ -132,7 +133,23 @@
         (current.word_count || 0) + " 字",
         "更新于 " + fmtTime(current.updated_at)
       ].filter(Boolean).join(" · ");
-      els.viewBody.textContent = esc(current.body);
+      els.viewBody.textContent = esc(current.body) || "（这篇还没有正文，只有大纲）";
+      var ol = null;
+      try { ol = current.outline ? JSON.parse(current.outline) : null; } catch (e) { ol = null; }
+      if (ol && ol.points && ol.points.length) {
+        var txt = [];
+        if (ol.title) txt.push("标题：" + ol.title);
+        if (ol.thesis) txt.push("立意：" + ol.thesis);
+        ol.points.forEach(function (p, i) {
+          txt.push((i + 1) + ". " + (p.label ? "【" + p.label + "】" : "") + (p.text || ""));
+        });
+        if (ol.note) txt.push("提醒：" + ol.note);
+        els.viewOutline.textContent = txt.join("\n");
+        els.viewOutline.removeAttribute("hidden");
+      } else {
+        els.viewOutline.textContent = "";
+        els.viewOutline.setAttribute("hidden", "");
+      }
       els.viewMask.removeAttribute("hidden");
       setMsg("");
     } catch (e) {
