@@ -3450,38 +3450,90 @@
 
   on(els.paperBody, "click", function () { clearActiveMarks(); hideInkDock(); });
 
-  /* ---------------- 锁句：选中正文 → 浮出「锁住这句」 ---------------- */
+  /* ---------------- 锁句：稿纸内自己按字选，不碰浏览器原生选区 ----------------
+     原生框选会跟浮层、拖动手柄、双击选词互相打架，所以在稿纸上整体关掉 user-select，
+     改由这里按 .ch 字格自己维护一段区间：拖动连选，或点两下（起点、终点）成区间。 */
   var lockPop = $("lockPop");
   var lockApplyBtn = $("lockApplyBtn");
   var pendingLockText = "";
 
-  function selectionInPaper() {
-    var sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
-    var range = sel.getRangeAt(0);
-    if (!els.paperBody.contains(range.commonAncestorContainer)) return null;
-    var t = normLock(sel.toString());
-    if (t.length < 4) return null;
-    var rect = range.getBoundingClientRect();
-    if (!rect || (!rect.width && !rect.height)) return null;
-    return { text: t, rect: rect };
-  }
+  var coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  var selChars = [];        // 本次按下时抓的字格快照（DOM 顺序即阅读顺序）
+  var selA = -1, selB = -1; // 区间两端下标
+  var selDragging = false;
+  var selDownX = 0, selDownY = 0;
+  var tapAt = 0, tapIdx = -1;   // 上一次「点选」的落点，用来拼成区间
+  var selOnMark = false;        // 这次按下落在红笔标记/锁定句上：单击交给标记自己处理
 
   function hideLockPop() {
     if (lockPop) lockPop.hidden = true;
     pendingLockText = "";
   }
 
-  function showLockPop(hit) {
+  function chIndexAt(node) {
+    var el = node;
+    if (el && el.nodeType === 3) el = el.parentNode;
+    if (!el || !el.closest) return -1;
+    var ch = el.closest(".ch");
+    if (!ch || !els.paperBody.contains(ch)) return -1;
+    for (var i = 0; i < selChars.length; i++) if (selChars[i] === ch) return i;
+    return -1;
+  }
+
+  function selRange() {
+    if (selA < 0 || selB < 0) return null;
+    var a = Math.min(selA, selB), b = Math.max(selA, selB);
+    return { a: a, b: b, text: selChars.slice(a, b + 1).map(function (c) { return c.textContent; }).join("") };
+  }
+
+  function paintSel() {
+    var r = selRange();
+    for (var i = 0; i < selChars.length; i++) {
+      var on = r && i >= r.a && i <= r.b;
+      if (on) selChars[i].classList.add("ch-sel");
+      else selChars[i].classList.remove("ch-sel");
+    }
+  }
+
+  function clearSel() {
+    for (var i = 0; i < selChars.length; i++) selChars[i].classList.remove("ch-sel");
+    selA = selB = -1;
+    tapIdx = -1;
+  }
+
+  // 首尾两格拼出整体矩形：多行选区也能拿到正确的位置
+  function selRect() {
+    var r = selRange();
+    if (!r) return null;
+    var first = selChars[r.a], last = selChars[r.b];
+    if (!first || !last) return null;
+    var box = document.createRange();
+    box.setStartBefore(first);
+    box.setEndAfter(last);
+    var rect = box.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) return null;
+    return rect;
+  }
+
+  // 浮层落在选区外：上方优先，放不下放下面；触屏直接放下面。任何情况都不压住选区。
+  function showLockPop(text, rect) {
     if (!lockPop) return;
-    var already = isLocked(hit.text);
-    pendingLockText = hit.text;
+    var already = isLocked(text);
+    pendingLockText = text;
     lockPop.hidden = false;
+
+    var vw = window.innerWidth, vh = window.innerHeight;
     var pw = lockPop.offsetWidth || 96;
     var ph = lockPop.offsetHeight || 30;
-    var left = Math.max(8, Math.min(window.innerWidth - pw - 8, hit.rect.left + hit.rect.width / 2 - pw / 2));
-    var top = hit.rect.top - ph - 8;
-    if (top < 8) top = hit.rect.bottom + 8;
+    var gap = coarse ? 18 : 10;
+    var left = Math.max(8, Math.min(vw - pw - 8, rect.left + rect.width / 2 - pw / 2));
+    var top = coarse ? rect.bottom + gap : rect.top - ph - gap;
+    if (top < 8) top = rect.bottom + gap;
+    if (top + ph > vh - 8) top = Math.max(8, rect.top - ph - gap);
+    if (top + ph > rect.top && top < rect.bottom) {
+      top = rect.bottom + gap;
+      if (top + ph > vh - 8) top = Math.max(8, vh - ph - 8);
+    }
     lockPop.style.left = Math.round(left) + "px";
     lockPop.style.top = Math.round(top) + "px";
     if (lockApplyBtn) {
@@ -3490,31 +3542,111 @@
     }
   }
 
-  function probeLock() {
-    var hit = selectionInPaper();
-    if (hit) showLockPop(hit);
-    else hideLockPop();
+  function settleSel() {
+    var r = selRange();
+    if (!r) { hideLockPop(); return; }
+    if (r.text.length < 4) {
+      hideLockPop();
+      setPaperHint("锁句至少四个字");
+      return;
+    }
+    var rect = selRect();
+    if (!rect) { hideLockPop(); return; }
+    showLockPop(r.text, rect);
+    setPaperHint("已选 " + r.text.length + " 字，点「锁住这句」交给 AI，或继续拖动调整");
   }
 
   if (els.paperBody) {
-    on(els.paperBody, "mouseup", function () { setTimeout(probeLock, 0); });
-    on(els.paperBody, "touchend", function () { setTimeout(probeLock, 260); });
+    on(els.paperBody, "pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      selChars = Array.prototype.slice.call(els.paperBody.querySelectorAll(".ch"));
+      // 手指按在格缝、标记或角标上时，按坐标再找一次字格，避免点空
+      var idx = chIndexAt(e.target);
+      if (idx < 0) idx = chIndexAt(document.elementFromPoint(e.clientX, e.clientY));
+      if (idx < 0) { clearSel(); hideLockPop(); return; }
+
+      // 点选第二下（且离上次不远）：直接成区间，触屏没拖动也能选
+      if (!selDragging && tapIdx >= 0 && tapIdx !== idx && Date.now() - tapAt < 8000) {
+        selA = tapIdx; selB = idx;
+        selDragging = false;
+        paintSel();
+        settleSel();
+        tapIdx = -1;
+        e.preventDefault();
+        return;
+      }
+
+      selOnMark = !!(e.target.closest && e.target.closest(".ink-mark, .critic-mark, .lock-mark"));
+      selA = selB = idx;
+      selDragging = false;
+      selDownX = e.clientX;
+      selDownY = e.clientY;
+      paintSel();
+      hideLockPop();
+      if (els.paperBody.setPointerCapture) {
+        try { els.paperBody.setPointerCapture(e.pointerId); } catch (x) { /* 老浏览器 */ }
+      }
+      e.preventDefault();
+    });
+
+    on(els.paperBody, "pointermove", function (e) {
+      if (selA < 0) return;
+      if (!selDragging) {
+        if (Math.abs(e.clientX - selDownX) + Math.abs(e.clientY - selDownY) < 6) return;
+        selDragging = true;
+      }
+      var el = document.elementFromPoint(e.clientX, e.clientY);
+      var idx = chIndexAt(el);
+      if (idx >= 0 && idx !== selB) { selB = idx; paintSel(); }
+      hideLockPop();
+      if (e.cancelable) e.preventDefault();
+    });
+
+    on(els.paperBody, "pointerup", function (e) {
+      if (selA < 0) return;
+      var dragged = selDragging;
+      selDragging = false;
+      if (dragged) {
+        settleSel();
+      } else if (selOnMark) {
+        // 单击标记：不抢，清掉这一格的高亮，让标记的 click（看旁批 / 解锁）照常生效
+        clearSel();
+        hideLockPop();
+      } else if (selA === selB) {
+        // 单击：记住落点，等第二下；同时把提示说清楚
+        tapAt = Date.now();
+        tapIdx = selA;
+        hideLockPop();
+        setPaperHint("已点到第 " + (selA + 1) + " 字，再点终点连成一句");
+      }
+      if (els.paperBody.releasePointerCapture) {
+        try { els.paperBody.releasePointerCapture(e.pointerId); } catch (x) { /* 忽略 */ }
+      }
+    });
+
+    on(els.paperBody, "pointercancel", function () { selDragging = false; });
   }
+
   if (lockApplyBtn) {
-    on(lockApplyBtn, "mousedown", function (e) { e.preventDefault(); });
+    on(lockApplyBtn, "pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); });
     on(lockApplyBtn, "click", function (e) {
       e.preventDefault();
       var t = pendingLockText;
       hideLockPop();
+      clearSel();
       if (t) lockText(t);
-      var sel = window.getSelection();
-      if (sel) sel.removeAllRanges();
     });
   }
-  on(document, "mousedown", function (e) {
-    if (lockPop && !lockPop.hidden && !lockPop.contains(e.target)) hideLockPop();
+  on(document, "pointerdown", function (e) {
+    if (!lockPop || lockPop.hidden) return;
+    if (lockPop.contains(e.target) || els.paperBody.contains(e.target)) return;
+    hideLockPop();
+  });
+  on(document, "keydown", function (e) {
+    if (e.key === "Escape") { hideLockPop(); clearSel(); }
   });
   on(window, "scroll", hideLockPop, true);
+  on(window, "resize", hideLockPop);
 
   on(els.paperNotes, "click", function (e) {
     if (e.target === els.paperNotes) { clearActiveMarks(); hideInkDock(); }

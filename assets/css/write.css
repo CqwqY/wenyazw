@@ -723,6 +723,12 @@ a.account-credits:hover { background: rgba(47, 111, 78, .18); text-decoration: n
     repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--cell));
   background-position: 0 0;
   min-height: 340px;
+  /* 稿纸内不用浏览器原生选区：按字选择由页面自己实现，避免和浮层、拖动打架 */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* 纵向滑动照常滚页，横向划过才交给我们做连选 */
+  touch-action: pan-y;
 }
 
 /* 一字一格：不管汉字、标点、字母，每个字符都钉死在 cell 宽的格子里 */
@@ -743,6 +749,14 @@ a.account-credits:hover { background: rgba(47, 111, 78, .18); text-decoration: n
 
 .paper-body p:last-child { margin-bottom: 0; }
 
+/* 自绘选区：落在字格上，不改变任何排版尺寸 */
+.paper-body .ch-sel {
+  background: rgba(168, 50, 42, .14);
+  box-shadow: inset 0 0 0 1.5px rgba(168, 50, 42, .38);
+  border-radius: 4px;
+  color: #8f2b24;
+}
+
 /* 锁住的句子：淡绿底 + 下划绿线，点一下解锁。不能加任何会占位的伪元素，否则字格会错位 */
 .lock-mark {
   background: rgba(47, 111, 78, .11);
@@ -758,6 +772,9 @@ a.account-credits:hover { background: rgba(47, 111, 78, .18); text-decoration: n
   position: fixed;
   z-index: 80;
   padding: 3px;
+  /* 不参与文本选择，避免按按钮时把选区搞乱 */
+  user-select: none;
+  -webkit-user-select: none;
   border-radius: 9px;
   background: #1c1f1d;
   box-shadow: 0 10px 24px -10px rgba(0, 0, 0, .45);
@@ -765,6 +782,7 @@ a.account-credits:hover { background: rgba(47, 111, 78, .18); text-decoration: n
 
 .lock-pop button {
   display: block;
+  touch-action: manipulation;
   border: 0;
   background: none;
   color: #fff;
