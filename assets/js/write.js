@@ -73,9 +73,10 @@
     scoreCaret: $("scoreCaret"), scoreTables: $("scoreTables"),
     criticBtn: $("criticBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
+    criticApplyBtn: $("criticApplyBtn"),
     inkDock: $("inkDock"), inkDockNo: $("inkDockNo"), inkDockWhy: $("inkDockWhy"),
     inkDockAccept: $("inkDockAccept"), inkDockIgnore: $("inkDockIgnore"),
-    inkDockClose: $("inkDockClose"),
+    inkDockClose: $("inkDockClose"), inkDockSug: $("inkDockSug"),
 
     docTabs: $("docTabs"), docTabHint: $("docTabHint"),
     outlinePane: $("outlinePane"), paperPane: $("paperPane"),
@@ -105,13 +106,13 @@
   var annotations = [];          // 老师手批：待处理/已采纳/已忽略的批注
   var annotSeq = 0;              // 批注编号自增
   var prevAcceptedTexts = [];    // 上一轮采纳写进正文的新文字（稿纸里标黄）
-  var roundAcceptedTexts = [];   // 本轮采纳产生的新文字，下一轮开始时归档为"上一轮"
   var currentEssayId = null;     // 云端作文 id（登录后自动保存）
 
   var outline = { title: "", thesis: "", points: [], note: "" };  // 大纲（可编辑）
   var stage = "outline";         // outline：还在改大纲；draft：正文已生成
   var chatMode = "annotate";     // annotate：手批改稿；explain：只问不改
   var criticItems = [];          // AI 评改的逐句结果
+  var criticSeq = 0;             // 评改条目自增 id（用于稿纸标记与卡片互跳）
   var criticDockClosed = false;  // 用户手动收起稿纸下方的评改批注坞
 
   /* ---------------- 配置持久化 ---------------- */
@@ -606,6 +607,20 @@
     return out;
   }
 
+  /* 每个字符单独一个定宽格：中文标点、英文数字的字宽和汉字不同，
+     靠 letter-spacing 拼步长必然越走越歪，只能一字一格硬定住。 */
+  function charSpans(text) {
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      var s = document.createElement("span");
+      s.className = "ch";
+      s.textContent = ch === " " ? "\u00a0" : ch;
+      frag.appendChild(s);
+    }
+    return frag;
+  }
+
   // 把一段普通文本按"上一轮改动"区间切成节点（黄底）
   function appendPlainWithHighlights(el, text) {
     var hs = prevIntervals(text);
@@ -614,12 +629,61 @@
       if (h.start > p) el.appendChild(document.createTextNode(text.slice(p, h.start)));
       var y = document.createElement("span");
       y.className = "ink-prev";
-      y.textContent = text.slice(h.start, h.end);
-      y.title = "上一轮采纳的改动";
+      y.title = "AI 已改过的文字";
+      y.appendChild(charSpans(text.slice(h.start, h.end)));
       el.appendChild(y);
       p = h.end;
     });
-    if (p < text.length) el.appendChild(document.createTextNode(text.slice(p)));
+    if (p < text.length) el.appendChild(charSpans(text.slice(p)));
+  }
+
+  /* AI 评改的句子也要落回原文位置：用更淡的虚线和角标标在原句上，
+     与朱红批注符号互不冲突（同一处已被批注占用时，评改标记让位）。 */
+  function criticIntervalsIn(paraText) {
+    var list = [];
+    criticItems.forEach(function (it) {
+      var full = trim(it.sentence);
+      if (!full) return;
+      var a = paraText.indexOf(full);
+      var needle = full;
+      if (a < 0) { needle = full.slice(0, 12); a = paraText.indexOf(needle); }
+      if (a < 0) return;
+      if (paraText.indexOf(needle, a + needle.length) >= 0) return;
+      list.push({ start: a, end: a + needle.length, item: it });
+    });
+    list.sort(function (x, y) { return x.start - y.start; });
+    var out = [], lastEnd = -1;
+    list.forEach(function (it) {
+      if (it.start < lastEnd) return;
+      out.push(it);
+      lastEnd = it.end;
+    });
+    return out;
+  }
+
+  // 一段纯文本：先切评改区间，区间内部再切"上一轮改动"的黄底
+  function appendRichText(el, text) {
+    var civs = criticIntervalsIn(text);
+    var p = 0;
+    civs.forEach(function (c) {
+      if (c.start > p) appendPlainWithHighlights(el, text.slice(p, c.start));
+      var sp = document.createElement("span");
+      sp.className = "critic-mark " + (c.item.verdict === "好" ? "cm-good" : "cm-bad") +
+        (c.item.agreed === "yes" ? " cm-agreed" : c.item.agreed === "no" ? " cm-denied" : "");
+      sp.appendChild(charSpans(text.slice(c.start, c.end)));
+      sp.setAttribute("data-critic-id", String(c.item.id));
+      sp.setAttribute("data-critic-no", String(c.item.no));
+      sp.title = "AI 评改 #" + c.item.no + "（" + c.item.verdict + "）：" + (c.item.reason || "");
+      (function (item) {
+        sp.addEventListener("click", function (e) {
+          e.stopPropagation();
+          focusCriticCard(item.id);
+        });
+      })(c.item);
+      el.appendChild(sp);
+      p = c.end;
+    });
+    if (p < text.length) appendPlainWithHighlights(el, text.slice(p));
   }
 
   function buildMarkedParagraph(paraText, marks) {
@@ -627,10 +691,10 @@
     var ivs = intervalsFor(paraText, marks);
     var pos = 0;
     ivs.forEach(function (it) {
-      if (it.start > pos) appendPlainWithHighlights(el, paraText.slice(pos, it.start));
+      if (it.start > pos) appendRichText(el, paraText.slice(pos, it.start));
       var span = document.createElement("span");
       span.className = "ink-mark ink-" + it.mark.type;
-      span.textContent = it.anchor;
+      span.appendChild(charSpans(it.anchor));
       span.setAttribute("data-mark-id", it.mark.id);
       span.title = (SYMBOL_LABEL[it.mark.type] || "批注") + "：" + (it.mark.reason || "");
       var no = document.createElement("sup");
@@ -638,13 +702,7 @@
       no.textContent = markNo(it.mark.no);
       span.appendChild(no);
       el.appendChild(span);
-      if ((it.mark.type === "replace" || it.mark.type === "insert") && it.mark.text) {
-        var sug = document.createElement("span");
-        sug.className = "ink-suggest";
-        sug.textContent = (it.mark.type === "insert" ? "∧" : "→") + it.mark.text;
-        el.appendChild(sug);
-      }
-      // 点符号 -> 稿纸下方固定批注条（不占行内空间、不遮正文）
+      // 建议文字不进稿纸格子（会占宽、把后面的字挤错格），只在下方批注条和左侧卡片里给
       span.addEventListener("click", function (e) {
         e.stopPropagation();
         var was = span.classList.contains("active");
@@ -655,7 +713,7 @@
       });
       pos = it.end;
     });
-    if (pos < paraText.length) appendPlainWithHighlights(el, paraText.slice(pos));
+    if (pos < paraText.length) appendRichText(el, paraText.slice(pos));
     return el;
   }
 
@@ -674,6 +732,15 @@
     els.inkDockNo.textContent = String(m.no);
     els.inkDockWhy.textContent = (SYMBOL_LABEL[m.type] || "批注") + "：" +
       (m.reason || "（这条没写原因）");
+    if (els.inkDockSug) {
+      if (m.text && (m.type === "replace" || m.type === "insert")) {
+        els.inkDockSug.textContent = (m.type === "insert" ? "增补：" : "改为：") + m.text;
+        els.inkDockSug.removeAttribute("hidden");
+      } else {
+        els.inkDockSug.textContent = "";
+        els.inkDockSug.setAttribute("hidden", "");
+      }
+    }
     els.inkDock.hidden = false;
   }
 
@@ -773,12 +840,14 @@
       docBody = next;
       currentComposition = (docTitle ? docTitle + "\n\n" : "") + docBody;
       m.state = "accepted";
-      // 记录本轮改动写进正文的新文字，下一轮批注时标黄
+      // 采纳当场就标黄，不必等下一轮批注才看得见 AI 动过哪里
       if (m.type === "replace" || m.type === "insert") {
-        if (m.text) roundAcceptedTexts.push(m.text);
+        if (m.text) prevAcceptedTexts.push(m.text);
       } else if (m.type === "swap") {
-        m.anchor.split("|||").forEach(function (x) { if (trim(x)) roundAcceptedTexts.push(trim(x)); });
+        m.anchor.split("|||").forEach(function (x) { if (trim(x)) prevAcceptedTexts.push(trim(x)); });
       }
+      // 黄标只留最近 40 处，防止一路采纳把整篇染黄
+      if (prevAcceptedTexts.length > 40) prevAcceptedTexts = prevAcceptedTexts.slice(-40);
     } else {
       m.state = "ignored";
     }
@@ -1280,17 +1349,129 @@
     return obj;
   }
 
+  /* ---------------- 批注文本清洗 ----------------
+     AI 常犯三类错：给替换文字套引号、把「改为：」这类说明写进 text、
+     以及在句中替换时凭空多带一个句号。这里统一收口，宁可丢弃也不污染正文。 */
+
+  function countChar(s, ch) {
+    var n = 0;
+    for (var i = 0; i < s.length; i++) if (s.charAt(i) === ch) n++;
+    return n;
+  }
+
+  // 中文语境下的英文标点转全角，成对的直引号转中文引号
+  function normalizePunct(s) {
+    var t = String(s || "");
+    t = t.replace(/"([^"]*)"/g, "\u201c$1\u201d");
+    t = t.replace(/'([^']*)'/g, "\u2018$1\u2019");
+    t = t.replace(/([\u4e00-\u9fa5\u201d\u2019])\s*,\s*/g, "$1\uff0c");
+    t = t.replace(/([\u4e00-\u9fa5\u201d\u2019])\s*;\s*/g, "$1\uff1b");
+    t = t.replace(/([\u4e00-\u9fa5\u201d\u2019])\s*:\s*/g, "$1\uff1a");
+    t = t.replace(/([\u4e00-\u9fa5\u201d\u2019])\s*\?\s*/g, "$1\uff1f");
+    t = t.replace(/([\u4e00-\u9fa5\u201d\u2019])\s*!\s*/g, "$1\uff01");
+    t = t.replace(/([\u4e00-\u9fa5\u201d\u2019])\s*\.\s*(?=[\u4e00-\u9fa5\u201c\u2018]|$)/g, "$1\u3002");
+    return t;
+  }
+
+  // 剥掉模型写进 text 的说明文字和外层引号（可能同时存在，剥两轮）
+  function stripMetaText(raw) {
+    var t = trim(raw);
+    var PREFIX = /^(?:改为|改成|应改为|应该改成|建议改为|建议改成|替换为|换成为|换成|修改为|原句改为|改作)\s*[:：]?\s*/;
+    var WRAPS = [["\u201c", "\u201d"], ["\u300c", "\u300d"], ["\u300e", "\u300f"], ['"', '"'], ["'", "'"]];
+    var TAIL = /[（(]\s*(?:此处|这里|此处可|可换|建议|说明|注|理由|原因是)[^）)]*[）)]\s*$/;
+
+    function unwrap(t) {
+      for (var i = 0; i < WRAPS.length; i++) {
+        var a = WRAPS[i][0], b = WRAPS[i][1];
+        if (t.length > 2 && t.charAt(0) === a && t.charAt(t.length - 1) === b) {
+          var inner = t.slice(1, -1);
+          if (inner.indexOf(a) < 0 && inner.indexOf(b) < 0) return inner;
+        }
+      }
+      return t;
+    }
+
+    for (var round = 0; round < 2; round++) {
+      var before = t;
+      t = trim(unwrap(t));
+      t = t.replace(PREFIX, "");
+      t = t.replace(/^[\u2192\u2190\->=\s]+/, "");
+      t = t.replace(TAIL, "");
+      t = trim(t);
+      if (t === before) break;
+    }
+    return t;
+  }
+
+  /* 让替换文字与原文标点接得上：anchor 在句中就不许多出句号，anchor 带句末标点就得跟着带 */
+  function fitPunct(anchor, text) {
+    if (!text) return text;
+    var at = docBody.indexOf(anchor);
+    if (at < 0) return text;
+    var after = docBody.charAt(at + anchor.length);
+    var stop = /[\u3002\uff01\uff1f\u2026]/;
+    var aStop = stop.test(anchor.slice(-1));
+    var tStop = stop.test(text.slice(-1));
+    if (aStop) {
+      if (!tStop && anchor.length > 1) return text + anchor.slice(-1);
+      return text;
+    }
+    if (after === "" || after === "\n") {
+      // anchor 正好到段末：text 带不带句末标点都合理，保持模型原意
+      return text;
+    }
+    if (stop.test(after)) {
+      // 原文后面紧跟句末标点，text 不要再重复一个
+      if (tStop && text.slice(-1) === after) return text.slice(0, -1);
+      if (tStop) return text.replace(stop, "");
+      return text;
+    }
+    if (/[\uff0c\u3001\uff1b\uff1a]/.test(after)) {
+      if (tStop) return text.replace(/[\u3002\uff01\uff1f\u2026]+$/, "");
+      return text;
+    }
+    // 后面还接着字：句中的替换，结尾不许带句末标点
+    if (tStop) return text.replace(/[\u3002\uff01\uff1f\u2026]+$/, "");
+    return text;
+  }
+
+  // 引号必须成对，否则会把残句写进正文
+  function quotesBalanced(s) {
+    return countChar(s, "\u201c") === countChar(s, "\u201d") &&
+           countChar(s, "\u300c") === countChar(s, "\u300d");
+  }
+
+  var annotDropped = 0;   // 本次被丢掉的批注条数（含缺字段、标点/引号不合法）
+
   // 校验并规范化批注：丢掉 anchor 定位不到、类型不合法、缺字段的条目
   function normalizeMarks(obj) {
     var out = [];
+    annotDropped = 0;
+    function drop() {
+      annotDropped++;
+    }
     obj.marks.slice(0, 12).forEach(function (m) {
-      if (!m || VALID_TYPES.indexOf(m.type) < 0) return;
-      var anchor = trim(m.anchor), text = trim(m.text), reason = trim(m.reason);
-      if (!anchor) return;
-      if ((m.type === "replace" || m.type === "insert") && !text) return;
+      if (!m || VALID_TYPES.indexOf(m.type) < 0) { drop("类型不合法", m && m.anchor); return; }
+      var anchor = trim(m.anchor), reason = trim(m.reason);
+      var text = trim(m.text);
+      if (!anchor) { drop("缺 anchor", ""); return; }
+      if (m.type === "replace" || m.type === "insert") {
+        text = trim(normalizePunct(stripMetaText(text)));
+        if (!text) { drop("text 为空或全是说明", anchor); return; }
+        // 整段重写、套话说明残留、引号残缺，一律不要
+        if (text.length > Math.max(80, anchor.length * 3)) { drop("text 过长", anchor); return; }
+        if (!quotesBalanced(text)) { drop("引号不配对", anchor); return; }
+        text = fitPunct(anchor, text);
+        if (!text) { drop("标点清理后为空", anchor); return; }
+        // 改完和原文一模一样，等于没改
+        if (m.type === "replace" && text === anchor) { drop("与原文相同", anchor); return; }
+        if (m.type === "insert" && anchor.indexOf(text) >= 0) { drop("增补内容已存在", anchor); return; }
+      }
       var needles = m.type === "swap" ? anchor.split("|||").map(trim) : [anchor];
       var ok = needles.every(function (n) { return n && docBody.indexOf(n) >= 0; });
-      if (!ok) return;
+      if (!ok) { drop("原文找不到", anchor); return; }
+      // anchor 必须唯一，否则可能标错地方
+      if (m.type !== "swap" && docBody.indexOf(anchor) !== docBody.lastIndexOf(anchor)) { drop("原文不唯一", anchor); return; }
       out.push({
         id: ++annotSeq, no: out.length + 1, type: m.type,
         anchor: anchor, text: text, reason: reason, state: "pending"
@@ -1584,7 +1765,7 @@
     stage = docBody.trim() ? "draft" : "outline";
 
     annotations = []; annotSeq = 0; annotPanelEl = null;
-    prevAcceptedTexts = []; roundAcceptedTexts = [];
+    prevAcceptedTexts = [];
     criticItems = [];
     els.criticList.innerHTML = "";
     els.criticStat.textContent = "逐句判好坏与 AI 味，不给总分的空头评价。";
@@ -1687,7 +1868,7 @@
     currentComposition = "";
     docTitle = ""; docBody = "";
     annotations = []; annotSeq = 0; annotPanelEl = null;
-    prevAcceptedTexts = []; roundAcceptedTexts = [];
+    prevAcceptedTexts = [];
     currentEssayId = null;
     criticItems = [];
     outline = { title: "", thesis: "", points: [], note: "" };
@@ -1901,6 +2082,12 @@
     }
   }
 
+  // 一句长要求（例如从评改汇总结过来的）在对话里只展示开头，全文照样发给模型
+  function summarizeAsk(req) {
+    var t = trim(req).replace(/\s+/g, " ");
+    return t.length > 90 ? t.slice(0, 90) + "…（共 " + Array.from(trim(req)).length + " 字）" : t;
+  }
+
   /* 手批改稿 */
   async function sendRevision(req) {
     var c = currentConfig();
@@ -1909,7 +2096,7 @@
       return;
     }
 
-    addUserBubble(req);
+    addUserBubble(summarizeAsk(req));
     els.chatInput.value = "";
     assistantReplyEl = addAssistantBubble("批改老师");
     if (assistantReplyEl) assistantReplyEl.textContent = "正在读稿、写批注…";
@@ -1924,9 +2111,7 @@
     try {
       var raw = await fetchAnnotation(sys, composeReviseUser(req));
       var obj = parseAnnotJSON(raw);
-      // 上一轮采纳的改动从这一轮起标黄；本轮新采纳的留到下一轮才标
-      prevAcceptedTexts = roundAcceptedTexts.slice();
-      roundAcceptedTexts = [];
+      // 黄标在采纳当时就已标上，这里不再重置，免得改动痕迹忽然消失
       annotations = normalizeMarks(obj);
       // 新一轮批注：移除上一轮面板（正文已采纳的改动仍生效），在对话底部重建
       if (annotPanelEl) { annotPanelEl.remove(); annotPanelEl = null; }
@@ -1934,6 +2119,10 @@
       renderAnnotated();                  // 稿纸上标出朱红修改符号
       renderAnnotPanel();                 // 左侧列出可采纳/忽略的批注
       switchPane("paper");
+      if (annotDropped && assistantReplyEl) {
+        // 模型写了说明文字、引号不配对或标点接不上，这些条被拦下来了，要如实告诉学生
+        assistantReplyEl.textContent += " （另有 " + annotDropped + " 条因为替换文字里混了说明、引号不配对或标点接不上，已丢弃）";
+      }
       if (!annotations.length) {
         if (assistantReplyEl) assistantReplyEl.textContent =
           (trim(obj.reply) || "已批注。") + " 但这轮没有能定位到原文的批注，可换个更具体的要求再试。";
@@ -1969,13 +2158,15 @@
       overall: trim(obj.overall),
       items: items.slice(0, 14).map(function (it, i) {
         return {
+          id: ++criticSeq,
           no: parseInt(it && it.no, 10) || (i + 1),
           sentence: trim(it && it.sentence),
           verdict: trim(it && it.verdict) === "好" ? "好" : "坏",
           reason: trim(it && it.reason),
           ai: !!(it && it.ai),
           aiWhy: trim(it && it.aiWhy),
-          fix: trim(it && it.fix)
+          fix: trim(it && it.fix),
+          agreed: ""   // "" 未表态 / "yes" 我认可 / "no" 不认可
         };
       }).filter(function (it) { return it.sentence; })
     };
@@ -1998,20 +2189,59 @@
     setDocHint("这句在稿纸里没找到，可能已经被改掉了");
   }
 
+  function criticById(id) {
+    for (var i = 0; i < criticItems.length; i++) if (criticItems[i].id === id) return criticItems[i];
+    return null;
+  }
+
+  function syncCriticApply() {
+    if (!els.criticApplyBtn) return;
+    var n = criticItems.filter(function (x) { return x.agreed === "yes"; }).length;
+    els.criticApplyBtn.disabled = n === 0;
+    els.criticApplyBtn.textContent = n ? ("把认可的 " + n + " 条交给 AI 改") : "把认可的问题交给 AI 改";
+  }
+
+  // 点稿纸上的评改标记 -> 滚到对应卡片并短暂高亮
+  function focusCriticCard(id) {
+    var card = els.criticList.querySelector('.critic-card[data-critic-id="' + id + '"]');
+    if (!card) return;
+    if (els.criticDock) els.criticDock.hidden = false;
+    card.scrollIntoView({ block: "center", behavior: "smooth" });
+    card.classList.add("critic-focus");
+    setTimeout(function () { card.classList.remove("critic-focus"); }, 1600);
+  }
+
+  function setCriticAgree(id, val) {
+    var it = criticById(id);
+    if (!it) return;
+    it.agreed = it.agreed === val ? "" : val;
+    renderCritic();
+    renderAnnotated();
+    setDocHint(it.agreed === "yes" ? ("已认可 #" + it.no + "，可继续挑，最后一起交给 AI 改")
+      : it.agreed === "no" ? ("已否决 #" + it.no + "，这条不会交给 AI") : "已取消表态");
+  }
+
   function renderCritic() {
     els.criticList.innerHTML = "";
     if (!criticItems.length) {
       if (els.criticDock) els.criticDock.hidden = true;
+      syncCriticApply();
       return;
     }
     criticDockClosed = false;
     if (els.criticDock) els.criticDock.hidden = els.paperPane.hidden;
     var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
     var aiCnt = criticItems.filter(function (x) { return x.ai; }).length;
-    els.criticStat.textContent = "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt + " 句";
+    var picked = criticItems.filter(function (x) { return x.agreed === "yes"; }).length;
+    els.criticStat.textContent = "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt +
+      " 句" + (picked ? " · 已认可 " + picked + " 条" : " · 逐条点「认可」再一起交给 AI 改");
+    syncCriticApply();
+
     criticItems.forEach(function (it) {
       var card = document.createElement("div");
-      card.className = "critic-card verdict-" + (it.verdict === "好" ? "good" : "bad");
+      card.className = "critic-card verdict-" + (it.verdict === "好" ? "good" : "bad") +
+        (it.agreed === "yes" ? " critic-yes" : it.agreed === "no" ? " critic-no" : "");
+      card.setAttribute("data-critic-id", String(it.id));
       card.title = "点一下定位到稿纸里这句话";
       (function (sentence) {
         card.addEventListener("click", function () { focusSentence(sentence); });
@@ -2032,6 +2262,12 @@
         ai.className = "critic-ai";
         ai.textContent = "AI 味";
         top.appendChild(ai);
+      }
+      if (it.agreed === "yes" || it.agreed === "no") {
+        var flag = document.createElement("span");
+        flag.className = "critic-flag";
+        flag.textContent = it.agreed === "yes" ? "我认可" : "不认可";
+        top.appendChild(flag);
       }
       card.appendChild(top);
 
@@ -2058,8 +2294,40 @@
         fx.textContent = "方向：" + it.fix;
         card.appendChild(fx);
       }
+
+      var acts = document.createElement("div");
+      acts.className = "critic-acts";
+      var yes = document.createElement("button");
+      yes.type = "button";
+      yes.className = "critic-agree" + (it.agreed === "yes" ? " on" : "");
+      yes.textContent = "认可";
+      yes.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "yes"); });
+      var deny = document.createElement("button");
+      deny.type = "button";
+      deny.className = "critic-deny" + (it.agreed === "no" ? " on" : "");
+      deny.textContent = "不认可";
+      deny.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "no"); });
+      acts.appendChild(yes);
+      acts.appendChild(deny);
+      card.appendChild(acts);
+
       els.criticList.appendChild(card);
     });
+  }
+
+  // 把学生认可的评改意见拼成一次修改要求，交给批改老师出手批
+  function criticReqText() {
+    var picked = criticItems.filter(function (x) { return x.agreed === "yes"; });
+    if (!picked.length) return "";
+    var lines = ["下面这些是我认可的评改问题，请照它们出手批：每处只标该改的原文片段，不要重写全篇。"];
+    picked.forEach(function (it, i) {
+      lines.push((i + 1) + ". 原句：" + it.sentence);
+      if (it.reason) lines.push("   问题：" + it.reason);
+      if (it.aiWhy) lines.push("   AI 味：" + it.aiWhy);
+      if (it.fix) lines.push("   方向：" + it.fix);
+    });
+    lines.push("注意：上面这些只是给你看的说明，不要把它们写进正文；text 只写替换后的正文文字。");
+    return lines.join("\n");
   }
 
   async function runCritic() {
@@ -2082,6 +2350,7 @@
       var obj = parseCriticJSON(raw);
       criticItems = obj.items;
       renderCritic();
+      renderAnnotated();   // 评改句子直接标在原文相应位置
       switchPane("paper");
       if (!criticItems.length) {
         els.criticStat.textContent = "这轮没挑出可定位的句子，可再点一次。";
@@ -2252,6 +2521,13 @@
     setChatMode(btn.getAttribute("data-mode"));
   });
 
+  on(els.criticApplyBtn, "click", function () {
+    var req = criticReqText();
+    if (!req) { setDocHint("先在上面的评改卡片里点「认可」，再一起交给 AI。"); return; }
+    if (!docBody.trim()) { setDocHint("正文是空的，改不了。"); return; }
+    sendRevision(req);
+  });
+
   on(els.criticDockClose, "click", function () {
     criticDockClosed = true;
     if (els.criticDock) els.criticDock.hidden = true;
@@ -2287,6 +2563,10 @@
   on(els.chatInput, "keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSend();
   });
+
+
+
+
 
 
 

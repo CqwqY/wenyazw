@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261113d">
+<link rel="stylesheet" href="assets/css/write.css?v=20261114a">
 </head>
 <body>
 
@@ -270,6 +270,7 @@
             <div class="ink-dock" id="inkDock" hidden>
               <span class="ink-dock-no" id="inkDockNo">1</span>
               <span class="ink-dock-why" id="inkDockWhy"></span>
+              <span class="ink-dock-sug" id="inkDockSug" hidden></span>
               <button class="ink-dock-accept" id="inkDockAccept" type="button">采纳</button>
               <button class="ink-dock-btn" id="inkDockIgnore" type="button">忽略</button>
               <button class="ink-dock-close" id="inkDockClose" type="button" aria-label="关闭">×</button>
@@ -280,6 +281,7 @@
               <div class="critic-dock-head">
                 <span class="critic-dock-title">AI 评改</span>
                 <span class="critic-stat" id="criticStat">逐句判好坏与 AI 味，不给总分的空头评价。</span>
+                <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>把认可的问题交给 AI 改</button>
                 <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
               </div>
               <div class="critic-list" id="criticList"></div>
@@ -337,8 +339,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261113d"></script>
-<script src="assets/js/write.js?v=20261113d"></script>
-<script src="assets/js/auth.js?v=20261113d"></script>
+<script src="assets/js/prompt.js?v=20261114a"></script>
+<script src="assets/js/write.js?v=20261114a"></script>
+<script src="assets/js/auth.js?v=20261114a"></script>
 </body>
 </html>

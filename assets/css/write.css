@@ -534,8 +534,8 @@
   border-radius: 13px;
   font-size: 13.5px;
   line-height: 1.72;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: normal;
+  word-break: normal;
 }
 
 .bubble.user { align-items: flex-end; }
@@ -596,16 +596,26 @@
   font-size: calc(var(--cell) / 2);
   font-weight: 700;
   line-height: var(--cell);
-  letter-spacing: calc(var(--cell) / 2);
-  padding-left: calc(var(--cell) / 4);
+  letter-spacing: 0;
+  padding-left: 0;
   color: #232824;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: normal;
+  word-break: normal;
   background-image:
     repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px var(--cell)),
     repeating-linear-gradient(to bottom, var(--grid-line) 0 1px, transparent 1px var(--cell));
   background-position: 0 0;
   min-height: 340px;
+}
+
+/* 一字一格：不管汉字、标点、字母，每个字符都钉死在 cell 宽的格子里 */
+.paper-body .ch {
+  display: inline-block;
+  width: var(--cell);
+  height: var(--cell);
+  line-height: var(--cell);
+  text-align: center;
+  vertical-align: top;
 }
 
 .paper-body p {
@@ -700,38 +710,30 @@ body.studio-mode .site-footer { display: none; }
   color: #fff;
   background: #a8322a;
   border-radius: 999px;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 3px;
+  width: 16px;
+  min-width: 0;
+  height: 16px;
+  padding: 0;
   box-sizing: border-box;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .paper-body .ink-delete { text-decoration: line-through; text-decoration-color: #a8322a; text-decoration-thickness: 2px; }
 .paper-body .ink-replace { text-decoration: line-through; text-decoration-color: #a8322a; text-decoration-thickness: 2px; background: rgba(168, 50, 42, .07); }
-.paper-body .ink-insert { border-bottom: 2px solid #a8322a; }
-.paper-body .ink-swap { border: 1px dashed #a8322a; }
+.paper-body .ink-insert { box-shadow: inset 0 -2px 0 #a8322a; }
+.paper-body .ink-swap { outline: 1px dashed #a8322a; outline-offset: -1px; }
 .paper-body .ink-comment { text-decoration: underline wavy #a8322a; text-underline-offset: 4px; }
-.paper-body .ink-suggest {
-  font-size: .86em;
-  font-weight: 700;
-  color: #a8322a;
-  letter-spacing: 0;
-  background: rgba(168, 50, 42, .10);
-  border-radius: 3px;
-  padding: 2px 5px;
-  margin: 0 3px;
-  white-space: normal;
-}
-
-/* 上一轮已采纳改动：黄底标记 */
+/* AI 已改过的文字：荧光笔黄条。不能用 padding / border ——
+   inline 元素的边框和内边距会把行盒撑高，整段就会开始错格。 */
 .paper-body .ink-prev {
-  background: #ffe9a8;
-  border-bottom: 2px solid #e0a92b;
-  border-radius: 2px;
-  padding: 0 1px;
   color: #5a4310;
+  padding: 0;
+  border: 0;
+  background-image: linear-gradient(
+    transparent 26%, #ffe9a8 26%, #ffe9a8 84%, #e0a92b 84%, #e0a92b 90%, transparent 90%
+  );
 }
 
 /* 批注符号高亮 + 稿纸下方的固定批注条（点符号出现，绝不覆盖正文） */
@@ -1074,7 +1076,15 @@ table.score-table .score-table-key {
   flex-wrap: wrap;
 }
 
-.critic-stat { font-size: 12.5px; color: var(--ink-mute); }
+.critic-stat {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .critic-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 
@@ -1297,8 +1307,8 @@ table.score-table .score-table-key {
   line-height: 1.8;
   color: var(--ink-mute);
   padding: 12px 4px;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: normal;
+  word-break: normal;
 }
 
 .outline-raw { font-family: var(--mono, monospace); font-size: 12px; }
@@ -1442,3 +1452,109 @@ table.score-table .score-table-key {
 @media (max-width: 960px) {
   .critic-dock { max-height: 40vh; }
 }
+
+/* ============ 批注条：建议文字单独一栏，不挤进稿纸格子 ============ */
+
+.ink-dock-sug {
+  flex: none;
+  max-width: 34%;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #fff;
+  background: #a8322a;
+  border-radius: 4px;
+  padding: 2px 8px;
+  word-break: break-word;
+}
+
+.ink-dock-sug[hidden] { display: none; }
+
+/* ============ AI 评改：原文位置标记 + 认可 ============ */
+
+.paper-body .critic-mark {
+  position: relative;
+  cursor: pointer;
+}
+.paper-body .critic-mark.cm-bad {
+  text-decoration: underline wavy #c0642f;
+  text-underline-offset: 5px;
+  text-decoration-thickness: 1.5px;
+}
+.paper-body .critic-mark.cm-good {
+  text-decoration: underline wavy #2f6f4e;
+  text-underline-offset: 5px;
+  text-decoration-thickness: 1.5px;
+}
+.paper-body .critic-mark.cm-agreed {
+  background: rgba(47, 111, 78, .12);
+  text-decoration-style: solid;
+}
+.paper-body .critic-mark.cm-denied {
+  text-decoration-style: dotted;
+  color: #7c7c7c;
+}
+
+.critic-dock-send {
+  flex: none;
+  border: 1px solid #2f6f4e;
+  background: #2f6f4e;
+  color: #fff;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.critic-dock-send:disabled {
+  border-color: var(--line);
+  background: var(--paper-2);
+  color: var(--ink-mute);
+  cursor: not-allowed;
+}
+.critic-dock-send:not(:disabled):hover { opacity: .9; }
+
+.critic-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.critic-agree,
+.critic-deny {
+  flex: none;
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.critic-agree:hover { border-color: #2f6f4e; color: #245c40; }
+.critic-deny:hover { border-color: #a8322a; color: #8c332b; }
+
+.critic-agree.on {
+  border-color: #2f6f4e;
+  background: #2f6f4e;
+  color: #fff;
+}
+.critic-deny.on {
+  border-color: #8c332b;
+  background: #8c332b;
+  color: #fff;
+}
+
+.critic-flag {
+  margin-left: auto;
+  font-size: 11px;
+  color: #245c40;
+  background: rgba(47, 111, 78, .12);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.critic-card.critic-yes { box-shadow: inset 0 0 0 1.5px rgba(47, 111, 78, .35); }
+.critic-card.critic-no { opacity: .62; }
+.critic-card.critic-focus { box-shadow: 0 0 0 3px rgba(47, 111, 78, .22); }
