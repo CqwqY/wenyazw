@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>账户控制台 - 文芽作文</title>
+<meta name="description" content="文芽作文账户控制台：查看与管理保存在云端的作文。">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112i">
+<link rel="stylesheet" href="assets/css/account.css?v=20261112i">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">文</span>
+      <span>文芽作文</span>
+    </a>
+    <div class="account-area" id="accountArea"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="tool-head">
+    <div>
+      <h1>账户控制台</h1>
+      <p>管理保存在云端的作文。生成作文时会自动同步到这里。</p>
+    </div>
+    <a class="btn btn-ghost" href="index.html">返回工作台</a>
+  </div>
+
+  <section class="account-card" id="notLogged" hidden>
+    <h2>请先登录</h2>
+    <p>作文与账号绑定，登录后才能查看与管理。</p>
+    <button class="btn btn-primary" id="openLogin">登录 / 注册</button>
+  </section>
+
+  <section class="account-card" id="loggedPanel" hidden>
+    <div class="account-bar">
+      <div class="account-info">
+        <span class="account-label">当前账号</span>
+        <strong id="accountEmail"></strong>
+        <span class="account-sep">·</span>
+        <span id="accountUser"></span>
+      </div>
+      <button class="btn-outline" id="refreshBtn">刷新列表</button>
+    </div>
+    <div class="account-msg" id="accountMsg"></div>
+    <div class="essay-list" id="essayList"></div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="copyright">
+      <span>文芽作文 · 保留所有权利</span>
+      <span>作文正文仅保存在你的账号下</span>
+    </div>
+  </div>
+</footer>
+
+<!-- 登录弹窗（与主页共用 auth.js 的 DOM 约定） -->
+<div class="modal-mask" id="authMask" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <div class="modal-head">
+      <h2 id="authTitle">登录文芽作文</h2>
+      <button class="modal-close" id="authClose" aria-label="关闭">×</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-mode="login">登录</button>
+      <button class="auth-tab" data-mode="register">注册</button>
+    </div>
+    <div class="field" id="authUserField">
+      <label for="authUser">用户名</label>
+      <input class="input" id="authUser" type="text" autocomplete="username" placeholder="3～24 位，字母数字下划线" maxlength="24">
+    </div>
+    <div class="field">
+      <label for="authEmail">邮箱</label>
+      <input class="input" id="authEmail" type="email" autocomplete="email" placeholder="用于接收验证码" maxlength="120">
+    </div>
+    <div class="field">
+      <label for="authCode">邮箱验证码</label>
+      <div class="code-row">
+        <input class="input" id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" maxlength="6">
+        <button class="btn-outline" id="sendCodeBtn" type="button">发送验证码</button>
+      </div>
+      <div class="auth-hint" id="codeHint">验证码 10 分钟内有效，每个邮箱 60 秒可重发一次。</div>
+    </div>
+    <div class="auth-msg" id="authMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="authSubmit">登录</button>
+    </div>
+    <div class="auth-foot">注册与登录都用邮箱验证码，无需设置密码。</div>
+  </div>
+</div>
+
+<!-- 作文详情弹窗 -->
+<div class="modal-mask" id="viewMask" hidden>
+  <div class="modal-card view-card" role="dialog" aria-modal="true" aria-labelledby="viewTitle">
+    <div class="modal-head">
+      <h2 id="viewTitle">作文详情</h2>
+      <button class="modal-close" id="viewClose" aria-label="关闭">×</button>
+    </div>
+    <div class="view-meta" id="viewMeta"></div>
+    <div class="view-body" id="viewBody"></div>
+    <div class="modal-actions view-actions">
+      <button class="btn-outline" id="viewCopy">复制</button>
+      <button class="btn-outline" id="viewDownload">下载 txt</button>
+      <button class="btn btn-primary" id="viewClose2">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/auth.js?v=20261112i"></script>
+<script src="assets/js/account.js?v=20261112i"></script>
+</body>
+</html>

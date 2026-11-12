@@ -9,6 +9,10 @@
  *   POST /api/auth/login      { email, code }
  *   GET  /api/auth/me         Authorization: Bearer <token>
  *   POST /api/auth/logout
+ *   GET  /api/essays          我的作文列表（不含正文）
+ *   GET  /api/essays/:id      作文详情（含正文）
+ *   POST /api/essays          新建或更新作文 { id?, title, body, category?, province?, wordCount? }
+ *   DELETE /api/essays/:id    删除作文
  */
 "use strict";
 
@@ -75,6 +79,18 @@ db.exec(`
     sent_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_send_log ON send_log(email, purpose, sent_at);
+  CREATE TABLE IF NOT EXISTS essays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT "",
+    province TEXT NOT NULL DEFAULT "",
+    word_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_essays_email ON essays(email, updated_at DESC);
 `);
 // 兼容早期没有 purpose 列的库
 const sendLogCols = db.prepare("PRAGMA table_info(send_log)").all();
@@ -122,7 +138,7 @@ function verifyToken(token) {
 function corsHeaders(req) {
   const origin = req.headers.origin || "";
   const h = {
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin"
@@ -357,6 +373,67 @@ async function handle(req, res) {
     // 无状态 token，前端清除本地存储即完成登出
     send(req, res, 200, { ok: true });
     return;
+  }
+
+  /* ---------------- 作文管理（按登录邮箱隔离） ---------------- */
+
+  if (p === "/api/essays" && method === "GET") {
+    const user = verifyToken(bearer(req));
+    if (!user) { send(req, res, 401, { ok: false, error: "请先登录" }); return; }
+    const rows = db.prepare(`
+      SELECT id, title, category, province, word_count, created_at, updated_at
+      FROM essays WHERE email = ? ORDER BY updated_at DESC LIMIT 200
+    `).all(user.email);
+    send(req, res, 200, { ok: true, essays: rows });
+    return;
+  }
+
+  if (p === "/api/essays" && method === "POST") {
+    const user = verifyToken(bearer(req));
+    if (!user) { send(req, res, 401, { ok: false, error: "请先登录" }); return; }
+    const body = await readBody(req);
+    const title = String(body.title || "").trim().slice(0, 120) || "无题";
+    const text = String(body.body || "").slice(0, 100000);
+    if (!text.trim()) { send(req, res, 400, { ok: false, error: "作文内容不能为空" }); return; }
+    const category = String(body.category || "").trim().slice(0, 40);
+    const province = String(body.province || "").trim().slice(0, 40);
+    const words = Array.from(text.replace(/\s/g, "")).length;
+    const now = new Date().toISOString();
+    const id = Number(body.id || 0);
+    if (id > 0) {
+      const owned = db.prepare("SELECT 1 FROM essays WHERE id = ? AND email = ?").get(id, user.email);
+      if (!owned) { send(req, res, 404, { ok: false, error: "作文不存在" }); return; }
+      db.prepare(`UPDATE essays SET title = ?, body = ?, category = ?, province = ?,
+                  word_count = ?, updated_at = ? WHERE id = ? AND email = ?`)
+        .run(title, text, category, province, words, now, id, user.email);
+      send(req, res, 200, { ok: true, id, wordCount: words });
+      return;
+    }
+    const info = db.prepare(`INSERT INTO essays
+      (email, title, body, category, province, word_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(user.email, title, text, category, province, words, now, now);
+    send(req, res, 200, { ok: true, id: Number(info.lastInsertRowid), wordCount: words });
+    return;
+  }
+
+  const essayMatch = /^\/api\/essays\/(\d+)$/.exec(p);
+  if (essayMatch) {
+    const user = verifyToken(bearer(req));
+    if (!user) { send(req, res, 401, { ok: false, error: "请先登录" }); return; }
+    const id = Number(essayMatch[1]);
+    if (method === "GET") {
+      const row = db.prepare("SELECT * FROM essays WHERE id = ? AND email = ?").get(id, user.email);
+      if (!row) { send(req, res, 404, { ok: false, error: "作文不存在" }); return; }
+      send(req, res, 200, { ok: true, essay: row });
+      return;
+    }
+    if (method === "DELETE") {
+      const info = db.prepare("DELETE FROM essays WHERE id = ? AND email = ?").run(id, user.email);
+      if (!info.changes) { send(req, res, 404, { ok: false, error: "作文不存在" }); return; }
+      send(req, res, 200, { ok: true });
+      return;
+    }
   }
 
   send(req, res, 404, { ok: false, error: "接口不存在" });

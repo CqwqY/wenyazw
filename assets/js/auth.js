@@ -61,6 +61,11 @@
       els.area.appendChild(b);
       return;
     }
+    var consoleLink = document.createElement("a");
+    consoleLink.className = "account-console";
+    consoleLink.href = "account.html";
+    consoleLink.textContent = "控制台";
+    els.area.appendChild(consoleLink);
     var name = document.createElement("span");
     name.className = "account-name";
     name.textContent = username;

@@ -39,7 +39,8 @@
     contextList: $("contextList"), contextEmpty: $("contextEmpty"),
     chatInput: $("chatInput"), sendBtn: $("sendBtn"), stopBtn2: $("stopBtn2"),
     paperTitle: $("paperTitle"), paperBody: $("paperBody"),
-    paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn")
+    paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
+    acceptAllBtn: $("acceptAllBtn"), ignoreAllBtn: $("ignoreAllBtn")
   };
 
   /* 向导状态 */
@@ -60,6 +61,9 @@
   var docBody = "";              // 稿纸正文（纯文本，采纳批注时在这里替换）
   var annotations = [];          // 老师手批：待处理/已采纳/已忽略的批注
   var annotSeq = 0;              // 批注编号自增
+  var prevAcceptedTexts = [];    // 上一轮采纳写进正文的新文字（稿纸里标黄）
+  var roundAcceptedTexts = [];   // 本轮采纳产生的新文字，下一轮开始时归档为"上一轮"
+  var currentEssayId = null;     // 云端作文 id（登录后自动保存）
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -438,12 +442,46 @@
     return out;
   }
 
+  // 上一轮采纳产生的新文字：在正文里定位，用于标黄
+  function prevIntervals(paraText) {
+    var list = [];
+    prevAcceptedTexts.forEach(function (t) {
+      if (!t) return;
+      var at = paraText.indexOf(t);
+      if (at >= 0) list.push({ start: at, end: at + t.length });
+    });
+    list.sort(function (a, b) { return a.start - b.start; });
+    var out = [], lastEnd = -1;
+    list.forEach(function (it) {
+      if (it.start < lastEnd) return;
+      out.push(it);
+      lastEnd = it.end;
+    });
+    return out;
+  }
+
+  // 把一段普通文本按"上一轮改动"区间切成节点（黄底）
+  function appendPlainWithHighlights(el, text) {
+    var hs = prevIntervals(text);
+    var p = 0;
+    hs.forEach(function (h) {
+      if (h.start > p) el.appendChild(document.createTextNode(text.slice(p, h.start)));
+      var y = document.createElement("span");
+      y.className = "ink-prev";
+      y.textContent = text.slice(h.start, h.end);
+      y.title = "上一轮采纳的改动";
+      el.appendChild(y);
+      p = h.end;
+    });
+    if (p < text.length) el.appendChild(document.createTextNode(text.slice(p)));
+  }
+
   function buildMarkedParagraph(paraText, marks) {
     var el = document.createElement("p");
     var ivs = intervalsFor(paraText, marks);
     var pos = 0;
     ivs.forEach(function (it) {
-      if (it.start > pos) el.appendChild(document.createTextNode(paraText.slice(pos, it.start)));
+      if (it.start > pos) appendPlainWithHighlights(el, paraText.slice(pos, it.start));
       var span = document.createElement("span");
       span.className = "ink-mark ink-" + it.mark.type;
       span.textContent = it.anchor;
@@ -460,9 +498,28 @@
         sug.textContent = (it.mark.type === "insert" ? "∧" : "→") + it.mark.text;
         el.appendChild(sug);
       }
+      // 采纳 / 忽略按钮直接放在被改文字旁边
+      var tools = document.createElement("span");
+      tools.className = "ink-tools";
+      var why = document.createElement("span");
+      why.className = "ink-reason";
+      why.textContent = it.mark.reason || SYMBOL_LABEL[it.mark.type] || "批注";
+      tools.appendChild(why);
+      var ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "ink-accept";
+      ok.textContent = "采纳";
+      ok.addEventListener("click", function () { applyMarkAction(it.mark.id, "accept"); });
+      var no2 = document.createElement("button");
+      no2.type = "button";
+      no2.textContent = "忽略";
+      no2.addEventListener("click", function () { applyMarkAction(it.mark.id, "ignore"); });
+      tools.appendChild(ok);
+      tools.appendChild(no2);
+      el.appendChild(tools);
       pos = it.end;
     });
-    if (pos < paraText.length) el.appendChild(document.createTextNode(paraText.slice(pos)));
+    if (pos < paraText.length) appendPlainWithHighlights(el, paraText.slice(pos));
     return el;
   }
 
@@ -522,11 +579,18 @@
       docBody = next;
       currentComposition = (docTitle ? docTitle + "\n\n" : "") + docBody;
       m.state = "accepted";
+      // 记录本轮改动写进正文的新文字，下一轮批注时标黄
+      if (m.type === "replace" || m.type === "insert") {
+        if (m.text) roundAcceptedTexts.push(m.text);
+      } else if (m.type === "swap") {
+        m.anchor.split("|||").forEach(function (x) { if (trim(x)) roundAcceptedTexts.push(trim(x)); });
+      }
     } else {
       m.state = "ignored";
     }
     renderAnnotated();
     renderAnnotPanel();
+    scheduleEssaySave();
     // 提示写进批注面板头部，避免覆盖稿纸的字数统计
     var cnt = annotPanelEl && annotPanelEl.querySelector(".annot-count");
     if (cnt) {
@@ -539,6 +603,12 @@
     pendingMarks().slice().forEach(function (m) { applyMarkAction(m.id, action); });
   }
 
+  function syncAnnotTools() {
+    var has = pendingMarks().length > 0;
+    if (els.acceptAllBtn) els.acceptAllBtn.hidden = !has;
+    if (els.ignoreAllBtn) els.ignoreAllBtn.hidden = !has;
+  }
+
   // 批注面板放在左侧对话区（该区本来就可滚动，不会撑高稿纸）
   function renderAnnotPanel() {
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
@@ -548,6 +618,7 @@
       els.contextList.appendChild(annotPanelEl);
     }
     annotPanelEl.innerHTML = "";
+    syncAnnotTools();
     if (!annotations.length) { annotPanelEl.setAttribute("hidden", ""); return; }
     annotPanelEl.removeAttribute("hidden");
 
@@ -557,19 +628,10 @@
     head.querySelector(".annot-count").textContent = pendingMarks().length + " 处待处理";
     annotPanelEl.appendChild(head);
 
-    var bar = document.createElement("div");
-    bar.className = "annot-actions";
-    var bAll = document.createElement("button");
-    bAll.className = "btn-outline";
-    bAll.textContent = "全部采纳";
-    bAll.addEventListener("click", function () { applyAll("accept"); });
-    var bNone = document.createElement("button");
-    bNone.className = "btn-outline";
-    bNone.textContent = "全部忽略";
-    bNone.addEventListener("click", function () { applyAll("ignore"); });
-    bar.appendChild(bAll);
-    bar.appendChild(bNone);
-    annotPanelEl.appendChild(bar);
+    var legend = document.createElement("div");
+    legend.className = "annot-legend";
+    legend.textContent = "点稿纸里的朱红标注，在改动旁边选「采纳 / 忽略」。黄底文字是上一轮已采纳的改动。";
+    annotPanelEl.appendChild(legend);
 
     annotations.forEach(function (m) {
       var card = document.createElement("div");
@@ -666,6 +728,48 @@
     docTitle = t.title || "作文";
     docBody = t.body;
     currentComposition = (t.title ? t.title + "\n\n" : "") + t.body;
+  }
+
+  /* ---------------- 云端作文同步（仅登录后） ---------------- */
+
+  function authToken() {
+    return (window.WY_AUTH && window.WY_AUTH.token()) || "";
+  }
+
+  function essayPayload() {
+    return {
+      id: currentEssayId || 0,
+      title: docTitle || "作文",
+      body: currentComposition || docBody,
+      category: activeCat || selectedCat || "",
+      province: activeProvince || selectedProvince || "",
+      wordCount: Array.from(docBody.replace(/\s/g, "")).length
+    };
+  }
+
+  var essaySaveTimer = null;
+  function scheduleEssaySave() {
+    if (!authToken()) return;
+    if (essaySaveTimer) clearTimeout(essaySaveTimer);
+    essaySaveTimer = setTimeout(function () {
+      essaySaveTimer = null;
+      saveEssayToCloud();
+    }, 700);
+  }
+
+  // 静默保存：没登录就不传；失败不打断写作流程
+  async function saveEssayToCloud() {
+    var t = authToken();
+    if (!t || !docBody.trim()) return;
+    try {
+      var res = await fetch("https://back.wenyazw.top/api/essays", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
+        body: JSON.stringify(essayPayload())
+      });
+      var j = await res.json();
+      if (res.ok && j && j.ok && j.id) currentEssayId = j.id;
+    } catch (e) { /* 离线或后端异常时静默降级，作文仍在本机 */ }
   }
 
   function setBusy(busy) {
@@ -939,6 +1043,9 @@
     currentComposition = "";
     docTitle = ""; docBody = "";
     annotations = []; annotSeq = 0; annotPanelEl = null;
+    prevAcceptedTexts = []; roundAcceptedTexts = [];
+    currentEssayId = null;
+    syncAnnotTools();
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
 
@@ -963,7 +1070,10 @@
     if (rule) sysPrompt += "\n\n" + rule;
     if (sd) sysPrompt += "\n\n【评分标准参照（" + prov + "）】\n" + sd;
     await runStream(sysPrompt, composeWriteUser());
-    if (fullText.trim()) setPaperHint(els.paperStat.textContent);
+    if (fullText.trim()) {
+      setPaperHint(els.paperStat.textContent);
+      saveEssayToCloud();
+    }
   }
 
   /* ---------------- 入口 2：发送修改要求（老师手批，逐条采纳） ---------------- */
@@ -995,6 +1105,9 @@
     try {
       var raw = await fetchAnnotation(sys, composeReviseUser(req));
       var obj = parseAnnotJSON(raw);
+      // 上一轮采纳的改动从这一轮起标黄；本轮新采纳的留到下一轮才标
+      prevAcceptedTexts = roundAcceptedTexts.slice();
+      roundAcceptedTexts = [];
       annotations = normalizeMarks(obj);
       // 新一轮批注：移除上一轮面板（正文已采纳的改动仍生效），在对话底部重建
       if (annotPanelEl) { annotPanelEl.remove(); annotPanelEl = null; }
@@ -1123,6 +1236,9 @@
   els.testBtn.addEventListener("click", testConnection);
   els.copyBtn.addEventListener("click", copyText);
   els.downloadBtn.addEventListener("click", downloadText);
+
+  els.acceptAllBtn.addEventListener("click", function () { applyAll("accept"); });
+  els.ignoreAllBtn.addEventListener("click", function () { applyAll("ignore"); });
 
   els.stopBtn2.addEventListener("click", function () {
     if (controller) controller.abort();

@@ -4,6 +4,8 @@
   --cell: 36px;          /* 单格尺寸（初版：流动文字铺在方格底纹上） */
   --grid-line: #e7e2d6;  /* 浅灰方格线 */
   --grid-line-strong: #d8d1c0;
+  /* 霞鹜文楷：SIL OFL 1.1 免费可商用，楷书手写风，用于稿纸正文 */
+  --hand: "LXGW WenKai", "Kaiti SC", "KaiTi", "STKaiti", "楷体", var(--serif);
 }
 
 /* ---------- 头部 ---------- */
@@ -173,6 +175,8 @@
   cursor: pointer;
   white-space: nowrap;
 }
+
+.btn-outline[hidden] { display: none; }
 
 .btn-outline:hover { border-color: var(--brand); color: var(--brand-deep); }
 
@@ -577,9 +581,9 @@
 }
 
 .paper-title {
-  font-family: var(--serif);
-  font-size: 21px;
-  font-weight: 600;
+  font-family: var(--hand);
+  font-size: 23px;
+  font-weight: 700;
   text-align: center;
   letter-spacing: .1em;
   margin-bottom: 24px;
@@ -588,12 +592,13 @@
 }
 
 .paper-body {
-  font-family: var(--serif);
+  font-family: var(--hand);
   font-size: calc(var(--cell) / 2);
+  font-weight: 700;
   line-height: var(--cell);
   letter-spacing: calc(var(--cell) / 2);
   padding-left: calc(var(--cell) / 4);
-  color: #262b27;
+  color: #232824;
   white-space: pre-wrap;
   word-break: break-word;
   background-image:
@@ -679,20 +684,20 @@ body.studio-mode .site-footer { display: none; }
 .paper-body .ink-mark {
   position: relative;
   color: #a8322a;
-  cursor: help;
+  cursor: pointer;
   border-radius: 2px;
   padding: 0 1px;
 }
 .paper-body .ink-mark .ink-no {
   font-family: var(--sans, sans-serif);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1;
   vertical-align: super;
   color: #fff;
   background: #a8322a;
   border-radius: 50%;
-  padding: 1px 3px;
-  margin-left: 2px;
+  padding: 2px 5px;
+  margin-left: 3px;
   letter-spacing: 0;
 }
 .paper-body .ink-delete { text-decoration: line-through; text-decoration-color: #a8322a; text-decoration-thickness: 2px; }
@@ -701,15 +706,68 @@ body.studio-mode .site-footer { display: none; }
 .paper-body .ink-swap { border: 1px dashed #a8322a; }
 .paper-body .ink-comment { text-decoration: underline wavy #a8322a; text-underline-offset: 4px; }
 .paper-body .ink-suggest {
-  font-size: .72em;
+  font-size: .86em;
+  font-weight: 700;
   color: #a8322a;
   letter-spacing: 0;
-  background: rgba(168, 50, 42, .08);
+  background: rgba(168, 50, 42, .10);
   border-radius: 3px;
-  padding: 1px 4px;
-  margin: 0 2px;
+  padding: 2px 5px;
+  margin: 0 3px;
   white-space: normal;
 }
+
+/* 上一轮已采纳改动：黄底标记 */
+.paper-body .ink-prev {
+  background: #ffe9a8;
+  border-bottom: 2px solid #e0a92b;
+  border-radius: 2px;
+  padding: 0 1px;
+  color: #5a4310;
+}
+
+/* 采纳/忽略按钮直接贴在被改文字旁边（稿纸内，不在对话区） */
+.paper-body .ink-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  vertical-align: middle;
+  margin: 0 4px;
+  padding: 2px 5px;
+  background: #fffaf3;
+  border: 1px solid #d9b6ac;
+  border-radius: 6px;
+  font-family: var(--sans, sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(120, 80, 40, .12);
+}
+.paper-body .ink-tools .ink-reason {
+  color: #8c332b;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.paper-body .ink-tools button {
+  border: 1px solid #d9b6ac;
+  background: #fff;
+  color: #7a4a3a;
+  border-radius: 4px;
+  font-family: var(--sans, sans-serif);
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.paper-body .ink-tools button:hover { border-color: #a8322a; }
+.paper-body .ink-tools button.ink-accept {
+  background: #2f6f4e;
+  border-color: #2f6f4e;
+  color: #fff;
+}
+.paper-body .ink-tools button.ink-accept:hover { opacity: .88; }
 
 /* ============ 批注面板（左侧对话区内，可随对话一起滚） ============ */
 
@@ -727,13 +785,22 @@ body.studio-mode .site-footer { display: none; }
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 600;
   color: #8c332b;
 }
-.annot-count { font-size: 11.5px; font-weight: 400; color: var(--ink-mute); }
+.annot-count { font-size: 13px; font-weight: 400; color: var(--ink-mute); }
 .annot-actions { display: flex; gap: 7px; }
-.annot-actions .btn-outline { flex: 1; font-size: 12px; padding: 5px 8px; }
+.annot-actions .btn-outline { flex: 1; font-size: 13.5px; padding: 6px 8px; }
+.annot-legend {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #7a5a20;
+  background: #fff5d9;
+  border: 1px solid #f0d68a;
+  border-radius: 6px;
+  padding: 6px 9px;
+}
 
 .annot-card {
   border: 1px solid #ecded7;
@@ -747,27 +814,27 @@ body.studio-mode .site-footer { display: none; }
 .annot-card.state-accepted { opacity: .62; border-color: #cfe0d3; background: #f7fbf8; }
 .annot-card.state-ignored { opacity: .5; }
 .annot-card.state-invalid { border-color: #e0c088; background: #fffbf2; }
-.annot-card-top { display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.annot-no { color: #a8322a; font-weight: 600; }
+.annot-card-top { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.annot-no { color: #a8322a; font-weight: 600; font-size: 15px; }
 .annot-sym {
   border: 1px solid #d9b6ac;
   color: #8c332b;
   border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 11.5px;
+  padding: 2px 8px;
+  font-size: 13px;
 }
-.annot-state { margin-left: auto; color: var(--ink-mute); font-size: 11.5px; }
+.annot-state { margin-left: auto; color: var(--ink-mute); font-size: 13px; }
 .annot-orig {
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.65;
   color: var(--ink-soft);
   background: #faf5f2;
   border-left: 2px solid #d9b6ac;
-  padding: 4px 8px;
+  padding: 5px 9px;
   word-break: break-word;
 }
-.annot-sug { font-size: 12.5px; line-height: 1.6; color: #8c332b; word-break: break-word; }
-.annot-reason { font-size: 12px; line-height: 1.55; color: var(--ink-mute); }
+.annot-sug { font-size: 14px; line-height: 1.65; color: #8c332b; word-break: break-word; }
+.annot-reason { font-size: 13.5px; line-height: 1.6; color: var(--ink-mute); }
 .annot-card-actions { display: flex; gap: 7px; margin-top: 2px; }
 .btn-mini {
   border: 1px solid var(--line);
