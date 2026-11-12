@@ -721,30 +721,62 @@
     return parts;
   }
 
-  /* ---------------- 稿纸渲染（初版：流动文字铺方格底纹） ---------------- */
+  /* ---------------- 稿纸渲染（正文也要一字一格，与批注态同一套管线） ---------------- */
+
+  /* 段内容写进已经建好的 p：逐字切格 + 行首禁则。流式时末尾追加光标。
+     用 el.__txt 记住上一帧的文本，流式反复调用时只有真正变了的段落才重画。 */
+  function fillPaperPara(el, txt, withCaret) {
+    el.textContent = "";
+    el.appendChild(charSpans(txt));
+    groupPunctIn(el);
+    if (withCaret) {
+      var caret = document.createElement("span");
+      caret.className = "caret";
+      el.appendChild(caret);
+    }
+    el.__txt = txt;
+  }
+
+  var paperAlignRaf = 0;
 
   function render(text, streaming, forceTitle) {
     var parts = titledParts(text, forceTitle);
     lastTitle = parts.title || "作文";
     els.paperTitle.textContent = lastTitle;
-    els.paperBody.textContent = "";
     els.paperBody.classList.remove("paper-empty");
 
     var paras = parts.body.split(/\n+/).filter(function (p) { return p.trim(); });
     if (!paras.length && streaming) paras = [""];
 
-    paras.forEach(function (p, idx) {
-      var el = document.createElement("p");
-      el.textContent = p.replace(/\n/g, "");
-      if (streaming && idx === paras.length - 1) {
-        var caret = document.createElement("span");
-        caret.className = "caret";
-        el.appendChild(caret);
+    var old = els.paperBody.querySelectorAll("p");
+    for (var i = paras.length; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
+
+    for (var j = 0; j < paras.length; j++) {
+      var txt = paras[j].replace(/\n/g, "");
+      var atTail = streaming && j === paras.length - 1;
+      var el = old[j];
+      if (!el) {
+        el = document.createElement("p");
+        els.paperBody.appendChild(el);
       }
-      els.paperBody.appendChild(el);
-    });
+      // 段落文本变了，或者光标该出现/该消失，才重画这一段
+      if (el.__txt !== txt || !!el.querySelector(".caret") !== atTail) {
+        fillPaperPara(el, txt, atTail);
+      }
+    }
+
     var count = Array.from(parts.body.replace(/\s/g, "")).length;
     els.paperStat.textContent = count ? ("字数 " + count + (streaming ? " · 生成中" : " 字")) : "";
+
+    // 段落高度取整格：流式期间每来一个字就量一遍太贵，收尾再对齐
+    if (streaming) {
+      if (!paperAlignRaf) {
+        paperAlignRaf = requestAnimationFrame(function () { paperAlignRaf = 0; alignPaperGrid(); });
+      }
+    } else {
+      if (paperAlignRaf) { cancelAnimationFrame(paperAlignRaf); paperAlignRaf = 0; }
+      alignPaperGrid();
+    }
   }
 
   function showEmpty() {
