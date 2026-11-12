@@ -42,3 +42,6 @@ __t_*.html
 __dump.html
 __shot_*.png
 __api_test.js
+
+# 后端源码不入库（只在服务器与本地保留）
+server/
