@@ -664,3 +664,13 @@ button, input, select { font: inherit; color: inherit; }
   .reading h1 { font-size: 26px; }
   .section-head { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
+
+/* ---------- 内容少的页面：把页脚压到底部，避免悬在中间 ---------- */
+body.page-stick {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+body.page-stick > main { flex: 1 0 auto; }
+body.page-stick > .site-footer { flex: none; }

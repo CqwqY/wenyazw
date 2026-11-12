@@ -16,7 +16,9 @@
     sendCode: $("sendCodeBtn"), codeHint: $("codeHint"),
     msg: $("authMsg"), submit: $("authSubmit"), title: $("authTitle")
   };
-  if (!els.area || !els.mask) return;
+  // 只要求页面上有登录弹窗；accountArea 可以没有（比如极简主页），
+  // 少了它也必须能登录，否则 WY_AUTH 不存在，所有按钮都点不动。
+  if (!els.mask) return;
 
   var mode = "login";
   var countdown = 0;
@@ -59,6 +61,7 @@
   }
 
   function renderAccount(username) {
+    if (!els.area) { notify(username || ""); return; }   // 页面没有账号区，只广播登录态
     els.area.innerHTML = "";
     if (!username) {
       var b = document.createElement("button");

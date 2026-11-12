@@ -1,67 +1,64 @@
-/* 文芽作文 - 主页：一个按钮，别的不放 */
-html, body.landing { height: 100%; }
-
-body.landing {
-  margin: 0;
+/* 文芽作文 - 主页：一句话 + 一个按钮 + 三条说明 */
+body.home {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.home-main {
+  flex: 1 0 auto;
+  padding: 56px 0 40px;
   background:
-    radial-gradient(680px 420px at 50% -6%, rgba(44, 107, 74, .07), transparent 70%),
-    var(--bg, #FAF8F4);
-  padding: 32px 22px;
-  box-sizing: border-box;
+    radial-gradient(720px 380px at 50% -8%, rgba(44, 107, 74, .07), transparent 72%);
 }
 
-.landing-main {
-  width: 100%;
-  max-width: 380px;
+.home-inner {
+  max-width: 760px;
   text-align: center;
-  margin-top: -6vh;
 }
 
-.landing-mark {
-  width: 76px;
-  height: 76px;
+.home-mark {
+  width: 64px;
+  height: 64px;
   display: block;
-  margin: 0 auto 22px;
-  border-radius: 22px;
-  box-shadow: 0 10px 26px rgba(35, 86, 60, .18);
+  margin: 0 auto 20px;
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(35, 86, 60, .16);
 }
 
-.landing-title {
+.home-title {
   font-family: var(--serif);
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: .08em;
   color: var(--ink);
-  margin: 0 0 12px;
-  text-indent: .1em;
+  margin: 0 0 16px;
+  text-indent: .08em;
 }
 
-.landing-lead {
-  font-size: 15px;
-  line-height: 1.85;
+.home-lead {
+  font-size: 15.5px;
+  line-height: 1.95;
   color: var(--ink-mute);
-  margin: 0 0 34px;
+  margin: 0 auto 32px;
+  max-width: 34em;
 }
 
-.landing-actions {
+.home-actions {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
 }
 
-.landing-actions .btn-lg {
-  width: 100%;
-  max-width: 260px;
+.home-actions .btn-lg {
+  min-width: 220px;
   height: 50px;
   font-size: 16.5px;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
 }
 
-.landing-link {
+.home-link {
   font-size: 13.5px;
   color: var(--ink-soft);
   text-decoration: none;
@@ -69,21 +66,61 @@ body.landing {
   padding-bottom: 2px;
 }
 
-.landing-link:hover {
+.home-link:hover {
   color: var(--brand);
   border-bottom-color: rgba(44, 107, 74, .35);
 }
 
-.landing-note {
-  margin: 26px 0 0;
+.home-note {
+  margin: 22px 0 0;
   font-size: 12.5px;
   line-height: 1.7;
   color: var(--ink-mute);
 }
 
-@media (max-height: 560px) {
-  .landing-main { margin-top: 0; }
-  .landing-mark { width: 60px; height: 60px; margin-bottom: 16px; }
-  .landing-title { font-size: 25px; }
-  .landing-lead { margin-bottom: 24px; }
+.home-points {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 52px;
+  text-align: left;
+}
+
+.home-point {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+  padding: 20px 20px 22px;
+}
+
+.home-point-no {
+  display: block;
+  font-family: var(--serif);
+  font-size: 12.5px;
+  letter-spacing: .12em;
+  color: var(--brand);
+  margin-bottom: 8px;
+}
+
+.home-point h3 {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 7px;
+}
+
+.home-point p {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink-mute);
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .home-main { padding-top: 36px; }
+  .home-title { font-size: 26px; }
+  .home-mark { width: 54px; height: 54px; border-radius: 15px; }
+  .home-br { display: none; }
+  .home-points { grid-template-columns: 1fr; gap: 12px; margin-top: 36px; }
 }

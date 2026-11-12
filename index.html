@@ -14,24 +14,67 @@
 <meta name="description" content="文芽作文：先拟可改的大纲，确认后再写正文，写完用红笔逐条批改。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261112d">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112d">
-<link rel="stylesheet" href="assets/css/home.css?v=20261112d">
+<link rel="stylesheet" href="assets/css/style.css?v=20261112e">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112e">
+<link rel="stylesheet" href="assets/css/home.css?v=20261112e">
 </head>
-<body class="landing">
+<body class="home">
 
-<main class="landing-main">
-  <img class="landing-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="76" height="76">
-  <h1 class="landing-title">文芽作文</h1>
-  <p class="landing-lead">先拟一份能改的大纲，确认之后再落笔。</p>
-
-  <div class="landing-actions">
-    <button class="btn btn-primary btn-lg" id="homeCta" type="button">开始写作</button>
-    <a class="landing-link" href="account.html">我的作文</a>
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img class="brand-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="30" height="30">
+      <span>文芽作文</span>
+    </a>
+    <div class="account-area" id="accountArea"></div>
   </div>
+</header>
 
-  <p class="landing-note" id="heroNote">生成需要登录，邮箱验证码即可，不设密码。</p>
+<main class="home-main">
+  <div class="wrap home-inner">
+
+    <img class="home-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="64" height="64">
+    <h1 class="home-title">先想清楚，再写下去</h1>
+    <p class="home-lead">
+      不给你一键成稿。先陪你把题目拆开、把大纲立起来，你点头之后才写正文；<br class="home-br">
+      写完像老师一样用红笔批，改不改由你定。
+    </p>
+
+    <div class="home-actions">
+      <button class="btn btn-primary btn-lg" id="homeCta" type="button">开始写作</button>
+      <a class="home-link" href="account.html">我的作文</a>
+    </div>
+    <p class="home-note" id="heroNote">生成需要登录，邮箱验证码即可，不设密码。</p>
+
+    <div class="home-points">
+      <div class="home-point">
+        <span class="home-point-no">01</span>
+        <h3>大纲先行</h3>
+        <p>分几段、每段写什么，逐条可改可增补，确认了才落笔。</p>
+      </div>
+      <div class="home-point">
+        <span class="home-point-no">02</span>
+        <h3>红笔手批</h3>
+        <p>五种修改符号标在原文上，不遮字，逐条采纳或忽略。</p>
+      </div>
+      <div class="home-point">
+        <span class="home-point-no">03</span>
+        <h3>逐句评改</h3>
+        <p>只判这句话有没有落到实处，认可的问题一次交给 AI 改。</p>
+      </div>
+    </div>
+
+  </div>
 </main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="copyright">
+      <span>文芽作文 · 保留所有权利</span>
+      <span>生成内容仅供参考，请勿直接抄袭提交</span>
+    </div>
+  </div>
+</footer>
 
 <!-- 登录 / 注册弹窗（auth.js 依赖这些 id） -->
 <div class="modal-mask" id="authMask" hidden>
@@ -68,7 +111,7 @@
   </div>
 </div>
 
-<script src="assets/js/auth.js?v=20261112d"></script>
-<script src="assets/js/home.js?v=20261112d"></script>
+<script src="assets/js/auth.js?v=20261112e"></script>
+<script src="assets/js/home.js?v=20261112e"></script>
 </body>
 </html>
