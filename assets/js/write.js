@@ -2406,7 +2406,7 @@
   }
 
   /* 手批改稿 */
-  async function sendRevision(req) {
+  async function sendRevision(req, opts) {
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
       setPaperHint("接口未配置，先回工作台填好。");
@@ -2426,10 +2426,33 @@
     if (rule) sys += "\n\n" + rule;
     var st = scoringText();
     if (st) sys += "\n\n" + st;
+    if (opts && opts.lockedList) {
+      // 学生只勾了其中几条：这轮只准按清单出手批，不许自己另找问题凑数
+      sys += "\n\n【本轮只按清单批】学生已经从评改里逐条勾选，只认可了下面这几条。" +
+        "你这一次的 marks 必须与清单一条对一条：条数相同、顺序对应、anchor 一一落在清单里的原句上。" +
+        "不许新增清单以外的地方，不许把清单里的某条换成你认为更值得改的句子，不许合并成一条，也不许删掉任何一条。" +
+        "清单之外的地方，即使你觉得问题更大，这一轮也一个字都不要批。";
+    }
 
     try {
       var raw = await fetchAnnotation(sys, composeReviseUser(req));
       var obj = parseAnnotJSON(raw);
+      var offList = 0;
+      if (opts && opts.lockedList) {
+        // 模型偶尔还是会顺手多批几处：清单之外的直接丢掉，只留学生勾过的
+        var allowed = criticItems.filter(function (x) { return x.agreed === "yes"; })
+          .map(function (x) { return String(x.sentence || "").replace(/\s/g, ""); });
+        var kept = (obj.marks || []).filter(function (m) {
+          var a = String(m.anchor || "").replace(/\s/g, "");
+          if (!a) return false;
+          for (var k = 0; k < allowed.length; k++) {
+            if (allowed[k].indexOf(a) >= 0 || a.indexOf(allowed[k]) >= 0) return true;
+          }
+          return false;
+        });
+        offList = (obj.marks || []).length - kept.length;
+        obj.marks = kept;
+      }
       // 黄标在采纳当时就已标上，这里不再重置，免得改动痕迹忽然消失
       annotations = normalizeMarks(obj);
       // 新一轮批注：移除上一轮面板（正文已采纳的改动仍生效），在对话底部重建
@@ -2438,6 +2461,9 @@
       renderAnnotated();                  // 稿纸上标出朱红修改符号
       renderAnnotPanel();                 // 左侧列出可采纳/忽略的批注
       switchPane("paper");
+      if (offList && assistantReplyEl) {
+        assistantReplyEl.textContent += " （另有 " + offList + " 条不在你勾选的清单里，已丢弃）";
+      }
       if (annotDropped && assistantReplyEl) {
         // 模型写了说明文字、引号不配对或标点接不上，这些条被拦下来了，要如实告诉学生
         assistantReplyEl.textContent += " （另有 " + annotDropped + " 条因为替换文字里混了说明、引号不配对或标点接不上，已丢弃）";
@@ -2756,7 +2782,8 @@
   function criticReqText() {
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; });
     if (!picked.length) return "";
-    var lines = ["下面这些是我认可的评改问题，请照它们出手批：每处只标该改的原文片段，不要重写全篇。"];
+    var lines = ["下面这些是我认可的评改问题，一共 " + picked.length + " 条，请只照它们出手批：每处只标该改的原文片段，不要重写全篇。",
+      "只批这 " + picked.length + " 条，我勾过的地方之外不要动，也不要另找问题凑数。"];
     if (criticScores.length) {
       lines.push("上一轮评卷给分：" + criticScores.map(function (s) {
         return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "") +
@@ -2985,7 +3012,7 @@
     var req = criticReqText();
     if (!req) { setDocHint("先在上面的评改卡片里点「认可」，再一起交给 AI。"); return; }
     if (!docBody.trim()) { setDocHint("正文是空的，改不了。"); return; }
-    sendRevision(req);
+    sendRevision(req, { lockedList: true });
   });
 
   on(els.criticDockClose, "click", function () {
