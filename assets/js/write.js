@@ -53,6 +53,7 @@
     wizard: $("wizard"), studio: $("studio"),
     wizardSteps: $("wizardSteps"),
     catGrid: $("catGrid"), catTip: $("catTip"),
+    genreGrid: $("genreGrid"), genreTip: $("genreTip"),
     topic: $("topic"), topicStepTitle: $("topicStepTitle"),
     topicHint: $("topicHint"), topicExamples: $("topicExamples"),
     extra: $("extra"),
@@ -89,6 +90,7 @@
 
   /* 向导状态 */
   var selectedCat = "";
+  var selectedGenre = "记叙文";
   var wordCount = 800;
   var selectedProvinces = ["全国卷（通用）"];
 
@@ -99,6 +101,7 @@
   var assistantReplyEl = null;
   var currentComposition = "";   // 当前作文纯文本（标题+正文），用于修改大师上下文
   var activeCat = "";            // 本次成稿的类别快照（返回工作台改选项不影响已生成的稿）
+  var activeGenre = "记叙文";     // 本次成稿的文体快照（记叙文/议论文/散文/小小说/随笔）
   var activeTopic = "";          // 本次成稿的题目原题快照
   var activeProvinces = [];      // 本次成稿所选评分标准快照（可多个）
   var docTitle = "";             // 稿纸标题（纯文本）
@@ -233,13 +236,17 @@
   function updateSteps() {
     var steps = els.wizardSteps.querySelectorAll("li");
     steps.forEach(function (s) { s.classList.remove("done", "active"); });
-    if (selectedCat) {
-      steps[0].classList.add("done");
-      steps[1].classList.add("active");
-    } else {
-      steps[0].classList.add("active");
+    // 1 类别 / 2 文体 / 3 题目 / 4 字数 / 5 额外要求
+    if (selectedCat) steps[0].classList.add("done");
+    else steps[0].classList.add("active");
+    if (selectedGenre) steps[1].classList.add("done");
+    else steps[1].classList.add("active");
+    if (els.topic.value.trim()) {
+      steps[2].classList.add("done");
+      steps[3].classList.add("done");
+    } else if (selectedCat) {
+      steps[2].classList.add("active");
     }
-    if (els.topic.value.trim()) steps[1].classList.add("done");
   }
 
   // 把该类别的输入引导（标题/placeholder/提示/示例）应用到向导
@@ -247,14 +254,14 @@
     var cfg = (window.WY_CATEGORY && window.WY_CATEGORY[cat]) || null;
     if (!cfg) return;
     els.topicStepTitle.textContent = cfg.stepTitle;
-    var step2 = els.wizardSteps.querySelector('li[data-step="2"]');
-    if (step2) {
-      step2.innerHTML = "";
+    var step3 = els.wizardSteps.querySelector('li[data-step="3"]');
+    if (step3) {
+      step3.innerHTML = "";
       var dot = document.createElement("span");
       dot.className = "dot";
-      dot.textContent = "2";
-      step2.appendChild(dot);
-      step2.appendChild(document.createTextNode(cfg.stepShort || cfg.stepTitle));
+      dot.textContent = "3";
+      step3.appendChild(dot);
+      step3.appendChild(document.createTextNode(cfg.stepShort || cfg.stepTitle));
     }
     els.topic.placeholder = cfg.placeholder;
     els.topicHint.textContent = cfg.hint;
@@ -299,6 +306,58 @@
     if (warn) setWizardStatus(warn, "error");
     updateSteps();
   });
+
+  /* ---------------- 向导：文体（不同文体走不同提示词规则） ---------------- */
+
+  function syncGenreTip() {
+    var g = window.WY_GENRE && window.WY_GENRE[selectedGenre];
+    els.genreTip.textContent = g ? (g.tip || "") : "";
+  }
+
+  function buildGenreCards() {
+    if (!els.genreGrid || !window.WY_GENRE) return;
+    els.genreGrid.innerHTML = "";
+    Object.keys(window.WY_GENRE).forEach(function (key) {
+      var g = window.WY_GENRE[key];
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "genre-card" + (key === selectedGenre ? " selected" : "");
+      btn.setAttribute("data-genre", key);
+
+      var head = document.createElement("div");
+      head.className = "genre-head";
+      var name = document.createElement("span");
+      name.className = "genre-name";
+      name.textContent = g.name || key;
+      var tag = document.createElement("span");
+      tag.className = "genre-tag";
+      tag.textContent = g.tag || "";
+      head.appendChild(name);
+      head.appendChild(tag);
+
+      var desc = document.createElement("div");
+      desc.className = "genre-desc";
+      desc.textContent = g.desc || "";
+
+      btn.appendChild(head);
+      btn.appendChild(desc);
+      els.genreGrid.appendChild(btn);
+    });
+    syncGenreTip();
+  }
+
+  on(els.genreGrid, "click", function (e) {
+    var card = e.target.closest(".genre-card");
+    if (!card) return;
+    selectedGenre = card.getAttribute("data-genre");
+    els.genreGrid.querySelectorAll(".genre-card").forEach(function (c) {
+      c.classList.toggle("selected", c === card);
+    });
+    syncGenreTip();
+    updateSteps();
+  });
+
+  buildGenreCards();
 
   /* ---------------- 向导：字数滚动条 ---------------- */
 
@@ -1027,8 +1086,24 @@
     return (outline.points || []).some(function (p) { return trim(p.text) || trim(p.label); });
   }
 
-  function outlineStore() {
-    if (!outlineHasContent()) return "";
+  // 类别与文体一起写进作文的 category 字段（形如「命题 · 议论文」），从控制台恢复时再拆开
+  function categoryStore() {
+    var cat = activeCat || selectedCat || "";
+    var g = genreName();
+    return (cat && g) ? (cat + " · " + g) : (cat || g || "");
+  }
+
+  function parseCategoryStore(str) {
+    var parts = String(str || "").split("·").map(function (x) { return trim(x); });
+    var cat = (parts[0] || "").split("｜")[0].trim();
+    var g = parts[1] || "";
+    return {
+      cat: cat,
+      genre: (window.WY_GENRE && window.WY_GENRE[g]) ? g : "记叙文"
+    };
+  }
+
+  function outlineStore() {    if (!outlineHasContent()) return "";
     return JSON.stringify({
       title: outline.title || "",
       thesis: outline.thesis || "",
@@ -1045,7 +1120,7 @@
       title: docTitle || outline.title || activeTopic || "作文",
       body: currentComposition || docBody || "",
       outline: outlineStore(),
-      category: activeCat || selectedCat || "",
+      category: categoryStore(),
       province: (activeProvinces.length ? activeProvinces : selectedProvinces).join("、"),
       wordCount: Array.from(docBody.replace(/\s/g, "")).length
     };
@@ -1160,6 +1235,40 @@
 
   function activeCatName() { return activeCat || selectedCat; }
 
+  // 不同文体的大纲骨架不一样：议论文要论点分论点，小小说要伏笔反转，不能都按「开头—转折—结尾」排
+  function genreOutlineNote() {
+    var g = genreName();
+    if (g === "议论文") {
+      return "【大纲形态】议论文按「引论—分论点—让步—结论」组织，每条 label 用「引论」「分论点一」「让步」「结论」这类字样；每条 text 写清这一段用哪个具体论据、论证到哪一步，不写场景、不写动作、不写抒情。段落数 4～5 段即可。";
+    }
+    if (g === "小小说") {
+      return "【大纲形态】小小说按「场景—冲突—伏笔—反转—收束」组织，每条 text 写清发生什么动作或哪句对话推动，伏笔要指名是哪个物件或哪句话，不写抒情与心理。";
+    }
+    if (g === "散文") {
+      return "【大纲形态】散文的大纲围绕那件作为线索的实物或地点走，每条 text 写清这一段写它的哪种状态、牵出谁或哪件旧事，允许跳跃但要写清由头。";
+    }
+    if (g === "随笔") {
+      return "【大纲形态】随笔从一件具体小事起头，中段可以岔开去谈旧事或见闻，最后回到起头的那件事；每条 text 写清这一段的见闻与由此生出的那一两句议论。";
+    }
+    return "【大纲形态】记叙文按事情的时间顺序走，每条 text 写清谁、在哪、做什么、出现什么器物，两三句写实，不写心情。";
+  }
+
+
+  // 本次作文的文体规则（完整文本）。类别管标题怎么处理，文体管全篇怎么组织。
+  function genreRule() {
+    var g = activeGenre || selectedGenre;
+    var cfg = window.WY_GENRE && window.WY_GENRE[g];
+    return cfg ? cfg.rule : "";
+  }
+
+  function genreName() { return activeGenre || selectedGenre || "记叙文"; }
+
+  // 文体一行提示，放进 user 里再点一次，防止模型只记住骨架忘了文体
+  function genreLine() {
+    return "【本次作文文体】" + genreName() + "。全篇必须按系统提示里的「本次文体」规则组织，"
+      + "该条款与通用铁律冲突时以文体规则为准。";
+  }
+
   function provinceList() {
     var list = (activeProvinces && activeProvinces.length) ? activeProvinces : selectedProvinces;
     return list && list.length ? list : ["全国卷（通用）"];
@@ -1195,10 +1304,12 @@
   function composeOutlineUser(isEdit, req) {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
+    lines.push(genreLine());
     var rule = categoryRule();
     if (rule) lines.push(rule);
     lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
     if (els.extra.value.trim()) lines.push("【额外要求】" + els.extra.value.trim());
+    lines.push(genreOutlineNote());
     lines.push("【目标字数（含标点）】约 " + wordCount + " 字。大纲的段落数量要与这个字数匹配，不要按 300 字写大纲却要求写 1200 字。");
     var st = scoringText();
     if (st) lines.push(st);
@@ -1215,6 +1326,7 @@
   function composeWriteUser() {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
+    lines.push(genreLine());
     var rule = categoryRule();
     if (rule) lines.push(rule);
     lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
@@ -1230,6 +1342,7 @@
   function composeReviseUser(req) {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
+    lines.push(genreLine());
     var rule = categoryRule();
     if (rule) lines.push(rule + "\n- 批注同样受本类别的标题规则约束：命题不得改题；半命题不得更换已补好的词；自拟不得换成口号式标题。anchor 不要取标题。");
     var st = scoringText();
@@ -1243,6 +1356,7 @@
   function composeExplainUser(req) {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
+    lines.push(genreLine());
     var st = scoringText();
     if (st) lines.push(st);
     lines.push(wrapEssay());
@@ -1254,6 +1368,7 @@
   function composeCriticUser() {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
+    lines.push(genreLine());
     var st = scoringText();
     if (st) lines.push(st);
     lines.push(wrapEssay());
@@ -1743,7 +1858,9 @@
     if (!data) return false;
 
     currentEssayId = data.id || null;
-    activeCat = data.category || "";
+    var parsedCat = parseCategoryStore(data.category);
+    activeCat = parsedCat.cat || "";
+    activeGenre = parsedCat.genre;
     activeTopic = data.title || "";
     activeProvinces = resumeProvinceList(data.province);
 
@@ -1778,6 +1895,7 @@
 
     els.studioMeta.textContent = [
       activeCat ? "类别：" + activeCat : "",
+      "文体：" + activeGenre,
       "题目：" + (docTitle || "作文"),
       activeProvinces.join("、"),
       "已存档"
@@ -1852,8 +1970,9 @@
     var topicWarn = validateTopic(selectedCat, els.topic.value.trim());
     if (topicWarn) { setWizardStatus(topicWarn, "error"); els.topic.focus(); return; }
 
-    // 锁定本次成稿的类别/题目/评分标准，后续改稿都以此为准
+    // 锁定本次成稿的类别/文体/题目/评分标准，后续改稿都以此为准
     activeCat = selectedCat;
+    activeGenre = selectedGenre || "记叙文";
     activeTopic = els.topic.value.trim();
     activeProvinces = selectedProvinces.slice();
 
@@ -1880,7 +1999,7 @@
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
 
-    var summary = "类别：" + selectedCat + " ｜ 题目：" + els.topic.value.trim().slice(0, 30) +
+    var summary = "类别：" + selectedCat + " ｜ 文体：" + activeGenre + " ｜ 题目：" + els.topic.value.trim().slice(0, 30) +
       (els.topic.value.trim().length > 30 ? "…" : "") + " ｜ 约 " + wordCount + " 字 ｜ " + activeProvinces.join("、");
     els.studioMeta.textContent = summary;
 
@@ -1902,6 +2021,8 @@
     setPaperHint("正在拟大纲…");
 
     var sys = window.WY_OUTLINE;
+    var gr = genreRule();
+    if (gr) sys += "\n\n" + gr;
     var rule = categoryRule();
     if (rule) sys += "\n\n" + rule;
     var ok = await runStream(sys, composeOutlineUser(false), {
@@ -1957,6 +2078,8 @@
     setPaperHint("正在生成…");
 
     var sys = window.WY_PROMPT;
+    var gr = genreRule();
+    if (gr) sys += "\n\n" + gr;
     var rule = categoryRule();
     if (rule) sys += "\n\n" + rule;
     var st = scoringText();
@@ -2033,6 +2156,8 @@
     setDocHint("正在改大纲…");
 
     var sys = window.WY_OUTLINE_EDIT;
+    var gr = genreRule();
+    if (gr) sys += "\n\n" + gr;
     var rule = categoryRule();
     if (rule) sys += "\n\n" + rule;
 
@@ -2068,6 +2193,8 @@
     assistantReplyEl = null;
 
     var sys = window.WY_EXPLAIN;
+    var gr = genreRule();
+    if (gr) sys += "\n\n" + gr;
     var rule = categoryRule();
     if (rule) sys += "\n\n" + rule;
 
@@ -2103,6 +2230,8 @@
     setPaperHint("批改老师正在读稿…");
 
     var sys = window.WY_ANNOTATOR;
+    var gr = genreRule();
+    if (gr) sys += "\n\n" + gr;
     var rule = categoryRule();
     if (rule) sys += "\n\n" + rule;
     var st = scoringText();
@@ -2346,7 +2475,10 @@
     bubble.textContent = "正在逐句判好坏与 AI 味…";
 
     try {
-      var raw = await fetchAnnotation(window.WY_CRITIC, composeCriticUser());
+      var sysCritic = window.WY_CRITIC;
+      var grC = genreRule();
+      if (grC) sysCritic += "\n\n" + grC;
+      var raw = await fetchAnnotation(sysCritic, composeCriticUser());
       var obj = parseCriticJSON(raw);
       criticItems = obj.items;
       renderCritic();

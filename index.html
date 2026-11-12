@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261114a">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112b">
 </head>
 <body>
 
@@ -30,7 +30,7 @@
     <div class="tool-head">
       <div>
         <h1>创建作文工作台<span class="badge-new">核心功能</span></h1>
-        <p>四步定好题目，挑一个评分标准，再进入 AI 生成与修改界面。</p>
+        <p>五步定好类别、文体与题目，挑一个评分标准，再进入 AI 生成与修改界面。</p>
       </div>
       <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
     </div>
@@ -98,9 +98,10 @@
     <!-- 步骤条 -->
     <ol class="wizard-steps" id="wizardSteps">
       <li class="done" data-step="1"><span class="dot">1</span>选择类别</li>
-      <li data-step="2"><span class="dot">2</span>输入题目</li>
-      <li data-step="3"><span class="dot">3</span>选择字数</li>
-      <li data-step="4"><span class="dot">4</span>额外要求</li>
+      <li class="done" data-step="2"><span class="dot">2</span>选择文体</li>
+      <li data-step="3"><span class="dot">3</span>输入题目</li>
+      <li data-step="4"><span class="dot">4</span>选择字数</li>
+      <li data-step="5"><span class="dot">5</span>额外要求</li>
     </ol>
 
     <div class="wizard-body">
@@ -125,9 +126,16 @@
         <p class="wstep-tip" id="catTip">三选一：命题 / 半命题 / 自拟。</p>
       </div>
 
-      <!-- 步骤 2：题目（标题/提示/示例随类别动态切换） -->
+      <!-- 步骤 2：文体（决定整篇的结构与语气，卡片由 WY_GENRE 动态生成） -->
       <div class="wstep">
-        <div class="wstep-head"><span class="wstep-no">2</span><h2 id="topicStepTitle">输入题目</h2></div>
+        <div class="wstep-head"><span class="wstep-no">2</span><h2>选择文体</h2></div>
+        <div class="genre-grid" id="genreGrid"></div>
+        <p class="wstep-tip" id="genreTip">散文、议论文与记叙文的写法差别很大，选错文体 AI 会按错的骨架写。</p>
+      </div>
+
+      <!-- 步骤 3：题目（标题/提示/示例随类别动态切换） -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">3</span><h2 id="topicStepTitle">输入题目</h2></div>
         <div class="chat-box">
           <textarea class="chat-input-area" id="topic" rows="3"
             placeholder="先在上方选好类别，再按类别写题目"></textarea>
@@ -138,7 +146,7 @@
 
       <!-- 步骤 3：字数 -->
       <div class="wstep">
-        <div class="wstep-head"><span class="wstep-no">3</span><h2>选择字数</h2></div>
+        <div class="wstep-head"><span class="wstep-no">4</span><h2>选择字数</h2></div>
         <div class="word-roller">
           <button class="roller-btn" id="wordMinus" aria-label="减少">−</button>
           <div class="roller-num" id="wordNum">800</div>
@@ -153,7 +161,7 @@
 
       <!-- 步骤 4：额外要求 -->
       <div class="wstep">
-        <div class="wstep-head"><span class="wstep-no">4</span><h2>额外要求</h2><span class="wstep-opt">选填</span></div>
+        <div class="wstep-head"><span class="wstep-no">5</span><h2>额外要求</h2><span class="wstep-opt">选填</span></div>
         <div class="chat-box">
           <textarea class="chat-input-area" id="extra" rows="3"
             placeholder="例：分歧落在一只碗的釉色上；结尾用一句老师傅的话收住"></textarea>
@@ -163,7 +171,7 @@
 
       <!-- 评分标准（可多选） -->
       <div class="wstep">
-        <div class="wstep-head"><span class="wstep-no">5</span><h2>评分标准（可多选）</h2><span class="wstep-opt">表格注入 AI</span></div>
+        <div class="wstep-head"><span class="wstep-no">6</span><h2>评分标准（可多选）</h2><span class="wstep-opt">表格注入 AI</span></div>
         <div class="scoring-grid" id="scoringGrid"></div>
         <p class="wstep-tip" id="scoringTip">可同时选几个地方的评分标准，完整表格会注入提示词，生成界面顶部也能展开查看。</p>
       </div>
@@ -339,8 +347,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261114a"></script>
-<script src="assets/js/write.js?v=20261114a"></script>
-<script src="assets/js/auth.js?v=20261114a"></script>
+<script src="assets/js/prompt.js?v=20261112b"></script>
+<script src="assets/js/write.js?v=20261112b"></script>
+<script src="assets/js/auth.js?v=20261112b"></script>
 </body>
 </html>
