@@ -38,15 +38,27 @@
     backBtn: $("backBtn"), studioMeta: $("studioMeta"),
     contextList: $("contextList"), contextEmpty: $("contextEmpty"),
     chatInput: $("chatInput"), sendBtn: $("sendBtn"), stopBtn2: $("stopBtn2"),
+    chatMode: $("chatMode"), chatModeHint: $("chatModeHint"),
     paperTitle: $("paperTitle"), paperBody: $("paperBody"),
     paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
-    acceptAllBtn: $("acceptAllBtn"), ignoreAllBtn: $("ignoreAllBtn")
+    acceptAllBtn: $("acceptAllBtn"), ignoreAllBtn: $("ignoreAllBtn"),
+
+    scoreToggle: $("scoreToggle"), scoreBody: $("scoreBody"), scoreChips: $("scoreChips"),
+    scoreCaret: $("scoreCaret"), scoreTables: $("scoreTables"),
+    criticBtn: $("criticBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
+
+    docTabs: $("docTabs"), docTabHint: $("docTabHint"),
+    outlinePane: $("outlinePane"), paperPane: $("paperPane"),
+    outlineTitle: $("outlineTitle"), outlineThesis: $("outlineThesis"),
+    outlinePoints: $("outlinePoints"), outlineEmpty: $("outlineEmpty"),
+    outlineAddBtn: $("outlineAddBtn"), outlineAiBtn: $("outlineAiBtn"),
+    writeEssayBtn: $("writeEssayBtn")
   };
 
   /* 向导状态 */
   var selectedCat = "";
   var wordCount = 800;
-  var selectedProvince = "全国卷（通用）";
+  var selectedProvinces = ["全国卷（通用）"];
 
   /* 运行态 */
   var controller = null;
@@ -56,7 +68,7 @@
   var currentComposition = "";   // 当前作文纯文本（标题+正文），用于修改大师上下文
   var activeCat = "";            // 本次成稿的类别快照（返回工作台改选项不影响已生成的稿）
   var activeTopic = "";          // 本次成稿的题目原题快照
-  var activeProvince = "";       // 本次成稿所选省份快照
+  var activeProvinces = [];      // 本次成稿所选评分标准快照（可多个）
   var docTitle = "";             // 稿纸标题（纯文本）
   var docBody = "";              // 稿纸正文（纯文本，采纳批注时在这里替换）
   var annotations = [];          // 老师手批：待处理/已采纳/已忽略的批注
@@ -64,6 +76,11 @@
   var prevAcceptedTexts = [];    // 上一轮采纳写进正文的新文字（稿纸里标黄）
   var roundAcceptedTexts = [];   // 本轮采纳产生的新文字，下一轮开始时归档为"上一轮"
   var currentEssayId = null;     // 云端作文 id（登录后自动保存）
+
+  var outline = { title: "", thesis: "", points: [], note: "" };  // 大纲（可编辑）
+  var stage = "outline";         // outline：还在改大纲；draft：正文已生成
+  var chatMode = "annotate";     // annotate：手批改稿；explain：只问不改
+  var criticItems = [];          // AI 评改的逐句结果
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -264,36 +281,133 @@
   els.wordPlus.addEventListener("click", function () { setWord(wordCount + 50); });
   setWord(800);
 
-  /* ---------------- 向导：评分标准（动态生成） ---------------- */
+  /* ---------------- 向导：评分标准（可多选，动态生成表格卡片） ---------------- */
+
+  function scoringBrief(prov) {
+    var s = window.WY_SCORING[prov];
+    if (!s) return "";
+    return "总分 " + s.total + " 分 · 维度 " + s.dims.map(function (d) { return d[0] + d[1]; }).join("/") +
+      " · 分 " + s.bands.length + " 档";
+  }
 
   function buildScoringCards() {
     if (!window.WY_SCORING) return;
     els.scoringGrid.innerHTML = "";
     Object.keys(window.WY_SCORING).forEach(function (prov) {
       var btn = document.createElement("button");
-      btn.className = "scoring-card" + (prov === selectedProvince ? " selected" : "");
+      btn.type = "button";
+      btn.className = "scoring-card" + (selectedProvinces.indexOf(prov) >= 0 ? " selected" : "");
       btn.setAttribute("data-province", prov);
-      var d = window.WY_SCORING[prov];
-      btn.innerHTML = '<div class="scoring-name"></div><div class="scoring-desc"></div>';
-      btn.querySelector(".scoring-name").textContent = prov;
-      btn.querySelector(".scoring-desc").textContent = d;
-      btn.title = prov + "：" + d;
+      var name = document.createElement("div");
+      name.className = "scoring-name";
+      name.textContent = prov;
+      var desc = document.createElement("div");
+      desc.className = "scoring-desc";
+      desc.textContent = scoringBrief(prov);
+      btn.appendChild(name);
+      btn.appendChild(desc);
       els.scoringGrid.appendChild(btn);
     });
+  }
+
+  function syncScoringTip() {
+    els.scoringTip.textContent = selectedProvinces.length
+      ? "已选 " + selectedProvinces.length + " 份：" + selectedProvinces.join("、") +
+        "。完整表格会注入提示词，生成界面顶部可展开查看。"
+      : "至少选一份评分标准，AI 才知道该按什么尺度写。";
   }
 
   els.scoringGrid.addEventListener("click", function (e) {
     var card = e.target.closest(".scoring-card");
     if (!card) return;
-    selectedProvince = card.getAttribute("data-province");
-    els.scoringGrid.querySelectorAll(".scoring-card").forEach(function (c) {
-      c.classList.toggle("selected", c === card);
-    });
-    var d = window.WY_SCORING[selectedProvince] || "";
-    els.scoringTip.textContent = "已选：" + selectedProvince + "。" + d;
+    var prov = card.getAttribute("data-province");
+    var at = selectedProvinces.indexOf(prov);
+    if (at >= 0) {
+      if (selectedProvinces.length === 1) {
+        setWizardStatus("至少要留一份评分标准。", "error");
+        return;
+      }
+      selectedProvinces.splice(at, 1);
+    } else {
+      if (selectedProvinces.length >= 3) {
+        setWizardStatus("最多同时选 3 份，选太多会稀释 AI 的注意力。", "error");
+        return;
+      }
+      selectedProvinces.push(prov);
+    }
+    card.classList.toggle("selected", selectedProvinces.indexOf(prov) >= 0);
+    syncScoringTip();
   });
 
   buildScoringCards();
+  syncScoringTip();
+
+  /* 评分区：把所选省份的表格渲染到生成界面顶部 */
+  function renderScoreTables() {
+    var list = activeProvinces.length ? activeProvinces : selectedProvinces;
+    els.scoreChips.innerHTML = "";
+    els.scoreTables.innerHTML = "";
+    list.forEach(function (prov) {
+      var s = window.WY_SCORING[prov];
+      if (!s) return;
+
+      var chip = document.createElement("span");
+      chip.className = "score-chip";
+      chip.textContent = prov + " " + s.total + "分";
+      els.scoreChips.appendChild(chip);
+
+      var box = document.createElement("div");
+      box.className = "score-table-box";
+      var h = document.createElement("div");
+      h.className = "score-table-head";
+      h.textContent = prov + "（总分 " + s.total + " 分）";
+      box.appendChild(h);
+
+      function table(cols, rows) {
+        var t = document.createElement("table");
+        t.className = "score-table";
+        var thead = document.createElement("thead");
+        var tr = document.createElement("tr");
+        cols.forEach(function (c) {
+          var th = document.createElement("th");
+          th.textContent = c;
+          tr.appendChild(th);
+        });
+        thead.appendChild(tr);
+        t.appendChild(thead);
+        var tb = document.createElement("tbody");
+        rows.forEach(function (r) {
+          var row = document.createElement("tr");
+          r.forEach(function (cell, i) {
+            var td = document.createElement("td");
+            td.textContent = cell;
+            if (i === 0) td.className = "score-table-key";
+            row.appendChild(td);
+          });
+          tb.appendChild(row);
+        });
+        t.appendChild(tb);
+        return t;
+      }
+
+      box.appendChild(table(["维度", "分值", "要求"], s.dims));
+      box.appendChild(table(["档次", "分数", "要求"], s.bands));
+      if (s.notes) {
+        var note = document.createElement("div");
+        note.className = "score-table-note";
+        note.textContent = "扣分与降档：" + s.notes;
+        box.appendChild(note);
+      }
+      els.scoreTables.appendChild(box);
+    });
+  }
+
+  function setScoreOpen(open) {
+    if (open) els.scoreBody.removeAttribute("hidden");
+    else els.scoreBody.setAttribute("hidden", "");
+    els.scoreToggle.setAttribute("aria-expanded", String(!!open));
+    els.scoreCaret.textContent = open ? "收起表格" : "展开表格";
+  }
 
   /* ---------------- 向导：示例题目 ---------------- */
 
@@ -681,25 +795,49 @@
     });
   }
 
-  /* ---------------- 对话气泡 ---------------- */
+  /* ---------------- 对话气泡（按角色区分） ---------------- */
 
-  function addUserBubble(text) {
+  var ROLE_CLASS = {
+    "你": "role-user",
+    "大纲助教": "role-outline",
+    "批改老师": "role-annot",
+    "讲评老师": "role-explain",
+    "评改": "role-critic",
+    "文芽": "role-ai"
+  };
+
+  function addUserBubble(text, role) {
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     var b = document.createElement("div");
     b.className = "bubble user";
-    b.innerHTML = '<div class="bubble-label">你</div><div class="bubble-text"></div>';
-    b.querySelector(".bubble-text").textContent = text;
+    var label = document.createElement("div");
+    label.className = "bubble-label";
+    label.textContent = role || "你";
+    var t = document.createElement("div");
+    t.className = "bubble-text";
+    t.textContent = text;
+    b.appendChild(label);
+    b.appendChild(t);
     els.contextList.appendChild(b);
     els.contextList.scrollTop = els.contextList.scrollHeight;
+    return t;
   }
 
-  function addAssistantBubble() {
+  function addAssistantBubble(role) {
+    var name = role || "文芽";
+    if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     var b = document.createElement("div");
-    b.className = "bubble ai";
-    b.innerHTML = '<div class="bubble-label">文芽</div><div class="bubble-text"></div>';
+    b.className = "bubble ai " + (ROLE_CLASS[name] || "role-ai");
+    var label = document.createElement("div");
+    label.className = "bubble-label";
+    label.textContent = name;
+    var t = document.createElement("div");
+    t.className = "bubble-text";
+    b.appendChild(label);
+    b.appendChild(t);
     els.contextList.appendChild(b);
     els.contextList.scrollTop = els.contextList.scrollHeight;
-    return b.querySelector(".bubble-text");
+    return t;
   }
 
   /* ---------------- 输出更新（流式驱动） ---------------- */
@@ -742,7 +880,7 @@
       title: docTitle || "作文",
       body: currentComposition || docBody,
       category: activeCat || selectedCat || "",
-      province: activeProvince || selectedProvince || "",
+      province: (activeProvinces.length ? activeProvinces : selectedProvinces).join("、"),
       wordCount: Array.from(docBody.replace(/\s/g, "")).length
     };
   }
@@ -778,6 +916,8 @@
     els.stopBtn2.disabled = !busy;
     els.testBtn.disabled = busy;
     els.startBtn.textContent = busy ? "生成中…" : "开始生成";
+    var hasOutline = (outline.points || []).some(function (p) { return trim(p.text); });
+    els.writeEssayBtn.disabled = busy || !hasOutline;
   }
 
   /* ---------------- 请求 ---------------- */
@@ -853,18 +993,70 @@
 
   function activeCatName() { return activeCat || selectedCat; }
 
+  function provinceList() {
+    var list = (activeProvinces && activeProvinces.length) ? activeProvinces : selectedProvinces;
+    return list && list.length ? list : ["全国卷（通用）"];
+  }
+
+  function scoringText() {
+    return (window.WY_SCORING_ALL ? window.WY_SCORING_ALL(provinceList()) : "") || "";
+  }
+
+  /* 统一包裹：作文原文：{...} / 用户提问：{...}
+     花括号是为了让模型明确知道边界在哪，不会把提问当成正文的一部分。 */
+  function wrapEssay() {
+    return "作文原文：{\n" + (currentComposition || docBody || "（还没有正文）") + "\n}";
+  }
+
+  function wrapAsk(req) {
+    return "用户提问：{\n" + req + "\n}";
+  }
+
+  function outlineJSON() {
+    return JSON.stringify({
+      title: outline.title || "",
+      thesis: outline.thesis || "",
+      points: (outline.points || []).map(function (p) { return { label: p.label || "", text: p.text || "" }; }),
+      note: outline.note || ""
+    }, null, 2);
+  }
+
+  function wrapOutline() {
+    return "当前大纲：{\n" + outlineJSON() + "\n}";
+  }
+
+  function composeOutlineUser(isEdit, req) {
+    var lines = [];
+    lines.push("【本次作文类别】" + activeCatName());
+    var rule = categoryRule();
+    if (rule) lines.push(rule);
+    lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
+    if (els.extra.value.trim()) lines.push("【额外要求】" + els.extra.value.trim());
+    lines.push("【目标字数（含标点）】约 " + wordCount + " 字。大纲的段落数量要与这个字数匹配，不要按 300 字写大纲却要求写 1200 字。");
+    var st = scoringText();
+    if (st) lines.push(st);
+    if (isEdit) {
+      lines.push(wrapOutline());
+      lines.push(wrapAsk(req));
+      lines.push("\n按系统提示输出修改后的完整大纲 JSON。");
+    } else {
+      lines.push("\n现在只输出大纲 JSON，不要写正文。");
+    }
+    return lines.join("\n\n");
+  }
+
   function composeWriteUser() {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
     var rule = categoryRule();
     if (rule) lines.push(rule);
-    lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + els.topic.value.trim());
+    lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
     if (els.extra.value.trim()) lines.push("【额外要求】" + els.extra.value.trim());
     lines.push("【目标字数（含标点）】约 " + wordCount + " 字，正文尽量逼近，宁可少写不可硬凑。");
-    var prov = activeProvince || selectedProvince;
-    var sd = (window.WY_SCORING && window.WY_SCORING[prov]) || "";
-    lines.push("【评分标准（" + prov + "）】" + sd);
-    lines.push("\n这是首次生成，请直接输出「===作文===」和作文正文，不用写「回应」部分。严格按系统提示的写作铁律、本类别的标题与扣题规则、以及上述评分标准执行。");
+    var st = scoringText();
+    if (st) lines.push(st);
+    lines.push("【本次大纲（已由用户确认，必须照着写）】\n" + outlineJSON());
+    lines.push("\n这是首次生成，请直接输出「===作文===」和作文正文，不用写「回应」部分。正文必须落实上面大纲里每一段的人物、器物、动作，不得另起炉灶。严格按系统提示的写作铁律、本类别的标题与扣题规则、以及上述评分标准执行。");
     return lines.join("\n");
   }
 
@@ -873,17 +1065,47 @@
     lines.push("【本次作文类别】" + activeCatName());
     var rule = categoryRule();
     if (rule) lines.push(rule + "\n- 批注同样受本类别的标题规则约束：命题不得改题；半命题不得更换已补好的词；自拟不得换成口号式标题。anchor 不要取标题。");
-    lines.push("【当前作文（只批注，不要重写）】\n" + currentComposition);
-    lines.push("【学生的修改要求】\n" + req);
-    lines.push("\n按系统提示输出批注 JSON：只标出该改的几处，不要输出修改后的完整作文。anchor 必须逐字取自上面的正文且在正文里唯一。");
+    var st = scoringText();
+    if (st) lines.push(st);
+    lines.push(wrapEssay());
+    lines.push(wrapAsk(req));
+    lines.push("按系统提示输出批注 JSON：只标出该改的几处，不要输出修改后的完整作文。anchor 必须逐字取自上面「作文原文」的正文，且在正文里唯一，不要取标题。");
     return lines.join("\n\n");
   }
 
-  async function runStream(systemPrompt, userContent) {
+  function composeExplainUser(req) {
+    var lines = [];
+    lines.push("【本次作文类别】" + activeCatName());
+    var st = scoringText();
+    if (st) lines.push(st);
+    lines.push(wrapEssay());
+    lines.push(wrapAsk(req));
+    lines.push("学生这次只想弄明白问题，不想动稿。按系统提示只做讲评：不要改作文，不要给替换句，不要输出批注 JSON。");
+    return lines.join("\n\n");
+  }
+
+  function composeCriticUser() {
+    var lines = [];
+    lines.push("【本次作文类别】" + activeCatName());
+    var st = scoringText();
+    if (st) lines.push(st);
+    lines.push(wrapEssay());
+    lines.push("用户提问：{\n按上面的尺度逐句判好坏与 AI 味，以坏为主。\n}");
+    return lines.join("\n\n");
+  }
+
+  async function runStream(systemPrompt, userContent, opts) {
+    opts = opts || {};
     var c = currentConfig();
     controller = new AbortController();
     fullText = "";
     setBusy(true);
+
+    function onChunk(d) {
+      fullText += d;
+      if (opts.onProgress) opts.onProgress(fullText);
+      else updateOutput(true);
+    }
 
     try {
       var res = await fetch(endpoint(c), {
@@ -911,29 +1133,24 @@
       var got = false;
 
       if (res.body && ctype.toLowerCase().indexOf("application/json") === -1) {
-        await consumeStream(res, function (d) {
-          fullText += d;
-          got = true;
-          updateOutput(true);
-        });
+        await consumeStream(res, onChunk);
+        got = !!fullText;
       } else {
         var j = await res.json();
         if (j.error) throw new Error(j.error.message || "接口返回错误");
         var msg = j.choices && j.choices[0] && j.choices[0].message;
         fullText = (msg && msg.content) || "";
         got = true;
-        updateOutput(false);
+        onChunk("");
       }
 
       if (!got || !fullText.trim()) throw new Error("接口没有返回内容，换一个模型或检查额度。");
-      updateOutput(false);
-      cacheComposition();
+      if (!opts.onProgress) { updateOutput(false); cacheComposition(); }
       return true;
 
     } catch (e) {
       if (e && e.name === "AbortError") {
-        updateOutput(false);
-        cacheComposition();
+        if (!opts.onProgress) { updateOutput(false); cacheComposition(); }
         setPaperHint("已停止，保留已生成的部分。");
         return false;
       }
@@ -942,8 +1159,9 @@
         msg = "请求发不出去：多为浏览器跨域被拦或网络不通。换支持 CORS 的接口，或改用本地代理。";
       }
       setPaperHint("生成失败：" + msg);
-      updateOutput(false);
+      if (!opts.onProgress) updateOutput(false);
       return false;
+
     } finally {
       controller = null;
       setBusy(false);
@@ -1016,7 +1234,142 @@
     }
   }
 
-  /* ---------------- 入口 1：开始生成（写作引擎） ---------------- */
+  /* ---------------- 大纲：解析、渲染、编辑 ---------------- */
+
+  function newPoint(label, text) {
+    return { label: label || "", text: text || "" };
+  }
+
+  function parseOutlineJSON(raw) {
+    var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a < 0 || b <= a) throw new Error("模型没有返回大纲 JSON，可点「让 AI 增补」再试一次。");
+    var obj;
+    try { obj = JSON.parse(s.slice(a, b + 1)); }
+    catch (e) { throw new Error("大纲 JSON 解析失败，可重试或换个更擅长结构化输出的模型。"); }
+    var points = Array.isArray(obj.points) ? obj.points : [];
+    return {
+      title: trim(obj.title),
+      thesis: trim(obj.thesis),
+      note: trim(obj.note),
+      points: points.slice(0, 12).map(function (p) {
+        if (typeof p === "string") return newPoint("", p);
+        return newPoint(trim(p && p.label), trim(p && p.text));
+      }).filter(function (p) { return p.text || p.label; })
+    };
+  }
+
+  function syncOutlineFromDOM() {
+    outline.title = els.outlineTitle.value;
+    outline.thesis = els.outlineThesis.value;
+    var rows = els.outlinePoints.querySelectorAll(".outline-point");
+    var pts = [];
+    rows.forEach(function (row) {
+      pts.push(newPoint(row.querySelector(".op-label").value, row.querySelector(".op-text").value));
+    });
+    outline.points = pts;
+    els.writeEssayBtn.disabled = !outline.points.some(function (p) { return trim(p.text); });
+  }
+
+  function autoGrow(ta) {
+    ta.style.height = "auto";
+    ta.style.height = Math.min(220, ta.scrollHeight) + "px";
+  }
+
+  function renderOutline() {
+    els.outlineTitle.value = outline.title || "";
+    els.outlineThesis.value = outline.thesis || "";
+    els.outlinePoints.innerHTML = "";
+    if (!outline.points.length) {
+      var empty = document.createElement("div");
+      empty.className = "outline-empty";
+      empty.textContent = "还没有大纲条目。可以点「＋ 添加一段」自己写，或点「让 AI 增补」。";
+      els.outlinePoints.appendChild(empty);
+      els.writeEssayBtn.disabled = true;
+      return;
+    }
+    outline.points.forEach(function (p, i) {
+      els.outlinePoints.appendChild(buildOutlineRow(p, i));
+    });
+    els.writeEssayBtn.disabled = !outline.points.some(function (p) { return trim(p.text); });
+    updateWriteBtn();
+  }
+
+  function buildOutlineRow(p, i) {
+    var row = document.createElement("div");
+    row.className = "outline-point";
+
+    var head = document.createElement("div");
+    head.className = "op-head";
+    var no = document.createElement("span");
+    no.className = "op-no";
+    no.textContent = String(i + 1);
+    var label = document.createElement("input");
+    label.className = "op-label";
+    label.value = p.label || "";
+    label.placeholder = "段名";
+    label.setAttribute("maxlength", "12");
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "op-del";
+    del.textContent = "删除";
+    del.addEventListener("click", function () {
+      syncOutlineFromDOM();
+      outline.points.splice(i, 1);
+      renderOutline();
+    });
+    head.appendChild(no);
+    head.appendChild(label);
+    head.appendChild(del);
+
+    var ta = document.createElement("textarea");
+    ta.className = "op-text";
+    ta.value = p.text || "";
+    ta.placeholder = "这一段写谁、在哪、做什么，出现什么器物或哪句人物原话";
+    ta.addEventListener("input", function () { autoGrow(ta); syncOutlineFromDOM(); });
+
+    row.appendChild(head);
+    row.appendChild(ta);
+    setTimeout(function () { autoGrow(ta); }, 0);
+    return row;
+  }
+
+  function setOutline(obj) {
+    outline = {
+      title: obj.title || outline.title || "",
+      thesis: obj.thesis || "",
+      note: obj.note || "",
+      points: (obj.points && obj.points.length) ? obj.points : outline.points
+    };
+    renderOutline();
+    if (outline.note) setDocHint("大纲提醒：" + outline.note);
+  }
+
+  function switchPane(name) {
+    var paper = name === "paper";
+    els.outlinePane.hidden = paper;
+    els.paperPane.hidden = !paper;
+    els.docTabs.querySelectorAll(".doc-tab").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-pane") === name);
+    });
+    if (paper) {
+      els.docTabHint.textContent = stage === "draft"
+        ? "手批的朱红符号在稿纸上，点旁边的「采纳」才动字"
+        : "正文还没写，先回大纲改好再开始";
+      els.paperPane.scrollTop = 0;
+    } else {
+      els.docTabHint.textContent = stage === "draft"
+        ? "大纲可继续改，改完点「按大纲重写」"
+        : "大纲可以先改、可以增补，再开始写";
+    }
+    if (paper) renderAnnotated();
+  }
+
+  function setDocHint(msg) {
+    if (msg) els.docTabHint.textContent = msg;
+  }
+
+  /* ---------------- 入口 1：开始生成（先写大纲） ---------------- */
 
   async function startWriting() {
     if (!selectedCat) { setWizardStatus("请先选择作文类别（命题/半命题/自拟）。", "error"); return; }
@@ -1030,7 +1383,7 @@
     // 锁定本次成稿的类别/题目/评分标准，后续改稿都以此为准
     activeCat = selectedCat;
     activeTopic = els.topic.value.trim();
-    activeProvince = selectedProvince;
+    activeProvinces = selectedProvinces.slice();
 
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
@@ -1045,44 +1398,218 @@
     annotations = []; annotSeq = 0; annotPanelEl = null;
     prevAcceptedTexts = []; roundAcceptedTexts = [];
     currentEssayId = null;
+    criticItems = [];
+    outline = { title: "", thesis: "", points: [], note: "" };
+    stage = "outline";
+    setChatMode("annotate");
+    els.criticList.innerHTML = "";
+    els.criticStat.textContent = "逐句判好坏与 AI 味，不给总分的空头评价。";
     syncAnnotTools();
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
 
     var summary = "类别：" + selectedCat + " ｜ 题目：" + els.topic.value.trim().slice(0, 30) +
-      (els.topic.value.trim().length > 30 ? "…" : "") + " ｜ 约 " + wordCount + " 字 ｜ " + selectedProvince;
+      (els.topic.value.trim().length > 30 ? "…" : "") + " ｜ 约 " + wordCount + " 字 ｜ " + activeProvinces.join("、");
     els.studioMeta.textContent = summary;
 
     els.wizard.setAttribute("hidden", "");
     els.studio.removeAttribute("hidden");
     document.body.classList.add("studio-mode");
 
-    addUserBubble(summary);
-    assistantReplyEl = null;          // 首次生成：不在对话里显示「回应」
+    renderScoreTables();
+    setScoreOpen(false);
+    renderOutline();
+    switchPane("outline");
     showEmpty();
-    setPaperHint("正在生成…");
+    setDocHint("正在拟大纲…");
 
-    // 系统提示词 = 写作铁律 + 本类别标题/扣题规则 + 所选省份评分标准（都是完整文本）
-    var prov = activeProvince || selectedProvince;
-    var sd = (window.WY_SCORING && window.WY_SCORING[prov]) || "";
-    var sysPrompt = window.WY_PROMPT;
+    addUserBubble(summary, "你");
+    var hint = addAssistantBubble("大纲助教");
+    hint.textContent = "正在拟大纲…";
+    assistantReplyEl = hint;
+    setPaperHint("正在拟大纲…");
+
+    var sys = window.WY_OUTLINE;
     var rule = categoryRule();
-    if (rule) sysPrompt += "\n\n" + rule;
-    if (sd) sysPrompt += "\n\n【评分标准参照（" + prov + "）】\n" + sd;
-    await runStream(sysPrompt, composeWriteUser());
-    if (fullText.trim()) {
-      setPaperHint(els.paperStat.textContent);
-      saveEssayToCloud();
+    if (rule) sys += "\n\n" + rule;
+    var ok = await runStream(sys, composeOutlineUser(false), {
+      onProgress: function (t) {
+        if (assistantReplyEl) assistantReplyEl.textContent = "正在拟大纲…已写 " + t.length + " 字";
+      }
+    });
+    setPaperHint("");
+    if (!ok || !trim(fullText)) {
+      if (assistantReplyEl) assistantReplyEl.textContent = "大纲没生成出来，看右上角提示；可点「让 AI 增补」重试，或检查接口配置。";
+      setDocHint("大纲生成失败，可重试");
+      return;
+    }
+    if (assistantReplyEl) {
+      var got = fullText;
+      try {
+        var obj = parseOutlineJSON(got);
+        setOutline(obj);
+        assistantReplyEl.textContent = "大纲拟好了，可直接改每一条，或在下面提问让我增补。满意了点右下「按大纲开始写」。";
+        setDocHint("大纲可改 · 也可直接在左侧提问增补");
+        switchPane("outline");
+      } catch (e) {
+        assistantReplyEl.textContent = "大纲没按 JSON 返回，已把原文放在下面，可点「让 AI 增补」重试。";
+        setDocHint(e.message || "大纲解析失败");
+        var fallback = document.createElement("div");
+        fallback.className = "outline-raw";
+        fallback.textContent = got;
+        els.outlinePoints.innerHTML = "";
+        els.outlinePoints.appendChild(fallback);
+      }
     }
   }
 
-  /* ---------------- 入口 2：发送修改要求（老师手批，逐条采纳） ---------------- */
+  /* ---------------- 入口 2：按大纲写正文 ---------------- */
 
-  async function sendRevision() {
+  async function generateEssay() {
+    if (!currentConfig().key) { setPaperHint("接口未配置，先回工作台填好。"); return; }
+    syncOutlineFromDOM();
+    if (!outline.points.some(function (p) { return trim(p.text); })) {
+      setDocHint("先写几条大纲，再让 AI 写正文。");
+      return;
+    }
+    var c = currentConfig();
+    if (!c.base || !c.key || !c.model) { setPaperHint("接口未配置，先回工作台填好。"); return; }
+
+    if (stage === "draft" && !confirm("已经有一篇正文了，按当前大纲重写会覆盖现有稿纸（可通过重新生成前先复制保留）。继续吗？")) return;
+
+    addUserBubble("按大纲开始写正文。", "你");
+    assistantReplyEl = null;                       // 生成正文时不显示回应气泡
+    switchPane("paper");
+    showEmpty();
+    setDocHint("正文生成中…");
+    setPaperHint("正在生成…");
+
+    var sys = window.WY_PROMPT;
+    var rule = categoryRule();
+    if (rule) sys += "\n\n" + rule;
+    var st = scoringText();
+    if (st) sys += "\n\n" + st;
+
+    var ok = await runStream(sys, composeWriteUser());
+    if (ok && docBody.trim()) {
+      stage = "draft";
+      updateWriteBtn();
+      switchPane("paper");
+      setDocHint("正文已生成 · 左上可切回大纲");
+      saveEssayToCloud();
+    } else {
+      setDocHint("正文没生成出来，可再点一次「按大纲开始写」");
+    }
+  }
+
+  /* ---------------- 入口 3：发送（按阶段与模式分派） ---------------- */
+
+  function setChatMode(mode) {
+    chatMode = mode === "explain" ? "explain" : "annotate";
+    els.chatMode.querySelectorAll(".chat-mode-btn").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-mode") === chatMode);
+      b.disabled = stage === "outline";
+    });
+    if (stage === "outline") {
+      els.chatModeHint.textContent = "大纲阶段：提问会直接改大纲，不会动正文";
+      els.chatInput.placeholder = "例：第二段换成徒弟偷偷换釉料；再加一段写验收时老师傅的反应";
+    } else if (chatMode === "explain") {
+      els.chatModeHint.textContent = "只讲不改：不动一个字，不出批注";
+      els.chatInput.placeholder = "例：为什么结尾这句算空泛？我该怎么想这一段";
+    } else {
+      els.chatModeHint.textContent = "手批改稿：朱红批注逐条采纳";
+      els.chatInput.placeholder = "例：把开头再写细一点 / 结尾加一句老师傅的原话";
+    }
+  }
+
+  function updateWriteBtn() {
+    els.writeEssayBtn.textContent = stage === "draft" ? "按大纲重写" : "按大纲开始写";
+  }
+
+  // 用户明确说了「别动稿」时，即使停在手批模式也走只讲不改，避免模型硬改几处交差
+  function wantsExplainOnly(req) {
+    var s = String(req || "").replace(/\s/g, "");
+    return /不要改|别改|不用改|不许改|不要动|别动|不要重写|别重写|不需要改|先别改|只解释|只说明|只讲|只点评|只想问|只想知道/.test(s);
+  }
+
+  async function handleSend() {
     var req = els.chatInput.value.trim();
-    if (!req) { setPaperHint("先写下你的修改要求，再发送。"); els.chatInput.focus(); return; }
-    if (!currentComposition) { setPaperHint("还没有成稿，无法批改。"); return; }
+    if (!req) { setPaperHint("先写下你的问题，再发送。"); els.chatInput.focus(); return; }
 
+    if (stage === "outline") { await askOutline(req); return; }
+    if (!currentComposition && !docBody) { setPaperHint("还没有正文，先按大纲写一篇。"); return; }
+
+    if (chatMode === "explain") { await askExplain(req); return; }
+    if (wantsExplainOnly(req)) {
+      await askExplain(req, "你说了不让动稿，这次只讲不改。");
+      return;
+    }
+    await sendRevision(req);
+  }
+
+  /* 大纲阶段提问：只改大纲 */
+  async function askOutline(req) {
+    var c = currentConfig();
+    if (!c.base || !c.key || !c.model) { setDocHint("接口未配置，先回工作台填好。"); return; }
+
+    addUserBubble(req);
+    els.chatInput.value = "";
+    assistantReplyEl = addAssistantBubble("大纲助教");
+    assistantReplyEl.textContent = "正在改大纲…";
+    setDocHint("正在改大纲…");
+
+    var sys = window.WY_OUTLINE_EDIT;
+    var rule = categoryRule();
+    if (rule) sys += "\n\n" + rule;
+
+    try {
+      var res = await fetchAnnotation(sys, composeOutlineUser(true, req));
+      var obj = parseOutlineJSON(res);
+      setOutline(obj);
+      assistantReplyEl.textContent = outline.note ? ("大纲已更新。" + outline.note) : "大纲已更新，可继续改或在右侧直接编辑。";
+      setDocHint("大纲已更新 · 可直接改条目");
+      switchPane("outline");
+    } catch (e) {
+      var msg = (e && e.message) || "未知错误";
+      if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
+        msg = "请求发不出去：多为浏览器跨域被拦或网络不通。";
+      }
+      assistantReplyEl.textContent = "大纲没改成：" + msg;
+      setDocHint("大纲更新失败");
+    }
+  }
+
+  /* 只问不改 */
+  async function askExplain(req, pre) {
+    var c = currentConfig();
+    if (!c.base || !c.key || !c.model) { setDocHint("接口未配置，先回工作台填好。"); return; }
+    if (!currentComposition && !docBody) { setDocHint("还没有正文，先按大纲写一篇。"); return; }
+
+    addUserBubble(req);
+    els.chatInput.value = "";
+    if (pre) addAssistantBubble("讲评老师").textContent = pre;
+    var bubble = addAssistantBubble("讲评老师");
+    bubble.textContent = "正在读稿…";
+    setDocHint("讲评中：不会改动正文");
+    assistantReplyEl = null;
+
+    var sys = window.WY_EXPLAIN;
+    var rule = categoryRule();
+    if (rule) sys += "\n\n" + rule;
+
+    var ok = await runStream(sys, composeExplainUser(req), {
+      onProgress: function (t) { bubble.textContent = t; }
+    });
+    if (ok) {
+      setDocHint("讲评完成 · 稿纸未改动");
+    } else {
+      bubble.textContent = bubble.textContent === "正在读稿…" ? "讲评没出来，可再发一次。" : bubble.textContent;
+      setDocHint("讲评中断，稿纸未改动");
+    }
+  }
+
+  /* 手批改稿 */
+  async function sendRevision(req) {
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
       setPaperHint("接口未配置，先回工作台填好。");
@@ -1091,16 +1618,15 @@
 
     addUserBubble(req);
     els.chatInput.value = "";
-    assistantReplyEl = addAssistantBubble();
+    assistantReplyEl = addAssistantBubble("批改老师");
     if (assistantReplyEl) assistantReplyEl.textContent = "正在读稿、写批注…";
     setPaperHint("批改老师正在读稿…");
 
     var sys = window.WY_ANNOTATOR;
     var rule = categoryRule();
     if (rule) sys += "\n\n" + rule;
-    var revProv = activeProvince || selectedProvince;
-    var sd = (window.WY_SCORING && window.WY_SCORING[revProv]) || "";
-    if (sd) sys += "\n\n【评分标准参照（" + revProv + "）】\n" + sd;
+    var st = scoringText();
+    if (st) sys += "\n\n" + st;
 
     try {
       var raw = await fetchAnnotation(sys, composeReviseUser(req));
@@ -1111,9 +1637,10 @@
       annotations = normalizeMarks(obj);
       // 新一轮批注：移除上一轮面板（正文已采纳的改动仍生效），在对话底部重建
       if (annotPanelEl) { annotPanelEl.remove(); annotPanelEl = null; }
-      if (assistantReplyEl) assistantReplyEl.textContent = trim(obj.reply) || "已批注，看左侧批注逐条决定。";
+      if (assistantReplyEl) assistantReplyEl.textContent = trim(obj.reply) || "已批注，看稿纸上的朱红标注逐条决定。";
       renderAnnotated();                  // 稿纸上标出朱红修改符号
       renderAnnotPanel();                 // 左侧列出可采纳/忽略的批注
+      switchPane("paper");
       if (!annotations.length) {
         if (assistantReplyEl) assistantReplyEl.textContent =
           (trim(obj.reply) || "已批注。") + " 但这轮没有能定位到原文的批注，可换个更具体的要求再试。";
@@ -1132,6 +1659,117 @@
       if (assistantReplyEl) assistantReplyEl.textContent = "批改失败：" + msg;
       setPaperHint("批改失败：" + msg);
       renderAnnotated();
+    }
+  }
+
+  /* ---------------- AI 评改：逐句判好坏与 AI 味 ---------------- */
+
+  function parseCriticJSON(raw) {
+    var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a < 0 || b <= a) throw new Error("评改没有返回 JSON，换个模型再试。");
+    var obj;
+    try { obj = JSON.parse(s.slice(a, b + 1)); }
+    catch (e) { throw new Error("评改 JSON 解析失败，可重试。"); }
+    var items = Array.isArray(obj.items) ? obj.items : [];
+    return {
+      overall: trim(obj.overall),
+      items: items.slice(0, 14).map(function (it, i) {
+        return {
+          no: parseInt(it && it.no, 10) || (i + 1),
+          sentence: trim(it && it.sentence),
+          verdict: trim(it && it.verdict) === "好" ? "好" : "坏",
+          reason: trim(it && it.reason),
+          ai: !!(it && it.ai),
+          aiWhy: trim(it && it.aiWhy),
+          fix: trim(it && it.fix)
+        };
+      }).filter(function (it) { return it.sentence; })
+    };
+  }
+
+  function renderCritic() {
+    els.criticList.innerHTML = "";
+    if (!criticItems.length) return;
+    var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
+    var aiCnt = criticItems.filter(function (x) { return x.ai; }).length;
+    els.criticStat.textContent = "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt + " 句";
+    criticItems.forEach(function (it) {
+      var card = document.createElement("div");
+      card.className = "critic-card verdict-" + (it.verdict === "好" ? "good" : "bad");
+
+      var top = document.createElement("div");
+      top.className = "critic-top";
+      var no = document.createElement("span");
+      no.className = "critic-no";
+      no.textContent = "#" + it.no;
+      var verdict = document.createElement("span");
+      verdict.className = "critic-verdict";
+      verdict.textContent = it.verdict;
+      top.appendChild(no);
+      top.appendChild(verdict);
+      if (it.ai) {
+        var ai = document.createElement("span");
+        ai.className = "critic-ai";
+        ai.textContent = "AI 味";
+        top.appendChild(ai);
+      }
+      card.appendChild(top);
+
+      var sent = document.createElement("div");
+      sent.className = "critic-sentence";
+      sent.textContent = it.sentence;
+      card.appendChild(sent);
+
+      if (it.reason) {
+        var why = document.createElement("div");
+        why.className = "critic-reason";
+        why.textContent = it.reason;
+        card.appendChild(why);
+      }
+      if (it.aiWhy) {
+        var aw = document.createElement("div");
+        aw.className = "critic-aiwhy";
+        aw.textContent = "AI 味：" + it.aiWhy;
+        card.appendChild(aw);
+      }
+      if (it.fix) {
+        var fx = document.createElement("div");
+        fx.className = "critic-fix";
+        fx.textContent = "方向：" + it.fix;
+        card.appendChild(fx);
+      }
+      els.criticList.appendChild(card);
+    });
+  }
+
+  async function runCritic() {
+    if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇再评改。"); return; }
+    var c = currentConfig();
+    if (!c.base || !c.key || !c.model) { setPaperHint("接口未配置，先回工作台填好。"); return; }
+
+    setScoreOpen(true);
+    els.criticStat.textContent = "正在逐句判…";
+    els.criticList.innerHTML = "";
+    var bubble = addAssistantBubble("评改");
+    bubble.textContent = "正在逐句判好坏与 AI 味…";
+
+    try {
+      var raw = await fetchAnnotation(window.WY_CRITIC, composeCriticUser());
+      var obj = parseCriticJSON(raw);
+      criticItems = obj.items;
+      renderCritic();
+      if (!criticItems.length) els.criticStat.textContent = "这轮没挑出可定位的句子，可再点一次。";
+      bubble.textContent = obj.overall
+        ? ("评改完成。" + obj.overall + " 逐句结果在上方评分区。")
+        : "评改完成，逐句结果在上方评分区。";
+    } catch (e) {
+      var msg = (e && e.message) || "未知错误";
+      if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
+        msg = "请求发不出去：多为浏览器跨域被拦或网络不通。";
+      }
+      bubble.textContent = "评改失败：" + msg;
+      els.criticStat.textContent = "评改失败：" + msg;
     }
   }
 
@@ -1232,13 +1870,53 @@
   /* ---------------- 事件绑定 ---------------- */
 
   els.startBtn.addEventListener("click", startWriting);
-  els.sendBtn.addEventListener("click", sendRevision);
+  els.sendBtn.addEventListener("click", handleSend);
   els.testBtn.addEventListener("click", testConnection);
   els.copyBtn.addEventListener("click", copyText);
   els.downloadBtn.addEventListener("click", downloadText);
 
   els.acceptAllBtn.addEventListener("click", function () { applyAll("accept"); });
   els.ignoreAllBtn.addEventListener("click", function () { applyAll("ignore"); });
+
+  // 评分区展开/收起
+  els.scoreToggle.addEventListener("click", function () {
+    setScoreOpen(els.scoreBody.hasAttribute("hidden"));
+  });
+  els.criticBtn.addEventListener("click", runCritic);
+
+  // 大纲 / 稿纸切换
+  els.docTabs.addEventListener("click", function (e) {
+    var btn = e.target.closest(".doc-tab");
+    if (!btn) return;
+    switchPane(btn.getAttribute("data-pane"));
+  });
+
+  // 点击「大纲」时重新收集一次，避免手动改动没同步
+  els.outlineTitle.addEventListener("input", syncOutlineFromDOM);
+  els.outlineThesis.addEventListener("input", syncOutlineFromDOM);
+
+  els.outlineAddBtn.addEventListener("click", function () {
+    syncOutlineFromDOM();
+    outline.points.push(newPoint("", ""));
+    renderOutline();
+    var rows = els.outlinePoints.querySelectorAll(".outline-point");
+    var last = rows[rows.length - 1];
+    if (last) last.querySelector(".op-text").focus();
+  });
+
+  els.outlineAiBtn.addEventListener("click", function () {
+    if (stage !== "outline") { setDocHint("正文已生成，若要重写大纲请直接在条目里改。"); return; }
+    askOutline("在当前大纲基础上增补一到两段：补一处具体细节或一处人物暗中的动作，其余段落保持原样。");
+  });
+
+  els.writeEssayBtn.addEventListener("click", generateEssay);
+
+  // 对话模式切换
+  els.chatMode.addEventListener("click", function (e) {
+    var btn = e.target.closest(".chat-mode-btn");
+    if (!btn) return;
+    setChatMode(btn.getAttribute("data-mode"));
+  });
 
   els.stopBtn2.addEventListener("click", function () {
     if (controller) controller.abort();
@@ -1252,12 +1930,15 @@
   });
 
   els.chatInput.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") sendRevision();
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSend();
   });
+
+
 
   /* ---------------- 初始化 ---------------- */
 
   updateSteps();
   showEmpty();
   setBusy(false);
+  setChatMode("annotate");
 })();

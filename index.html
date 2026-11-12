@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112i">
+<link rel="stylesheet" href="assets/css/write.css?v=20261113a">
 </head>
 <body>
 
@@ -161,16 +161,11 @@
         </div>
       </div>
 
-      <!-- 评分标准 -->
+      <!-- 评分标准（可多选） -->
       <div class="wstep">
-        <div class="wstep-head"><span class="wstep-no">5</span><h2>评分标准（给 AI 参照）</h2></div>
-        <div class="scoring-grid" id="scoringGrid">
-          <button class="scoring-card selected" data-province="全国卷（通用）">
-            <div class="scoring-name">全国卷（通用）</div>
-            <div class="scoring-desc">基础等级40分（内容20+表达20）+发展等级20分（深刻/丰富/有文采/有创意），先定档再给分。一类文：立意切题、逻辑严谨、内容饱满；四类文不赋发展等级。硬性扣分：缺标题-2分，每少50字-1分，错别字每处-1分（上限3-5分），标点错误多处扣分。</div>
-          </button>
-        </div>
-        <p class="wstep-tip" id="scoringTip">已选：全国卷（通用）。选定省份的评分细则会注入提示词，引导 AI 按该尺度写作。</p>
+        <div class="wstep-head"><span class="wstep-no">5</span><h2>评分标准（可多选）</h2><span class="wstep-opt">表格注入 AI</span></div>
+        <div class="scoring-grid" id="scoringGrid"></div>
+        <p class="wstep-tip" id="scoringTip">可同时选几个地方的评分标准，完整表格会注入提示词，生成界面顶部也能展开查看。</p>
       </div>
 
       <div class="wizard-actions">
@@ -196,13 +191,35 @@
       </div>
     </div>
 
+    <!-- 评分标准区：展开是完整表格，收起只显示所选省份与总分 -->
+    <section class="score-bar" id="scoreBar">
+      <button class="score-toggle" id="scoreToggle" type="button" aria-expanded="false">
+        <span class="score-title">评分标准区</span>
+        <span class="score-chips" id="scoreChips"></span>
+        <span class="score-caret" id="scoreCaret">展开表格</span>
+      </button>
+      <div class="score-body" id="scoreBody" hidden>
+        <div class="score-actions">
+          <button class="btn-outline" id="criticBtn">AI 评改</button>
+          <span class="critic-stat" id="criticStat">逐句判好坏与 AI 味，不给总分的空头评价。</span>
+        </div>
+        <div class="critic-list" id="criticList"></div>
+        <div class="score-tables" id="scoreTables"></div>
+      </div>
+    </section>
+
     <div class="studio-grid">
       <div class="studio-left">
         <div class="chat-panel">
           <div class="chat-list" id="contextList">
-            <div class="context-empty" id="contextEmpty">还没有对话。AI 的回应会显示在上方，作文写在右侧稿纸。</div>
+            <div class="context-empty" id="contextEmpty">先让 AI 拟大纲，改满意了再写正文。之后的提问、手批都在这里显示。</div>
           </div>
           <div class="chat-foot">
+            <div class="chat-mode" id="chatMode">
+              <button type="button" class="chat-mode-btn active" data-mode="annotate">手批改稿</button>
+              <button type="button" class="chat-mode-btn" data-mode="explain">只问不改</button>
+              <span class="chat-mode-hint" id="chatModeHint">给朱红批注，逐条采纳</span>
+            </div>
             <textarea class="chat-input-area" id="chatInput" rows="2"
               placeholder="对这篇作文提个修改要求，例如：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的话"></textarea>
             <div class="chat-send-row">
@@ -215,10 +232,42 @@
       </div>
 
       <div class="studio-right">
-        <div class="paper">
-          <div class="paper-inner">
-            <div class="paper-title" id="paperTitle">作文稿纸</div>
-            <div class="paper-body paper-empty" id="paperBody"></div>
+        <div class="doc-wrap">
+          <div class="doc-tabs" id="docTabs">
+            <button type="button" class="doc-tab active" data-pane="outline">大纲</button>
+            <button type="button" class="doc-tab" data-pane="paper">稿纸</button>
+            <span class="doc-tab-hint" id="docTabHint">大纲可以先改、可以增补，再开始写</span>
+          </div>
+
+          <div class="doc-body">
+            <!-- 大纲 pane -->
+            <div class="outline-pane" id="outlinePane">
+              <div class="outline-title-row">
+                <span class="outline-label">标题</span>
+                <input class="outline-title-input" id="outlineTitle" placeholder="标题会由 AI 先拟好，可手动改">
+              </div>
+              <div class="outline-thesis-row">
+                <span class="outline-label">立意</span>
+                <input class="outline-thesis-input" id="outlineThesis" placeholder="一句话立意，落在具体器物或人物原话上">
+              </div>
+              <div class="outline-points" id="outlinePoints">
+                <div class="outline-empty" id="outlineEmpty">还没有大纲。点「开始生成」后，AI 会先拟一份可改的大纲。</div>
+              </div>
+              <div class="outline-foot">
+                <button class="btn-outline" id="outlineAddBtn" type="button">＋ 添加一段</button>
+                <button class="btn-outline" id="outlineAiBtn" type="button">让 AI 增补</button>
+                <div class="spacer"></div>
+                <button class="btn btn-primary" id="writeEssayBtn" type="button" disabled>按大纲开始写</button>
+              </div>
+            </div>
+
+            <!-- 稿纸 pane -->
+            <div class="paper" id="paperPane" hidden>
+              <div class="paper-inner">
+                <div class="paper-title" id="paperTitle">作文稿纸</div>
+                <div class="paper-body paper-empty" id="paperBody"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -272,8 +321,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261112i"></script>
-<script src="assets/js/write.js?v=20261112i"></script>
-<script src="assets/js/auth.js?v=20261112i"></script>
+<script src="assets/js/prompt.js?v=20261113a"></script>
+<script src="assets/js/write.js?v=20261113a"></script>
+<script src="assets/js/auth.js?v=20261113a"></script>
 </body>
 </html>
