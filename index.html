@@ -11,165 +11,29 @@
 <link rel="mask-icon" href="assets/img/wenya-icon.svg" color="#2C6B4A">
 <meta name="theme-color" content="#2C6B4A">
 <title>文芽作文 - 先想清楚，再写下去</title>
-<meta name="description" content="文芽作文：先拟可改的大纲，确认后再写正文，写完用红笔逐条批改。五种文体、八份评分标准可注入，生成需登录。">
+<meta name="description" content="文芽作文：先拟可改的大纲，确认后再写正文，写完用红笔逐条批改。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261112c">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112c">
-<link rel="stylesheet" href="assets/css/home.css?v=20261112c">
+<link rel="stylesheet" href="assets/css/style.css?v=20261112d">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112d">
+<link rel="stylesheet" href="assets/css/home.css?v=20261112d">
 </head>
-<body>
+<body class="landing">
 
-<header class="site-header">
-  <div class="wrap">
-    <a class="brand" href="index.html">
-      <img class="brand-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="30" height="30">
-      <span>文芽作文</span>
-    </a>
-    <button class="nav-toggle" id="navToggle" aria-label="打开菜单">菜单</button>
-    <nav class="nav" id="nav">
-      <a href="index.html" class="active">首页</a>
-      <a href="write.html">AI 写作</a>
-      <a href="essays.html">范文库</a>
-      <a href="materials.html">素材库</a>
-      <a href="tips.html">写作方法</a>
-      <a href="about.html">关于</a>
-    </nav>
-    <div class="account-area" id="accountArea"></div>
+<main class="landing-main">
+  <img class="landing-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="76" height="76">
+  <h1 class="landing-title">文芽作文</h1>
+  <p class="landing-lead">先拟一份能改的大纲，确认之后再落笔。</p>
+
+  <div class="landing-actions">
+    <button class="btn btn-primary btn-lg" id="homeCta" type="button">开始写作</button>
+    <a class="landing-link" href="account.html">我的作文</a>
   </div>
-</header>
 
-<main>
-
-  <section class="hero">
-    <div class="wrap hero-grid">
-      <div>
-        <span class="eyebrow">AI 作文工作台</span>
-        <h1>先想清楚，<br>再<em>写下去</em></h1>
-        <p class="hero-lead">
-          文芽不做一键生成。它先陪你把题目拆开、把大纲立起来，你点头之后才写正文；
-          写完像老师一样用红笔批，每一处改不改，都由你决定。
-        </p>
-        <div class="hero-actions">
-          <button class="btn btn-primary" id="homeCta" type="button">开始写作</button>
-          <a class="btn btn-ghost" href="essays.html">看看范文</a>
-        </div>
-        <p class="hero-note" id="heroNote">生成作文需要登录。邮箱验证码登录，不设密码；大模型密钥只存在你自己的浏览器里。</p>
-        <div class="hero-stats">
-          <div><strong>5</strong><span>种文体各一套规则</span></div>
-          <div><strong>8</strong><span>份评分标准可注入</span></div>
-          <div><strong>5</strong><span>种红笔修改符号</span></div>
-        </div>
-      </div>
-
-      <aside class="hero-card">
-        <h3>一次完整的生成</h3>
-        <p class="muted">每一步都能停、能改，不满意不用硬着头皮往下走</p>
-        <ul class="prompt-list">
-          <li><span class="idx">01</span><span>定类别：命题、半命题还是自拟，标题规则不一样。</span></li>
-          <li><span class="idx">02</span><span>选文体：记叙文、议论文、散文、小小说、随笔。</span></li>
-          <li><span class="idx">03</span><span>拟大纲：分几段、每段写什么，逐条可改可增补。</span></li>
-          <li><span class="idx">04</span><span>写正文：按你确认过的大纲落笔，不另起炉灶。</span></li>
-          <li><span class="idx">05</span><span>红笔改：删除、替换、增补、调序、眉批，逐条采纳。</span></li>
-        </ul>
-        <a class="hero-card-link" href="write.html">打开工作台 →</a>
-      </aside>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2>为什么不直接出成稿</h2>
-          <p>一键生成的东西，你改不动；能改的东西，才是你的</p>
-        </div>
-      </div>
-      <div class="grid grid-3">
-        <div class="card">
-          <div class="card-icon">纲</div>
-          <h3>大纲先行</h3>
-          <p>先出一份施工图：分几段、每段落什么器物、哪句人物原话收尾。每一条都能改，也能让 AI 再增补，确认之后才写正文。</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">批</div>
-          <h3>红笔手批</h3>
-          <p>删除、替换、增补、调序、眉批五种修改符号，标在原文位置上，不遮正文。采纳就写进稿纸并标黄，忽略就留在旁边。</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">评</div>
-          <h3>逐句评改</h3>
-          <p>以「坏」为主，只判这句话有没有落到实处，不看用了什么修辞。你认可的问题汇总起来，一次性交给 AI 去改。</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" style="padding-top:0">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2>三步开始</h2>
-          <p>第一次用需要配一个支持 OpenAI 格式的接口，之后就不用再管</p>
-        </div>
-      </div>
-      <div class="grid grid-3">
-        <div class="card">
-          <div class="card-icon">1</div>
-          <h3>登录</h3>
-          <p>邮箱收验证码即可，不用设密码。登录后作文和大纲会存进你的账号，换台电脑也能接着改。</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">2</div>
-          <h3>配接口</h3>
-          <p>在工作台右上角填 Base URL、API Key、模型名，点「测试连接」通过即可。密钥只存本机浏览器，不经过我们的服务器。</p>
-        </div>
-        <div class="card">
-          <div class="card-icon">3</div>
-          <h3>写第一稿</h3>
-          <p>选类别和文体，写题目，挑一份评分标准，点开始生成。先在右边改大纲，满意了再让 AI 落笔。</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" style="padding-top:0">
-    <div class="wrap">
-      <div class="section-head">
-        <div>
-          <h2>读和写，一起练</h2>
-          <p>不会写的时候，先看别人怎么把一件小事写实</p>
-        </div>
-        <a class="link-more" href="essays.html">进入范文库</a>
-      </div>
-      <div class="grid grid-3" id="featuredEssays"></div>
-    </div>
-  </section>
-
-  <section class="section" style="padding-top:0">
-    <div class="wrap">
-      <div class="home-cta">
-        <div>
-          <h2>先想清楚这篇要说什么</h2>
-          <p>剩下的事，交给稿纸和红笔。</p>
-        </div>
-        <button class="btn btn-primary btn-lg" id="homeCta2" type="button">开始写作</button>
-      </div>
-    </div>
-  </section>
-
+  <p class="landing-note" id="heroNote">生成需要登录，邮箱验证码即可，不设密码。</p>
 </main>
 
-<footer class="site-footer">
-  <div class="wrap">
-    <div class="copyright">
-      <span>文芽作文 · 保留所有权利</span>
-      <span>生成内容仅供参考，请勿直接抄袭提交</span>
-    </div>
-  </div>
-</footer>
-
-<!-- 登录 / 注册弹窗（与 write.html 同一份，auth.js 依赖这些 id） -->
+<!-- 登录 / 注册弹窗（auth.js 依赖这些 id） -->
 <div class="modal-mask" id="authMask" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
     <div class="modal-head">
@@ -200,13 +64,11 @@
     <div class="modal-actions">
       <button class="btn btn-primary" id="authSubmit">登录</button>
     </div>
-    <div class="auth-foot">注册与登录都用邮箱验证码，无需设置密码。作文与大模型密钥仍只存本机浏览器。</div>
+    <div class="auth-foot">注册与登录都用邮箱验证码，无需设置密码。大模型密钥只存本机浏览器。</div>
   </div>
 </div>
 
-<script src="assets/js/data.js"></script>
-<script src="assets/js/app.js"></script>
-<script src="assets/js/auth.js?v=20261112c"></script>
-<script src="assets/js/home.js?v=20261112c"></script>
+<script src="assets/js/auth.js?v=20261112d"></script>
+<script src="assets/js/home.js?v=20261112d"></script>
 </body>
 </html>

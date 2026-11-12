@@ -1,53 +1,89 @@
-/* 文芽作文 - 主页专属样式（其余复用 style.css 与 write.css） */
+/* 文芽作文 - 主页：一个按钮，别的不放 */
+html, body.landing { height: 100%; }
 
-/* 按钮在 <button> 上也要跟 <a> 一样的手感 */
-button.btn { border: 0; cursor: pointer; font-family: inherit; }
-
-/* 主按钮下方的一行小字：为什么需要登录 */
-.hero-note {
-  margin-top: 16px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--ink-mute);
-  max-width: 46ch;
-}
-
-.hero-card h3 + .muted { margin-bottom: 14px; }
-
-.hero-card-link {
-  display: inline-block;
-  margin-top: 14px;
-  font-size: 13.5px;
-  color: var(--brand);
-  font-weight: 500;
-}
-
-.hero-card-link:hover { color: var(--brand-deep); text-decoration: underline; }
-
-/* 底部行动区 */
-.home-cta {
+body.landing {
+  margin: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 28px;
-  flex-wrap: wrap;
-  padding: 36px 38px;
-  border: 1.5px solid var(--line);
-  border-radius: var(--radius);
+  justify-content: center;
   background:
-    radial-gradient(600px 260px at 88% -30%, rgba(47, 111, 78, .1), transparent 70%),
-    var(--paper);
+    radial-gradient(680px 420px at 50% -6%, rgba(44, 107, 74, .07), transparent 70%),
+    var(--bg, #FAF8F4);
+  padding: 32px 22px;
+  box-sizing: border-box;
 }
 
-.home-cta h2 { font-size: 25px; margin-bottom: 8px; }
-.home-cta p { font-size: 14.5px; color: var(--ink-soft); }
+.landing-main {
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+  margin-top: -6vh;
+}
 
-/* 主页三列卡片里的图标位（数字与单字方块） */
-.card-icon { font-family: var(--serif); }
+.landing-mark {
+  width: 76px;
+  height: 76px;
+  display: block;
+  margin: 0 auto 22px;
+  border-radius: 22px;
+  box-shadow: 0 10px 26px rgba(35, 86, 60, .18);
+}
 
-@media (max-width: 860px) {
-  .hero { padding: 56px 0 48px; }
-  .hero-grid { grid-template-columns: 1fr; gap: 32px; }
-  .home-cta { padding: 26px 22px; }
-  .home-cta .btn { width: 100%; }
+.landing-title {
+  font-family: var(--serif);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  color: var(--ink);
+  margin: 0 0 12px;
+  text-indent: .1em;
+}
+
+.landing-lead {
+  font-size: 15px;
+  line-height: 1.85;
+  color: var(--ink-mute);
+  margin: 0 0 34px;
+}
+
+.landing-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.landing-actions .btn-lg {
+  width: 100%;
+  max-width: 260px;
+  height: 50px;
+  font-size: 16.5px;
+  letter-spacing: .08em;
+}
+
+.landing-link {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 2px;
+}
+
+.landing-link:hover {
+  color: var(--brand);
+  border-bottom-color: rgba(44, 107, 74, .35);
+}
+
+.landing-note {
+  margin: 26px 0 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-mute);
+}
+
+@media (max-height: 560px) {
+  .landing-main { margin-top: 0; }
+  .landing-mark { width: 60px; height: 60px; margin-bottom: 16px; }
+  .landing-title { font-size: 25px; }
+  .landing-lead { margin-bottom: 24px; }
 }
