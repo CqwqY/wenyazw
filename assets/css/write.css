@@ -821,6 +821,12 @@ body.studio-mode .site-footer { display: none; }
 }
 .auth-tab.active { color: var(--brand-deep, #245c40); border-bottom-color: var(--brand, #2f6f4e); font-weight: 600; }
 .modal-card .field { margin-bottom: 12px; }
+.modal-card .field[hidden] { display: none; }
+.code-row { display: flex; gap: 8px; align-items: stretch; }
+.code-row .input { flex: 1; min-width: 0; }
+.code-row .btn-outline { flex: none; white-space: nowrap; font-size: 12.5px; padding: 0 12px; }
+.code-row .btn-outline:disabled { opacity: .55; cursor: default; }
+.auth-hint { margin-top: 6px; line-height: 1.6; font-size: 12px; color: var(--ink-mute); }
 .auth-msg { font-size: 12.5px; line-height: 1.6; min-height: 18px; margin-bottom: 8px; }
 .auth-msg.error { color: #b23b30; }
 .auth-msg.ok { color: var(--brand-deep, #245c40); }

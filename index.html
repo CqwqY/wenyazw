@@ -6,7 +6,7 @@
 <title>创建作文工作台 - 文芽作文</title>
 <meta name="description" content="文芽作文：流程式创建作文工作台，选类别、定题目、设字数、挑评分标准，再进入 AI 生成与修改界面。">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112g">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112h">
 </head>
 <body>
 
@@ -244,24 +244,32 @@
       <button class="auth-tab active" data-mode="login">登录</button>
       <button class="auth-tab" data-mode="register">注册</button>
     </div>
-    <div class="field">
+    <div class="field" id="authUserField">
       <label for="authUser">用户名</label>
       <input class="input" id="authUser" type="text" autocomplete="username" placeholder="3～24 位，字母数字下划线" maxlength="24">
     </div>
     <div class="field">
-      <label for="authPass">密码</label>
-      <input class="input" id="authPass" type="password" autocomplete="current-password" placeholder="至少 6 位" maxlength="128">
+      <label for="authEmail">邮箱</label>
+      <input class="input" id="authEmail" type="email" autocomplete="email" placeholder="用于接收验证码" maxlength="120">
+    </div>
+    <div class="field">
+      <label for="authCode">邮箱验证码</label>
+      <div class="code-row">
+        <input class="input" id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" maxlength="6">
+        <button class="btn-outline" id="sendCodeBtn" type="button">发送验证码</button>
+      </div>
+      <div class="auth-hint" id="codeHint">验证码 10 分钟内有效，每个邮箱 60 秒可重发一次。</div>
     </div>
     <div class="auth-msg" id="authMsg"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="authSubmit">登录</button>
     </div>
-    <div class="auth-foot">账号仅用于标识身份，作文与密钥仍只存本机浏览器。</div>
+    <div class="auth-foot">注册与登录都用邮箱验证码，无需设置密码。作文与大模型密钥仍只存本机浏览器。</div>
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261112g"></script>
-<script src="assets/js/write.js?v=20261112g"></script>
-<script src="assets/js/auth.js?v=20261112g"></script>
+<script src="assets/js/prompt.js?v=20261112h"></script>
+<script src="assets/js/write.js?v=20261112h"></script>
+<script src="assets/js/auth.js?v=20261112h"></script>
 </body>
 </html>
