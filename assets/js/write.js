@@ -885,10 +885,14 @@
       if (node.nodeType !== 1) { prevCh = null; return; }
       if (node.classList.contains("ch")) {
         var txt = node.textContent;
-        if (prevCh && prevCh.parentNode === el && isNoLineStart(txt)) {
+        if (prevCh && isNoLineStart(txt)) {
+          // prevCh 可能在子容器（锁定/批注标记）里：把配对单位挂进它所在的层，
+          // 让标点跟着前一个字走，不然跨容器边界的句号会掉到下一行行首。
+          var host = prevCh.parentNode;
           var unit = document.createElement("span");
           unit.className = "chu";
-          el.insertBefore(unit, prevCh);
+          if (host === el) el.insertBefore(unit, prevCh);
+          else host.appendChild(unit);
           unit.appendChild(prevCh);
           unit.appendChild(node);
           prevCh = null;       // 一个单位最多两个字，避免整句不可拆
@@ -944,16 +948,119 @@
     return out;
   }
 
-  // 一段纯文本：先切评改区间，区间内部再切"上一轮改动"的黄底
+  /* ---------------- 锁句：学生认定要留的句子，AI 不许改也不许批注 ----------------
+     存在 lockedTexts 里，渲染时包成 .lock-mark，同时注入提示词、并在评改/批注两条路上过滤。 */
+  var lockedTexts = [];
+  var LOCK_STORE = "wy.locked.v1";
+
+  function normLock(s) {
+    return String(s || "").replace(/[\s\u3000]/g, "").replace(/[\u2460-\u2473]/g, "");
+  }
+
+  function loadLocked() {
+    try {
+      var a = JSON.parse(localStorage.getItem(LOCK_STORE) || "[]");
+      lockedTexts = Array.isArray(a) ? a.filter(function (x) { return typeof x === "string" && x; }) : [];
+    } catch (e) { lockedTexts = []; }
+  }
+
+  function saveLocked() {
+    try { localStorage.setItem(LOCK_STORE, JSON.stringify(lockedTexts)); } catch (e) { /* 存不下就算了 */ }
+  }
+
+  function isLocked(text) {
+    var t = normLock(text);
+    if (!t) return false;
+    return lockedTexts.some(function (x) { return normLock(x).indexOf(t) >= 0 || t.indexOf(normLock(x)) >= 0; });
+  }
+
+  // 在一段正文里找出被锁住的区间（同段、唯一匹配才算，跨段的不标）
+  function lockIntervalsIn(paraText) {
+    var list = [], out = [], lastEnd = -1;
+    lockedTexts.forEach(function (raw) {
+      var needle = normLock(raw);
+      if (needle.length < 2) return;
+      var a = paraText.indexOf(needle);
+      if (a < 0) return;
+      if (paraText.indexOf(needle, a + needle.length) >= 0) return;
+      list.push({ start: a, end: a + needle.length });
+    });
+    list.sort(function (x, y) { return x.start - y.start; });
+    list.forEach(function (it) {
+      if (it.start < lastEnd) return;
+      out.push(it);
+      lastEnd = it.end;
+    });
+    return out;
+  }
+
+  function lockText(t) {
+    var v = normLock(t);
+    if (v.length < 4) { setDocHint("选长一点再锁，四个字以上"); return; }
+    if (v.length > 80) { setDocHint("一次锁一句，最多 80 字"); return; }
+    if (isLocked(v)) { setDocHint("这句已经锁住了"); return; }
+    lockedTexts.push(v);
+    saveLocked();
+    renderAnnotated();
+    setDocHint("已锁住这一句，AI 不会改也不会批它。点正文里的这句可以解锁。");
+  }
+
+  function unlockText(t) {
+    var v = normLock(t);
+    lockedTexts = lockedTexts.filter(function (x) { return normLock(x).indexOf(v) < 0; });
+    saveLocked();
+    renderAnnotated();
+    setDocHint("已解锁");
+  }
+
+  /* 容器（锁定 / 评改标记）末尾紧跟的标点要一起吞进来。
+     否则标点留在容器外面，换行时会被推到下一行行首——行首禁则管不到跨容器的边界。 */
+  function extendOverPunct(text, end) {
+    var k = 0;
+    while (end < text.length && k < 2 && isNoLineStart(text.charAt(end))) {
+      end++;
+      k++;
+    }
+    return end;
+  }
+
+  // 一段纯文本：先切锁定区间，再切评改区间，区间内部再切"上一轮改动"的黄底
   function appendRichText(el, text) {
+    var livs = lockIntervalsIn(text);
+    if (!livs.length) { appendCriticText(el, text); return; }
+    var p = 0;
+    livs.forEach(function (c) {
+      var st = Math.max(c.start, p);
+      var en = extendOverPunct(text, c.end);
+      if (st >= en) return;
+      var piece = text.slice(st, en);
+      if (st > p) appendCriticText(el, text.slice(p, st));
+      var sp = document.createElement("span");
+      sp.className = "lock-mark";
+      sp.title = "已锁住：AI 不许改、也不许批注。点一下解锁";
+      sp.appendChild(charSpans(piece));
+      sp.addEventListener("click", function (e) {
+        e.stopPropagation();
+        unlockText(piece);
+      });
+      el.appendChild(sp);
+      p = en;
+    });
+    if (p < text.length) appendCriticText(el, text.slice(p));
+  }
+
+  function appendCriticText(el, text) {
     var civs = criticIntervalsIn(text);
     var p = 0;
     civs.forEach(function (c) {
-      if (c.start > p) appendPlainWithHighlights(el, text.slice(p, c.start));
+      var st = Math.max(c.start, p);
+      var en = extendOverPunct(text, c.end);
+      if (st >= en) return;
+      if (st > p) appendPlainWithHighlights(el, text.slice(p, st));
       var sp = document.createElement("span");
       sp.className = "critic-mark " + (c.item.verdict === "好" ? "cm-good" : "cm-bad") +
         (c.item.agreed === "yes" ? " cm-agreed" : c.item.agreed === "no" ? " cm-denied" : "");
-      sp.appendChild(charSpans(text.slice(c.start, c.end)));
+      sp.appendChild(charSpans(text.slice(st, en)));
       sp.setAttribute("data-critic-id", String(c.item.id));
       sp.setAttribute("data-critic-no", String(c.item.no));
       sp.title = "AI 评改 #" + c.item.no + "（" + c.item.verdict + "）：" + (c.item.reason || "");
@@ -964,7 +1071,7 @@
         });
       })(c.item);
       el.appendChild(sp);
-      p = c.end;
+      p = en;
     });
     if (p < text.length) appendPlainWithHighlights(el, text.slice(p));
   }
@@ -1121,6 +1228,7 @@
   function buildCriticNote(it) {
     var note = document.createElement("div");
     note.className = "note note-critic " + (it.verdict === "好" ? "nc-good" : "nc-bad") +
+      (it.soft ? " nc-soft" : "") +
       (it.agreed === "yes" ? " nc-yes" : it.agreed === "no" ? " nc-no" : "");
     note.setAttribute("data-critic-id", String(it.id));
 
@@ -1134,6 +1242,18 @@
     verdict.textContent = it.verdict;
     head.appendChild(no);
     head.appendChild(verdict);
+    if (it.hard) {
+      var hk = document.createElement("span");
+      hk.className = "note-hard";
+      hk.textContent = it.hard;
+      head.appendChild(hk);
+    }
+    if (it.soft) {
+      var sf = document.createElement("span");
+      sf.className = "note-soft";
+      sf.textContent = "理由不具体";
+      head.appendChild(sf);
+    }
     if (it.ai) {
       var ai = document.createElement("span");
       ai.className = "note-ai";
@@ -1172,6 +1292,10 @@
     yes.type = "button";
     yes.className = "note-accept" + (it.agreed === "yes" ? " on" : "");
     yes.textContent = "认可";
+    if (it.soft) {
+      yes.disabled = true;
+      yes.title = "这条没说清具体毛病，不交给 AI 改";
+    }
     yes.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "yes"); });
     var deny = document.createElement("button");
     deny.type = "button";
@@ -1276,6 +1400,13 @@
     els.paperTitle.textContent = docTitle || "作文";
     els.paperBody.textContent = "";
     els.paperBody.classList.remove("paper-empty");
+    // 正文改动后，已经对不上的锁自动作废，免得一直挂在提示词里。
+    // 正文还没加载时不能清，否则一进页面就把上次存的锁全删了。
+    if (lockedTexts.length && docBody.trim()) {
+      var bodyFlat = normLock(docBody);
+      var alive = lockedTexts.filter(function (t) { return bodyFlat.indexOf(normLock(t)) >= 0; });
+      if (alive.length !== lockedTexts.length) { lockedTexts = alive; saveLocked(); }
+    }
     markPara = {};
     criticPara = {};
     var marks = pendingMarks();
@@ -1305,6 +1436,14 @@
     if (!m || m.state !== "pending") return;
 
     if (action === "accept") {
+      // 锁住的句子一律不许动：模型可能给了超出学生要求范围的 anchor
+      var anchors = m.type === "swap" ? m.anchor.split("|||") : [m.anchor];
+      for (var ai = 0; ai < anchors.length; ai++) {
+        if (isLocked(anchors[ai])) {
+          setPaperHint("这处你已经锁住了，AI 不许改。要改先解锁再批。");
+          return;
+        }
+      }
       var next = docBody;
       if (m.type === "delete") next = replaceOnce(docBody, m.anchor, "");
       else if (m.type === "replace") next = replaceOnce(docBody, m.anchor, m.text);
@@ -1507,6 +1646,8 @@
     docTitle = t.title || "作文";
     docBody = t.body;
     currentComposition = (t.title ? t.title + "\n\n" : "") + t.body;
+    // 收稿后统一走批注态管线：锁句、黄标、批注符号才画得出来
+    if (docBody.trim() && els.paperPane && !els.paperPane.hidden) renderAnnotated();
   }
 
   /* ---------------- 云端作文同步（仅登录后） ---------------- */
@@ -1728,6 +1869,15 @@
     return "作文原文：{\n" + (currentComposition || docBody || "（还没有正文）") + "\n}";
   }
 
+  /* 学生锁住的句子：既不许改，也不许批注，评改时连"坏"都不许判 */
+  function wrapLocked() {
+    if (!lockedTexts.length) return "";
+    return "【已锁住，绝对不许改动、不许批注】{\n" +
+      lockedTexts.map(function (t, i) { return (i + 1) + ". " + t; }).join("\n") +
+      "\n}\n（这几句是学生自己认定要留的：anchor 不许取它们、不许跨越它们出批注、也不许判它们坏。" +
+      "要出批注只能指向这几句以外的原文；如果这一轮的要求正好落在锁住的句子上，reply 里说明一句，不要动手。）";
+  }
+
   function wrapAsk(req) {
     return "用户提问：{\n" + req + "\n}\n" +
       "（以上是学生这次的原话，是他这一轮唯一要做的事。逐条照办，一条不许漏；" +
@@ -1800,6 +1950,7 @@
     var st = scoringText();
     if (st) lines.push(st);
     lines.push(wrapEssay());
+    lines.push(wrapLocked());
     lines.push(wrapAsk(req));
     lines.push("按系统提示输出批注 JSON：只标出该改的几处，不要输出修改后的完整作文。anchor 必须逐字取自上面「作文原文」的正文，且在正文里唯一，不要取标题。");
     lines.push("注意：学生上文的要求是硬指令，按他的原话逐条照办（改哪句、改成什么、删还是加），不要用写作铁律当理由拒绝、也不许只做一半或换成你自己更喜欢的写法。");
@@ -1825,7 +1976,8 @@
     var st = scoringText();
     if (st) lines.push(st);
     lines.push(wrapEssay());
-    lines.push("用户提问：{\n按上面的尺度逐句判好坏与 AI 味，以坏为主。\n}");
+    lines.push(wrapLocked());
+    lines.push("用户提问：{\n按上面的尺度逐句判好坏与 AI 味。只判确实有硬伤的，挑不出就不要凑数，也不许把学生的朴素写法当成缺点。\n}");
     return lines.join("\n\n");
   }
 
@@ -2852,6 +3004,28 @@
     return out;
   }
 
+  /* 判「坏」必须有可指认的毛病。模型说不清是哪一类，就不准把这条交给 AI 改，
+     免得它凭"不像我写的"把正常人话改坏。 */
+  var HARD_KINDS = {
+    kongfan: "空泛",
+    taohua: "套话",
+    paili: "排比堆砌",
+    wanmei: "强行圆满",
+    bingju: "病句或常识错",
+    paoti: "跑题",
+    shuijiao: "注水"
+  };
+
+  function hardLabel(raw) {
+    var k = trim(raw).toLowerCase();
+    if (!k) return "";
+    if (HARD_KINDS[k]) return HARD_KINDS[k];
+    for (var key in HARD_KINDS) {
+      if (HARD_KINDS[key] === k) return HARD_KINDS[key];
+    }
+    return "";
+  }
+
   function parseCriticJSON(raw) {
     var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
     var a = s.indexOf("{"), b = s.lastIndexOf("}");
@@ -2864,11 +3038,15 @@
       overall: trim(obj.overall),
       scores: normalizeScores(obj.scores),
       items: items.slice(0, 14).map(function (it, i) {
+        var verdict = trim(it && it.verdict) === "好" ? "好" : "坏";
+        var hard = hardLabel(it && it.hard);
         return {
           id: ++criticSeq,
           no: parseInt(it && it.no, 10) || (i + 1),
           sentence: trim(it && it.sentence),
-          verdict: trim(it && it.verdict) === "好" ? "好" : "坏",
+          verdict: verdict,
+          hard: hard,
+          soft: verdict === "坏" && !hard,
           reason: trim(it && it.reason),
           ai: !!(it && it.ai),
           aiWhy: trim(it && it.aiWhy),
@@ -2927,6 +3105,10 @@
   function setCriticAgree(id, val) {
     var it = criticById(id);
     if (!it) return;
+    if (val === "yes" && it.soft) {
+      setDocHint("这条没说明具体毛病，不给它派活。真觉得该改，可以在下面直接说要改成什么。");
+      return;
+    }
     it.agreed = it.agreed === val ? "" : val;
     renderCritic();
     setDocHint(it.agreed === "yes" ? ("已认可 #" + it.no + "，可继续挑，最后一起交给 AI 改")
@@ -3000,14 +3182,19 @@
     criticDockClosed = false;
     if (els.criticDock) els.criticDock.hidden = els.paperPane.hidden;
     var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
+    var softCnt = criticItems.filter(function (x) { return x.soft; }).length;
     var aiCnt = criticItems.filter(function (x) { return x.ai; }).length;
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; }).length;
     var scoreTxt = criticScores.map(function (s) {
       return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
     }).join(" · ");
     els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
-      "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt +
-      " 句" + (picked ? " · 已认可 " + picked + " 条" : " · 右栏旁批里逐条点「认可」再一起交给 AI 改");
+      (criticItems.length
+        ? ("共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt + " 句" +
+          (softCnt ? " · 其中 " + softCnt + " 条没说清具体毛病，已标灰、不给改" : ""))
+        : "这次没挑出确实有毛病的句子，说明写得住。") +
+      (picked ? " · 已认可 " + picked + " 条"
+        : (criticItems.length ? " · 右栏旁批里逐条点「认可」再一起交给 AI 改" : ""));
     syncCriticApply();
     // 逐句结果全部走右栏旁批，坞里只留评分与汇总
     renderAnnotated();
@@ -3058,7 +3245,10 @@
       if (grC) sysCritic += "\n\n" + grC;
       var raw = await fetchAnnotation(sysCritic, composeCriticUser());
       var obj = parseCriticJSON(raw);
-      criticItems = obj.items;
+      criticItems = obj.items.filter(function (it) {
+        // 锁住的句子连"坏"都不许判，模型真判了也直接丢掉
+        return !isLocked(it.sentence);
+      });
       criticScores = obj.scores || [];
       renderCritic();      // 内部会重渲染稿纸，评改句标在原句上、评语排进右栏旁批
       switchPane("paper");
@@ -3260,6 +3450,72 @@
 
   on(els.paperBody, "click", function () { clearActiveMarks(); hideInkDock(); });
 
+  /* ---------------- 锁句：选中正文 → 浮出「锁住这句」 ---------------- */
+  var lockPop = $("lockPop");
+  var lockApplyBtn = $("lockApplyBtn");
+  var pendingLockText = "";
+
+  function selectionInPaper() {
+    var sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+    var range = sel.getRangeAt(0);
+    if (!els.paperBody.contains(range.commonAncestorContainer)) return null;
+    var t = normLock(sel.toString());
+    if (t.length < 4) return null;
+    var rect = range.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) return null;
+    return { text: t, rect: rect };
+  }
+
+  function hideLockPop() {
+    if (lockPop) lockPop.hidden = true;
+    pendingLockText = "";
+  }
+
+  function showLockPop(hit) {
+    if (!lockPop) return;
+    var already = isLocked(hit.text);
+    pendingLockText = hit.text;
+    lockPop.hidden = false;
+    var pw = lockPop.offsetWidth || 96;
+    var ph = lockPop.offsetHeight || 30;
+    var left = Math.max(8, Math.min(window.innerWidth - pw - 8, hit.rect.left + hit.rect.width / 2 - pw / 2));
+    var top = hit.rect.top - ph - 8;
+    if (top < 8) top = hit.rect.bottom + 8;
+    lockPop.style.left = Math.round(left) + "px";
+    lockPop.style.top = Math.round(top) + "px";
+    if (lockApplyBtn) {
+      lockApplyBtn.textContent = already ? "这句已锁住" : "锁住这句";
+      lockApplyBtn.disabled = already;
+    }
+  }
+
+  function probeLock() {
+    var hit = selectionInPaper();
+    if (hit) showLockPop(hit);
+    else hideLockPop();
+  }
+
+  if (els.paperBody) {
+    on(els.paperBody, "mouseup", function () { setTimeout(probeLock, 0); });
+    on(els.paperBody, "touchend", function () { setTimeout(probeLock, 260); });
+  }
+  if (lockApplyBtn) {
+    on(lockApplyBtn, "mousedown", function (e) { e.preventDefault(); });
+    on(lockApplyBtn, "click", function (e) {
+      e.preventDefault();
+      var t = pendingLockText;
+      hideLockPop();
+      if (t) lockText(t);
+      var sel = window.getSelection();
+      if (sel) sel.removeAllRanges();
+    });
+  }
+  on(document, "mousedown", function (e) {
+    if (lockPop && !lockPop.hidden && !lockPop.contains(e.target)) hideLockPop();
+  });
+  on(window, "scroll", hideLockPop, true);
+
   on(els.paperNotes, "click", function (e) {
     if (e.target === els.paperNotes) { clearActiveMarks(); hideInkDock(); }
   });
@@ -3370,6 +3626,7 @@
   setBusy(false);
   setChatMode("annotate");
   setMView("outline");
+  loadLocked();
 
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(function () { alignPaperGrid(); });
