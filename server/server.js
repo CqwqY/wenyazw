@@ -16,12 +16,38 @@
  */
 "use strict";
 
-const http = require("node:http");
+/* 基础模块先引，下面的 .env 读取要用 fs/path */
 const fs = require("node:fs");
 const path = require("node:path");
+const http = require("node:http");
 const crypto = require("node:crypto");
+
+/* 把 server/.env 读进 process.env（不引第三方依赖，简单 KEY=VALUE 即可）。
+   必须在 require("./llm.js") 之前执行 —— 那个模块在加载时就固定了中转站地址与密钥。
+   中转站密钥、管理员 token 都放这里，绝不写进仓库。 */
+(function loadEnv() {
+  try {
+    const file = path.join(__dirname, ".env");
+    if (!fs.existsSync(file)) return;
+    const txt = fs.readFileSync(file, "utf8");
+    txt.split(/\r?\n/).forEach((line) => {
+      const s = line.trim();
+      if (!s || s.startsWith("#")) return;
+      const i = s.indexOf("=");
+      if (i <= 0) return;
+      const k = s.slice(0, i).trim();
+      let v = s.slice(i + 1).trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      if (!(k in process.env)) process.env[k] = v;
+    });
+  } catch (e) {
+    console.error("[env] 读取 .env 失败:", e.message);
+  }
+})();
+
 const Database = require("better-sqlite3");
 const { sendMail } = require("./mailer.js");
+const llm = require("./llm.js");
 
 const PORT = Number(process.env.PORT || 3033);
 const HOST = process.env.HOST || "0.0.0.0";
@@ -39,9 +65,28 @@ const ALLOW_ORIGINS = new Set([
   "https://www.wenyazw.top",
   "http://localhost:8080",
   "http://localhost:5500",
+  "http://localhost:8081",
+  "http://localhost:8899",
   "http://127.0.0.1:8080",
-  "http://127.0.0.1:5500"
+  "http://127.0.0.1:5500",
+  "http://127.0.0.1:8081",
+  "http://127.0.0.1:8899"
 ]);
+
+/* 积分：注册即送 15 分，每次 AI 操作扣 1 分 */
+const SIGNUP_CREDITS = Number(process.env.SIGNUP_CREDITS || 15);
+const COST_PER_CALL = Number(process.env.COST_PER_CALL || 1);
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+
+/* 注册风控：一个邮箱一个号（数据库唯一）、一个 IP 一个号、同一 IP 每天最多发 5 次注册码、
+   全站每天最多成功注册 50 个（防止被脚本刷号领积分）。 */
+const REG_IP_DAILY_CODES = Number(process.env.REG_IP_DAILY_CODES || 5);
+const REG_DAILY_TOTAL = Number(process.env.REG_DAILY_TOTAL || 50);
+
+/* 站内模型调用限速：单账号每分钟、单 IP 每分钟、单账号每天 */
+const LLM_PER_MIN_USER = Number(process.env.LLM_PER_MIN_USER || 12);
+const LLM_PER_MIN_IP = Number(process.env.LLM_PER_MIN_IP || 20);
+const LLM_DAILY_USER = Number(process.env.LLM_DAILY_USER || 200);
 
 const USER_RE = /^[A-Za-z0-9_]{3,24}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -62,6 +107,9 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
     email TEXT NOT NULL UNIQUE,
+    credits INTEGER NOT NULL DEFAULT 15,
+    reg_ip TEXT NOT NULL DEFAULT "",
+    last_ip TEXT NOT NULL DEFAULT "",
     created_at TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS email_codes (
@@ -92,6 +140,24 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_essays_email ON essays(email, updated_at DESC);
+  /* 积分流水：每一次扣分/补分都留痕，方便对账和抓异常 */
+  CREATE TABLE IF NOT EXISTS credit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    delta INTEGER NOT NULL,
+    reason TEXT NOT NULL DEFAULT "",
+    ip TEXT NOT NULL DEFAULT "",
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_credit_log_email ON credit_log(email, created_at DESC);
+  /* 注册风控日志：同一 IP 的发码次数、注册尝试都记在这里 */
+  CREATE TABLE IF NOT EXISTS reg_log (
+    ip TEXT NOT NULL,
+    email TEXT NOT NULL DEFAULT "",
+    kind TEXT NOT NULL DEFAULT "",
+    at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_reg_log_ip ON reg_log(ip, at DESC);
 `);
 // 兼容早期没有 purpose 列的库
 const sendLogCols = db.prepare("PRAGMA table_info(send_log)").all();
@@ -103,6 +169,18 @@ const essayCols = db.prepare("PRAGMA table_info(essays)").all();
 if (essayCols.length && !essayCols.some((c) => c.name === "outline")) {
   db.exec('ALTER TABLE essays ADD COLUMN outline TEXT NOT NULL DEFAULT ""');
 }
+// 积分与注册 IP（老库补齐，老用户按 0 处理，需要补分走管理接口）
+const userCols = db.prepare("PRAGMA table_info(users)").all();
+if (userCols.length && !userCols.some((c) => c.name === "credits")) {
+  db.exec("ALTER TABLE users ADD COLUMN credits INTEGER NOT NULL DEFAULT 0");
+}
+if (userCols.length && !userCols.some((c) => c.name === "reg_ip")) {
+  db.exec('ALTER TABLE users ADD COLUMN reg_ip TEXT NOT NULL DEFAULT ""');
+}
+if (userCols.length && !userCols.some((c) => c.name === "last_ip")) {
+  db.exec('ALTER TABLE users ADD COLUMN last_ip TEXT NOT NULL DEFAULT ""');
+}
+db.exec("CREATE INDEX IF NOT EXISTS idx_users_reg_ip ON users(reg_ip)");
 try { fs.chmodSync(DB_FILE, 0o600); } catch (e) { /* 新库可能还没生成 WAL 文件 */ }
 
 /* ---------------- 工具 ---------------- */
@@ -141,6 +219,17 @@ function verifyToken(token) {
   return { username: data.u, email: data.e };
 }
 
+/* 只认本站页面：Origin 必须在白名单（含本机调试与 Tailscale 内网），
+   站内模型接口额外要求必须带 Origin，防止别人拿 token 从别的站点批量刷。 */
+function originAllowed(req) {
+  const origin = req.headers.origin || "";
+  if (!origin) return false;
+  if (ALLOW_ORIGINS.has(origin)) return true;
+  const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+  const tail = /^http:\/\/100\.\d+\.\d+\.\d+(:\d+)?$/;
+  return local.test(origin) || tail.test(origin);
+}
+
 function corsHeaders(req) {
   const origin = req.headers.origin || "";
   const h = {
@@ -165,12 +254,13 @@ function send(req, res, status, body) {
   res.end(data);
 }
 
-function readBody(req) {
+function readBody(req, maxBytes) {
+  const cap = maxBytes || MAX_BODY;
   return new Promise((resolve, reject) => {
     let raw = "";
     req.on("data", (c) => {
       raw += c;
-      if (raw.length > MAX_BODY) { reject(new Error("请求体过大")); req.destroy(); }
+      if (raw.length > cap) { reject(new Error("请求体过大")); req.destroy(); }
     });
     req.on("end", () => {
       if (!raw) return resolve({});
@@ -189,6 +279,40 @@ function clientIp(req) {
   return (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
 }
 
+/* IPv6 每次连接后缀都会变，按 /64 前缀归类才拦得住 */
+function ipKey(raw) {
+  const ip = String(raw || "").replace(/^::ffff:/, "");
+  if (!ip) return "";
+  if (ip.indexOf(":") < 0) return ip;                 // IPv4 原样
+  const parts = ip.split(":");
+  return parts.slice(0, 4).join(":") + "::/64";       // IPv6 取前 4 段
+}
+
+/* ---------------- 积分 ---------------- */
+
+function creditsOf(email) {
+  const row = db.prepare("SELECT credits FROM users WHERE email = ?").get(email);
+  return row ? row.credits : 0;
+}
+
+function addCredits(email, delta, reason, ip) {
+  const info = db.prepare("UPDATE users SET credits = credits + ? WHERE email = ?").run(delta, email);
+  if (!info.changes) return null;
+  db.prepare("INSERT INTO credit_log (email, delta, reason, ip, created_at) VALUES (?, ?, ?, ?, ?)")
+    .run(email, delta, String(reason || "").slice(0, 80), String(ip || "").slice(0, 60), Date.now());
+  return creditsOf(email);
+}
+
+/* 扣一次：余额不足返回 null，保证不会扣成负数（SQL 里带条件，避免并发超扣） */
+function spendOne(email, reason, ip) {
+  const info = db.prepare("UPDATE users SET credits = credits - ? WHERE email = ? AND credits >= ?")
+    .run(COST_PER_CALL, email, COST_PER_CALL);
+  if (!info.changes) return null;
+  db.prepare("INSERT INTO credit_log (email, delta, reason, ip, created_at) VALUES (?, ?, ?, ?, ?)")
+    .run(email, -COST_PER_CALL, String(reason || "").slice(0, 80), String(ip || "").slice(0, 60), Date.now());
+  return creditsOf(email);
+}
+
 /* ---------------- 限流 ---------------- */
 
 const ipAttempts = new Map();
@@ -201,6 +325,27 @@ function ipTooMany(ip) {
   }
   rec.count++;
   return rec.count > 30;
+}
+
+/* 滑动窗口：单账号 / IP 每分钟、单账号每天 */
+const winUser = new Map();
+const winIp = new Map();
+function hitWindow(map, key, limit, spanMs) {
+  const now = Date.now();
+  let arr = map.get(key);
+  if (!arr) { arr = []; map.set(key, arr); }
+  while (arr.length && now - arr[0] > spanMs) arr.shift();
+  arr.push(now);
+  return arr.length > limit;
+}
+function llmRateLimited(email, ip) {
+  if (hitWindow(winUser, email, LLM_PER_MIN_USER, 60 * 1000)) return "这台账号一分钟内请求太多次，稍等一会儿";
+  if (hitWindow(winIp, ip || "-", LLM_PER_MIN_IP, 60 * 1000)) return "这个网络一分钟内请求太多次，稍等一会儿";
+  const dayAgo = Date.now() - 24 * 3600 * 1000;
+  const row = db.prepare("SELECT COUNT(*) AS n FROM credit_log WHERE email = ? AND delta < 0 AND created_at > ?")
+    .get(email, dayAgo);
+  if (row && row.n >= LLM_DAILY_USER) return "今天用量已达上限，明天再来";
+  return "";
 }
 
 // 重发间隔按「邮箱 + 用途」分别计算：注册刚发过码，不影响马上切到登录发码
@@ -280,6 +425,12 @@ async function handle(req, res) {
 
   if (method === "OPTIONS") { res.writeHead(204, corsHeaders(req)); res.end(); return; }
 
+  // 站内模型接口不做跨站开放：没有 Origin 或 Origin 不在白名单，一律拒绝
+  if (p.indexOf("/api/llm/") === 0 && !originAllowed(req)) {
+    send(req, res, 403, { ok: false, error: "这个接口只允许在文芽作本站内调用" });
+    return;
+  }
+
   if (p === "/api/health" && method === "GET") {
     send(req, res, 200, { ok: true, service: "wenyazw-back", time: Date.now() });
     return;
@@ -301,6 +452,20 @@ async function handle(req, res) {
     if (purpose === "login" && !exists) {
       send(req, res, 404, { ok: false, error: "该邮箱尚未注册" }); return;
     }
+    if (purpose === "register") {
+      const ipk = ipKey(ip);
+      const took = db.prepare("SELECT username FROM users WHERE reg_ip = ? LIMIT 1").get(ipk);
+      if (took) {
+        send(req, res, 409, { ok: false, error: "这个网络已经注册过一个账号了，请直接登录那个账号" });
+        return;
+      }
+      const recent = db.prepare("SELECT COUNT(*) AS n FROM reg_log WHERE ip = ? AND kind = 'code' AND at > ?")
+        .get(ipk, Date.now() - 24 * 3600 * 1000).n;
+      if (recent >= REG_IP_DAILY_CODES) {
+        send(req, res, 429, { ok: false, error: "这个网络今天注册次数过多，请明天再试" });
+        return;
+      }
+    }
     if (sentRecently(email, purpose)) {
       send(req, res, 429, { ok: false, error: "发送太频繁，请 60 秒后再试" }); return;
     }
@@ -309,6 +474,8 @@ async function handle(req, res) {
     }
     const code = issueCode(email, purpose);
     logSend(email, purpose);
+    db.prepare("INSERT INTO reg_log (ip, email, kind, at) VALUES (?, ?, ?, ?)")
+      .run(ipKey(ip), email, purpose === "register" ? "code" : "login_code", Date.now());
     try {
       await sendMail(email, "文芽作文 验证码", mailBody(code, purpose));
       send(req, res, 200, { ok: true, message: "验证码已发送，请查收邮件（可能在垃圾箱）" });
@@ -340,16 +507,29 @@ async function handle(req, res) {
     if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) {
       send(req, res, 409, { ok: false, error: "该邮箱已注册，请直接登录" }); return;
     }
+    const ipk = ipKey(clientIp(req));
+    if (db.prepare("SELECT 1 FROM users WHERE reg_ip = ?").get(ipk)) {
+      send(req, res, 409, { ok: false, error: "这个网络已经注册过一个账号了，请直接登录那个账号" }); return;
+    }
+    const todayCount = db.prepare("SELECT COUNT(*) AS n FROM users WHERE created_at > ?")
+      .get(new Date(Date.now() - 24 * 3600 * 1000).toISOString()).n;
+    if (todayCount >= REG_DAILY_TOTAL) {
+      send(req, res, 429, { ok: false, error: "今天注册名额已满，请明天再试" }); return;
+    }
     const err = consumeCode(email, "register", code);
     if (err) { send(req, res, 400, { ok: false, error: err }); return; }
     try {
-      db.prepare("INSERT INTO users (username, email, created_at) VALUES (?, ?, ?)")
-        .run(username, email, new Date().toISOString());
+      db.prepare("INSERT INTO users (username, email, credits, reg_ip, last_ip, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+        .run(username, email, SIGNUP_CREDITS, ipk, ipk, new Date().toISOString());
     } catch (e) {
       send(req, res, 409, { ok: false, error: "用户名或邮箱已被使用" }); return;
     }
+    db.prepare("INSERT INTO credit_log (email, delta, reason, ip, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run(email, SIGNUP_CREDITS, "注册赠送", ipk, Date.now());
+    db.prepare("INSERT INTO reg_log (ip, email, kind, at) VALUES (?, ?, ?, ?)")
+      .run(ipk, email, "register", Date.now());
     const user = { username, email };
-    send(req, res, 200, { ok: true, user: username, email, token: signToken(user) });
+    send(req, res, 200, { ok: true, user: username, email, token: signToken(user), credits: SIGNUP_CREDITS });
     return;
   }
 
@@ -364,20 +544,117 @@ async function handle(req, res) {
     if (!row) { send(req, res, 404, { ok: false, error: "该邮箱尚未注册" }); return; }
     const err = consumeCode(email, "login", code);
     if (err) { send(req, res, 400, { ok: false, error: err }); return; }
-    send(req, res, 200, { ok: true, user: row.username, email: row.email, token: signToken(row) });
+    db.prepare("UPDATE users SET last_ip = ? WHERE email = ?").run(ipKey(clientIp(req)), email);
+    send(req, res, 200, {
+      ok: true, user: row.username, email: row.email, token: signToken(row), credits: creditsOf(email)
+    });
     return;
   }
 
   if (p === "/api/auth/me" && method === "GET") {
     const user = verifyToken(bearer(req));
     if (!user) { send(req, res, 401, { ok: false, error: "未登录或登录已过期" }); return; }
-    send(req, res, 200, { ok: true, user: user.username, email: user.email });
+    db.prepare("UPDATE users SET last_ip = ? WHERE email = ?").run(ipKey(clientIp(req)), user.email);
+    send(req, res, 200, { ok: true, user: user.username, email: user.email, credits: creditsOf(user.email) });
+    return;
+  }
+
+  if (p === "/api/credits" && method === "GET") {
+    const user = verifyToken(bearer(req));
+    if (!user) { send(req, res, 401, { ok: false, error: "未登录或登录已过期" }); return; }
+    const recent = db.prepare("SELECT delta, reason, created_at FROM credit_log WHERE email = ? ORDER BY id DESC LIMIT 20")
+      .all(user.email);
+    send(req, res, 200, { ok: true, credits: creditsOf(user.email), costPerCall: COST_PER_CALL, log: recent });
     return;
   }
 
   if (p === "/api/auth/logout" && method === "POST") {
     // 无状态 token，前端清除本地存储即完成登出
     send(req, res, 200, { ok: true });
+    return;
+  }
+
+  /* ---------------- 站内模型（积分制） ---------------- */
+
+  if (p === "/api/llm/chat/completions" && method === "POST") {
+    const user = verifyToken(bearer(req));
+    if (!user) { send(req, res, 401, { ok: false, error: "请先登录后再使用站内模型" }); return; }
+    if (!llm.relayReady()) { send(req, res, 503, { ok: false, error: "站内模型还没配好，请先用自填接口" }); return; }
+
+    const ip = ipKey(clientIp(req));
+    const limited = llmRateLimited(user.email, ip);
+    if (limited) { send(req, res, 429, { ok: false, error: limited }); return; }
+
+    let body;
+    try { body = await readBody(req, 512 * 1024); }
+    catch (e) { send(req, res, 413, { ok: false, error: "内容太长，先精简一下" }); return; }
+
+    const msgs = Array.isArray(body.messages) ? body.messages : null;
+    if (!msgs || !msgs.length || msgs.length > 12) {
+      send(req, res, 400, { ok: false, error: "messages 不合法" }); return;
+    }
+    const cleanMsgs = [];
+    let totalChars = 0;
+    for (const m of msgs) {
+      const role = m && m.role;
+      const content = typeof (m && m.content) === "string" ? m.content : "";
+      if (role !== "system" && role !== "user" && role !== "assistant") continue;
+      if (!content || content.length > 40000) { send(req, res, 400, { ok: false, error: "单条内容为空或过长" }); return; }
+      totalChars += content.length;
+      if (totalChars > 80000) { send(req, res, 413, { ok: false, error: "整段对话太长，先精简一下" }); return; }
+      cleanMsgs.push({ role, content });
+    }
+    if (!cleanMsgs.length) { send(req, res, 400, { ok: false, error: "messages 不合法" }); return; }
+
+    const payload = {
+      messages: cleanMsgs,
+      stream: body.stream === true,
+      temperature: Math.min(2, Math.max(0, Number(body.temperature) || 0.7)),
+      max_tokens: Math.min(16000, Math.max(64, Number(body.max_tokens) || 2400))
+    };
+
+    // 先扣分再请求：扣不动说明余额不足，直接拦下；全失败会退回
+    const left = spendOne(user.email, "站内模型 · " + (body.purpose || "AI 操作"), ip);
+    if (left === null) {
+      send(req, res, 402, {
+        ok: false, error: "积分用完了（每次操作 1 积分）。可以在控制台看明细，或去「接口配置」换成自己的模型接口，不消耗积分。",
+        credits: 0
+      });
+      return;
+    }
+
+    const result = await llm.proxy(req, res, payload, {
+      perModelTimeout: 9000,
+      deadlineMs: 55000,
+      extraHeaders: Object.assign({ "X-Wenyazw-Credits": String(left) }, corsHeaders(req))
+    });
+
+    if (!result.ok) {
+      addCredits(user.email, COST_PER_CALL, "调用失败退回", ip);
+      if (!res.headersSent) {
+        send(req, res, result.status || 502, {
+          ok: false, error: result.error || "站内模型都不可用，请稍后再试",
+          credits: creditsOf(user.email)
+        });
+      }
+    }
+    return;
+  }
+
+  /* 管理：给某个账号加分/扣分。要在 .env 里配 ADMIN_TOKEN 才能用 */
+  if (p === "/api/admin/credits" && method === "POST") {
+    if (!ADMIN_TOKEN || !safeEqual(req.headers["x-admin-token"] || "", ADMIN_TOKEN)) {
+      send(req, res, 403, { ok: false, error: "无权操作" }); return;
+    }
+    const body = await readBody(req);
+    const email = String(body.email || "").trim().toLowerCase();
+    const delta = Math.trunc(Number(body.delta));
+    if (!EMAIL_RE.test(email) || !delta || Math.abs(delta) > 10000) {
+      send(req, res, 400, { ok: false, error: "email 或 delta 不合法" }); return;
+    }
+    const left = addCredits(email, delta, String(body.reason || "管理调整"), clientIp(req));
+    if (left === null) { send(req, res, 404, { ok: false, error: "账号不存在" }); return; }
+    send(req, res, 200, { ok: true, credits: left });
     return;
   }
 

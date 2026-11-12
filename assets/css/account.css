@@ -119,3 +119,65 @@
   overflow: auto;
 }
 .view-outline[hidden] { display: none; }
+
+/* ---------- 积分 ---------- */
+
+.credit-panel {
+  margin: 14px 0 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-2);
+}
+
+.credit-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.credit-balance {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: #2f6f4e;
+}
+
+.credit-tip {
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+
+.credit-log {
+  margin-top: 10px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+  max-height: 190px;
+  overflow: auto;
+}
+
+.credit-log[hidden] { display: none; }
+
+.credit-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.credit-time {
+  flex: 0 0 76px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.credit-reason { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.credit-delta { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+
+.credit-delta.plus { color: #2f6f4e; }
+
+.credit-delta.minus { color: #a8322a; }

@@ -7,6 +7,7 @@
   var KEY_TOKEN = "wenyazw.auth.token";
   var KEY_USER = "wenyazw.auth.user";
   var KEY_EMAIL = "wenyazw.auth.email";
+  var KEY_CREDITS = "wenyazw.auth.credits";
 
   function $(id) { return document.getElementById(id); }
   var els = {
@@ -42,12 +43,37 @@
     els.msg.className = "auth-msg" + (kind ? " " + kind : "");
   }
 
-  function setSession(t, username, email) {
+  function setCredits(n) {
+    try {
+      if (n === null || n === undefined) localStorage.removeItem(KEY_CREDITS);
+      else localStorage.setItem(KEY_CREDITS, String(n));
+    } catch (e) { /* ignore */ }
+    var c = credits();
+    if (c !== null && els.area) {
+      var el = els.area.querySelector(".account-credits");
+      if (el) el.textContent = "积分 " + c;
+    }
+    listeners.forEach(function (fn) {
+      try { fn(user()); } catch (e) { /* ignore */ }
+    });
+  }
+
+  function credits() {
+    try {
+      var v = localStorage.getItem(KEY_CREDITS);
+      return v === null ? null : Number(v);
+    } catch (e) { return null; }
+  }
+
+  function user() { try { return localStorage.getItem(KEY_USER) || ""; } catch (e) { return ""; } }
+
+  function setSession(t, username, email, credit) {
     try {
       localStorage.setItem(KEY_TOKEN, t);
       localStorage.setItem(KEY_USER, username);
       localStorage.setItem(KEY_EMAIL, email || "");
     } catch (e) { /* 隐私模式下可能不可写 */ }
+    if (credit !== undefined && credit !== null) setCredits(credit);
     renderAccount(username);
   }
 
@@ -56,6 +82,7 @@
       localStorage.removeItem(KEY_TOKEN);
       localStorage.removeItem(KEY_USER);
       localStorage.removeItem(KEY_EMAIL);
+      localStorage.removeItem(KEY_CREDITS);
     } catch (e) { /* ignore */ }
     renderAccount("");
   }
@@ -81,6 +108,14 @@
     name.className = "account-name";
     name.textContent = username;
     els.area.appendChild(name);
+    var cr = credits();
+    if (cr !== null) {
+      var cEl = document.createElement("span");
+      cEl.className = "account-credits";
+      cEl.textContent = "积分 " + cr;
+      cEl.title = "站内模型每次操作消耗 1 积分";
+      els.area.appendChild(cEl);
+    }
     var out = document.createElement("button");
     out.className = "btn btn-ghost";
     out.textContent = "退出";
@@ -205,7 +240,7 @@
     setMsg(mode === "login" ? "正在登录…" : "正在注册…", "");
     try {
       var data = await api("/api/auth/" + mode, body);
-      setSession(data.token, data.user, data.email);
+      setSession(data.token, data.user, data.email, data.credits);
       setMsg(mode === "login" ? "登录成功。" : "注册成功，已自动登录。", "ok");
       setTimeout(closeModal, 500);
     } catch (e) {
@@ -257,6 +292,18 @@
     email: function () { try { return localStorage.getItem(KEY_EMAIL) || ""; } catch (e) { return ""; } },
     endpoint: endpoint,
     loggedIn: function () { return !!token(); },
+    credits: credits,
+    setCredits: setCredits,
+    refreshCredits: function () {
+      if (!token()) return Promise.resolve(null);
+      return fetch(endpoint() + "/api/credits", { headers: { "Authorization": "Bearer " + token() } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && d.ok && typeof d.credits === "number") { setCredits(d.credits); return d.credits; }
+          return null;
+        })
+        .catch(function () { return null; });
+    },
     open: openModal,          // 打开登录/注册弹窗：WY_AUTH.open("login")
     close: closeModal,
     onChange: function (fn) { if (typeof fn === "function") listeners.push(fn); }

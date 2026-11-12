@@ -13,7 +13,8 @@
     viewMeta: $("viewMeta"), viewBody: $("viewBody"), viewOutline: $("viewOutline"),
     viewClose: $("viewClose"), viewClose2: $("viewClose2"),
     viewCopy: $("viewCopy"), viewDownload: $("viewDownload"), viewResume: $("viewResume"),
-    authMask: $("authMask")
+    authMask: $("authMask"),
+    creditBalance: $("creditBalance"), creditLog: $("creditLog")
   };
 
   var current = null;   // 当前打开的作文
@@ -139,9 +140,47 @@
     });
   }
 
+  function fmtCreditTime(ms) {
+    var d = new Date(Number(ms) || Date.now());
+    var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
+    return (d.getMonth() + 1) + "/" + d.getDate() + " " + p2(d.getHours()) + ":" + p2(d.getMinutes());
+  }
+
+  async function loadCredits() {
+    if (!token() || !els.creditBalance) return;
+    try {
+      var j = await api("/api/credits");
+      if (!j || !j.ok) return;
+      els.creditBalance.textContent = "积分 " + j.credits;
+      if (window.WY_AUTH && window.WY_AUTH.setCredits) window.WY_AUTH.setCredits(j.credits);
+      var log = j.log || [];
+      if (!log.length) { els.creditLog.hidden = true; return; }
+      els.creditLog.hidden = false;
+      els.creditLog.innerHTML = "";
+      log.slice(0, 10).forEach(function (row) {
+        var item = document.createElement("div");
+        item.className = "credit-row";
+        var t = document.createElement("span");
+        t.className = "credit-time";
+        t.textContent = fmtCreditTime(row.created_at);
+        var why = document.createElement("span");
+        why.className = "credit-reason";
+        why.textContent = row.reason || "调整";
+        var d = document.createElement("span");
+        d.className = "credit-delta " + (row.delta > 0 ? "plus" : "minus");
+        d.textContent = (row.delta > 0 ? "+" : "") + row.delta;
+        item.appendChild(t);
+        item.appendChild(why);
+        item.appendChild(d);
+        els.creditLog.appendChild(item);
+      });
+    } catch (e) { /* 积分接口挂了不影响作文列表 */ }
+  }
+
   async function loadList() {
     if (!token()) return;
     setMsg("正在加载…", "");
+    loadCredits();
     try {
       var j = await api("/api/essays");
       renderList(j.essays || []);

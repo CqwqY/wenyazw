@@ -36,6 +36,7 @@
   });
 
   var PRESETS = {
+    site: { base: "", model: "auto" },   // 站内模型：走自己的后端，消耗积分
     deepseek: { base: "https://api.deepseek.com/v1", model: "deepseek-chat" },
     moonshot: { base: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
     qwen: { base: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
@@ -43,12 +44,27 @@
     custom: { base: "", model: "" }
   };
 
+  /* 站内模型网关地址：与账号后端同一个域，前端不再填 key */
+  function siteBase() {
+    var ep = (window.WY_AUTH && window.WY_AUTH.endpoint && window.WY_AUTH.endpoint()) || "https://back.wenyazw.top";
+    return String(ep).replace(/\/+$/, "") + "/api/llm";
+  }
+  function authToken() {
+    return (window.WY_AUTH && window.WY_AUTH.token && window.WY_AUTH.token()) || "";
+  }
+  function isSiteMode(c) {
+    return (c && c.preset === "site") || els.preset.value === "site";
+  }
+
   var els = {
     toggleConfig: $("toggleConfig"), configPanel: $("configPanel"),
     preset: $("cfgPreset"), base: $("cfgBase"), path: $("cfgPath"),
     key: $("cfgKey"), model: $("cfgModel"), temp: $("cfgTemp"),
     maxTokens: $("cfgMaxTokens"), remember: $("cfgRemember"),
     keyToggle: $("keyToggle"), resetCfg: $("resetCfg"), testBtn: $("testBtn"),
+    cfgCredits: $("cfgCredits"), siteNote: $("siteNote"),
+    fieldBase: $("fieldBase"), fieldKey: $("fieldKey"),
+    fieldModel: $("fieldModel"), fieldPath: $("fieldPath"),
 
     wizard: $("wizard"), studio: $("studio"),
     gateBar: $("gateBar"), gateLoginBtn: $("gateLoginBtn"),
@@ -125,7 +141,7 @@
     var saved = {};
     try { saved = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { saved = {}; }
     return {
-      preset: saved.preset || "deepseek",
+      preset: saved.preset || "site",
       base: saved.base || PRESETS.deepseek.base,
       path: saved.path || "/chat/completions",
       key: saved.key || "",
@@ -137,6 +153,31 @@
   }
 
   function currentConfig() {
+    if (els.preset.value === "site") {
+      return {
+        preset: "site",
+        base: siteBase(),
+        path: "/chat/completions",
+        key: authToken(),          // 站内模式用登录 token 当凭据，真正的中转站密钥只在服务器
+        model: "auto",             // 服务器按回退链自己挑
+        temp: els.temp.value.trim(),
+        maxTokens: els.maxTokens.value.trim(),
+        remember: true
+      };
+    }
+    return {
+      preset: els.preset.value,
+      base: els.base.value.trim(),
+      path: els.path.value.trim(),
+      key: els.key.value.trim(),
+      model: els.model.value.trim(),
+      temp: els.temp.value.trim(),
+      maxTokens: els.maxTokens.value.trim(),
+      remember: els.remember.checked
+    };
+  }
+
+  function rawConfig() {
     return {
       preset: els.preset.value,
       base: els.base.value.trim(),
@@ -150,7 +191,7 @@
   }
 
   function saveConfig() {
-    var c = currentConfig();
+    var c = rawConfig();
     try {
       localStorage.setItem(STORE, JSON.stringify({
         preset: c.preset, base: c.base, path: c.path,
@@ -172,7 +213,77 @@
     els.remember.checked = c.remember;
   }
 
+  var lastCustomCfg = null;
+  function syncPresetUI() {
+    var site = els.preset.value === "site";
+    if (site) {
+      if (!lastCustomCfg) {
+        lastCustomCfg = {
+          base: els.base.value, path: els.path.value,
+          key: els.key.value, model: els.model.value
+        };
+      }
+      els.base.value = siteBase();
+      els.path.value = "/chat/completions";
+      els.model.value = "auto";
+      els.key.value = "";
+    } else if (lastCustomCfg) {
+      els.base.value = lastCustomCfg.base;
+      els.path.value = lastCustomCfg.path;
+      els.key.value = lastCustomCfg.key;
+      els.model.value = lastCustomCfg.model;
+      lastCustomCfg = null;
+    }
+    [els.base, els.path, els.model, els.key].forEach(function (el) { el.disabled = site; });
+    // 站内模式把这些字段整块藏掉：地址、路径、模型名、Key 都不让用户看见也不用管
+    [els.fieldBase, els.fieldKey, els.fieldModel, els.fieldPath].forEach(function (f) {
+      if (f) f.hidden = site;
+    });
+    if (els.keyToggle) els.keyToggle.disabled = site;
+    // 站内模式不需要「记住 Key」，隐藏掉免得误解；测试连接会扣 1 分，按钮上写明
+    var rememberWrap = els.remember && els.remember.closest("label");
+    // 这行 label 上有内联 display:flex，光加 hidden 属性压不住，得直接改 display
+    if (rememberWrap) rememberWrap.style.display = site ? "none" : "flex";
+    if (els.testBtn) els.testBtn.textContent = site ? "测试站内模型（扣 1 积分）" : "测试连接";
+    if (els.cfgCredits) els.cfgCredits.hidden = !site;
+    if (els.siteNote) els.siteNote.hidden = !site;
+    refreshCreditLine();
+  }
+
+  function syncCreditsUI() {
+    if (els.preset.value !== "site") return;
+    if (!(window.WY_AUTH && window.WY_AUTH.refreshCredits)) return;
+    window.WY_AUTH.refreshCredits().then(function (n) {
+      refreshCreditLine();
+      if (n === 0) setWizardStatus("积分用完了：去控制台看明细，或切到自填接口继续写。", "error");
+    });
+  }
+
+  function refreshCreditLine() {
+    if (!els.cfgCredits) return;
+    var n = window.WY_AUTH && window.WY_AUTH.credits ? window.WY_AUTH.credits() : null;
+    var txt = n === null ? "剩余积分：登录后显示" : ("剩余积分 " + n + " · 每次操作扣 1 分");
+    els.cfgCredits.textContent = txt;
+  }
+
   fillForm(readConfig());
+  syncPresetUI();
+
+  /* auth.js 在 write.js 之后加载，初始化时还拿不到登录态与积分，这里补两次 */
+  function hookAuthCredits() {
+    if (window.WY_AUTH && window.WY_AUTH.onChange) {
+      window.WY_AUTH.onChange(function () { refreshCreditLine(); syncCreditsUI(); });
+      return true;
+    }
+    return false;
+  }
+  if (!hookAuthCredits()) {
+    var hookTimer = setInterval(function () {
+      if (hookAuthCredits()) clearInterval(hookTimer);
+    }, 120);
+    setTimeout(function () { clearInterval(hookTimer); }, 4000);
+  }
+  window.addEventListener("load", function () { refreshCreditLine(); });
 
   function setConfigOpen(open) {
     if (open) els.configPanel.removeAttribute("hidden");
@@ -194,6 +305,13 @@
   });
 
   on(els.preset, "change", function () {
+    if (els.preset.value === "site") {
+      syncPresetUI();
+      saveConfig();
+      setWizardStatus("站内模型：登录后直接用，每次操作扣 1 积分。", "");
+      return;
+    }
+    syncPresetUI();
     var p = PRESETS[els.preset.value];
     if (p && p.base) {
       els.base.value = p.base;
@@ -213,12 +331,14 @@
 
   on(els.resetCfg, "click", function () {
     try { localStorage.removeItem(STORE); } catch (e) { /* noop */ }
+    lastCustomCfg = null;
     fillForm({
-      preset: "deepseek", base: PRESETS.deepseek.base, path: "/chat/completions",
-      key: "", model: PRESETS.deepseek.model, temp: "1",
+      preset: "site", base: "", path: "/chat/completions",
+      key: "", model: "auto", temp: "1",
       maxTokens: "2400", remember: true
     });
-    setWizardStatus("配置已清除。", "ok");
+    syncPresetUI();
+    setWizardStatus("配置已清除，回到站内模型。", "ok");
   });
 
   /* ---------------- 状态 ---------------- */
@@ -1430,6 +1550,17 @@
   }
 
   function friendlyError(res, raw) {
+    if (res.status === 402) {
+      var msg402 = "";
+      try { msg402 = (JSON.parse(raw).error || ""); } catch (e) { msg402 = ""; }
+      return msg402 || "积分用完了。可以换成自己的模型接口，或去控制台看积分明细。";
+    }
+    if (res.status === 429) {
+      var msg429 = "";
+      try { msg429 = (JSON.parse(raw).error || ""); } catch (e) { msg429 = ""; }
+      return msg429 || "请求太频繁，稍等一会儿再试。";
+    }
+    if (res.status === 401) return "登录已过期，请重新登录后再用站内模型。";
     var detail = "";
     try {
       var j = JSON.parse(raw);
@@ -1707,6 +1838,7 @@
     } finally {
       controller = null;
       setBusy(false);
+      syncCreditsUI();
     }
   }
 
@@ -1885,6 +2017,7 @@
     } finally {
       controller = null;
       setBusy(false);
+      syncCreditsUI();
     }
   }
 

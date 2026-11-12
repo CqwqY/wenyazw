@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css?v=20261112j">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112N">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112T">
 </head>
 <body>
 
@@ -54,24 +54,30 @@
       <div class="config-grid">
         <div>
           <div class="config-note">
-            <strong>大模型密钥只存在本机浏览器</strong>，作文生成由浏览器直连你填的接口；本站后端只负责账号登录，不接触密钥。
-            浏览器直连需要服务商允许跨域。公共电脑请勿勾选「记住 Key」，用完点清除配置。
+            <strong>默认走站内模型</strong>，登录就能用，每次操作扣 1 积分，不用填任何 Key。
+            想用自己的接口就切到下面的服务商预设，那种模式下密钥只存在本机浏览器，浏览器直连需要服务商允许跨域。
           </div>
+          <div class="credit-line" id="cfgCredits" hidden>剩余积分：登录后显示</div>
           <div class="field">
             <label for="cfgPreset">服务商预设</label>
             <select class="select" id="cfgPreset">
-              <option value="deepseek">DeepSeek</option>
+              <option value="site">站内模型（消耗积分，推荐）</option>
+              <option value="deepseek">DeepSeek（自填 Key）</option>
               <option value="moonshot">Moonshot / Kimi</option>
               <option value="qwen">通义千问（兼容模式）</option>
               <option value="openai">OpenAI</option>
               <option value="custom">自定义</option>
             </select>
           </div>
-          <div class="field">
+          <div class="site-note" id="siteNote" hidden>
+            站内模型由本站后端代理，自动挑模型（先用 <code>deepseek-v4.1-flash</code>，不可用就换下一个）。
+            地址和密钥都在服务器上，这里不需要也不用填。
+          </div>
+          <div class="field" id="fieldBase">
             <label for="cfgBase">Base URL</label>
             <input class="input" id="cfgBase" placeholder="https://api.deepseek.com/v1" spellcheck="false">
           </div>
-          <div class="field">
+          <div class="field" id="fieldKey">
             <label for="cfgKey">API Key</label>
             <div class="key-row">
               <input class="input" id="cfgKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off">
@@ -80,11 +86,11 @@
           </div>
         </div>
         <div>
-          <div class="field">
+          <div class="field" id="fieldModel">
             <label for="cfgModel">模型名</label>
             <input class="input" id="cfgModel" placeholder="deepseek-chat" spellcheck="false">
           </div>
-          <div class="field">
+          <div class="field" id="fieldPath">
             <label for="cfgPath">接口路径</label>
             <input class="input" id="cfgPath" spellcheck="false">
           </div>
@@ -358,8 +364,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261112N"></script>
-<script src="assets/js/write.js?v=20261112N"></script>
-<script src="assets/js/auth.js?v=20261112j"></script>
+<script src="assets/js/prompt.js?v=20261112T"></script>
+<script src="assets/js/write.js?v=20261112T"></script>
+<script src="assets/js/auth.js?v=20261112T"></script>
 </body>
 </html>
