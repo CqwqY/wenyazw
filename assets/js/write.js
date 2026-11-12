@@ -1441,7 +1441,9 @@
   }
 
   function wrapAsk(req) {
-    return "用户提问：{\n" + req + "\n}";
+    return "用户提问：{\n" + req + "\n}\n" +
+      "（以上是学生这次的原话，是他这一轮唯一要做的事。逐条照办，一条不许漏；" +
+      "他没有提到的地方一律不动，不要顺手改、不要自己想当然加一份方案、不要换成你认为更好的写法。）";
   }
 
   function outlineJSON() {
@@ -1464,7 +1466,10 @@
     var rule = categoryRule();
     if (rule) lines.push(rule);
     lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
-    if (els.extra.value.trim()) lines.push("【额外要求】" + els.extra.value.trim());
+    if (els.extra.value.trim()) {
+      lines.push("【额外要求（用户原话，硬指令）】{\n" + els.extra.value.trim() + "\n}\n" +
+        "（这几条是他明确要的，逐条照办；他没提的不要自己加，不要扩大成别的写法。）");
+    }
     lines.push(genreOutlineNote());
     lines.push("【目标字数（含标点）】约 " + wordCount + " 字。大纲的段落数量要与这个字数匹配，不要按 300 字写大纲却要求写 1200 字。");
     var st = scoringText();
@@ -1486,7 +1491,10 @@
     var rule = categoryRule();
     if (rule) lines.push(rule);
     lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
-    if (els.extra.value.trim()) lines.push("【额外要求】" + els.extra.value.trim());
+    if (els.extra.value.trim()) {
+      lines.push("【额外要求（用户原话，硬指令）】{\n" + els.extra.value.trim() + "\n}\n" +
+        "（这几条是他明确要的，逐条照办；他没提的不要自己加，不要扩大成别的写法。）");
+    }
     lines.push("【目标字数（含标点）】约 " + wordCount + " 字，正文尽量逼近，宁可少写不可硬凑。");
     var st = scoringText();
     if (st) lines.push(st);
