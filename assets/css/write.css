@@ -738,13 +738,13 @@ body.studio-mode .site-footer { display: none; }
   top: -.55em;
   right: -.7em;
   font-family: var(--sans, sans-serif);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
   letter-spacing: 0;
   color: #fff;
   background: #a8322a;
   border-radius: 999px;
-  width: 16px;
+  width: 18px;
   min-width: 0;
   height: 16px;
   padding: 0;
