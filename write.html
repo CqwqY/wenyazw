@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css?v=20261112j">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112j">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112M">
 </head>
 <body>
 
@@ -295,16 +295,15 @@
               </div>
             </div>
 
-            <!-- 稿纸下方的 AI 评改批注坞 -->
+            <!-- 稿纸下方的 AI 评卷坞：只放分数与汇总，逐句评语在右栏旁批 -->
             <div class="critic-dock" id="criticDock" hidden>
               <div class="critic-dock-head">
-                <span class="critic-dock-title">AI 评改</span>
+                <span class="critic-dock-title">AI 评卷</span>
                 <span class="critic-stat" id="criticStat">按所选评分标准给分，并逐句判好坏与 AI 味。</span>
                 <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>把认可的问题交给 AI 改</button>
                 <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
               </div>
               <div class="critic-score" id="criticScore" hidden></div>
-              <div class="critic-list" id="criticList"></div>
             </div>
           </div>
         </div>
@@ -359,8 +358,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261112L"></script>
-<script src="assets/js/write.js?v=20261112L"></script>
+<script src="assets/js/prompt.js?v=20261112M"></script>
+<script src="assets/js/write.js?v=20261112M"></script>
 <script src="assets/js/auth.js?v=20261112j"></script>
 </body>
 </html>

@@ -1737,8 +1737,8 @@ table.score-table .score-table-key {
 
 .paper-notes {
   position: relative;
-  flex: 0 0 164px;
-  min-width: 124px;
+  flex: 0 0 208px;
+  min-width: 136px;
   min-height: 200px;
   border-left: 1px dashed var(--grid-line-strong);
   padding-left: 8px;
@@ -1839,8 +1839,85 @@ table.score-table .score-table-key {
 
 .note-ignore:hover { border-color: var(--ink-mute); color: var(--ink); }
 
+/* 右栏里的 AI 评改条目：淡虚线边框，与朱红手批区分开 */
+.note-critic {
+  border-style: dashed;
+  border-color: rgba(60, 90, 120, .34);
+  background: rgba(250, 252, 255, .96);
+}
+
+.note-critic:hover { border-color: rgba(60, 90, 120, .6); }
+
+.note-critic.active {
+  border-color: rgba(60, 90, 120, .75);
+  background: #f4f8fd;
+  box-shadow: 0 2px 8px rgba(60, 90, 120, .16);
+}
+
+.note-critic.nc-no { opacity: .58; }
+
+.note-critic .note-no { color: #3c5a78; }
+
+.note-verdict {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  color: #8a5a00;
+  background: rgba(196, 138, 24, .14);
+}
+
+.note-critic.nc-good .note-verdict { color: #2f6f4e; background: rgba(47, 111, 78, .14); }
+
+.note-ai {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  color: #7a3f8f;
+  background: rgba(122, 63, 143, .13);
+}
+
+.note-flag {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  margin-left: auto;
+  color: var(--ink-mute);
+}
+
+.note-critic .nc-sub { margin-top: 2px; color: var(--ink-mute); }
+
+/* 判「好」的句子一般只留一句结论，不占太多地方 */
+.note-critic.nc-good .note-why {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.note-critic .note-sug {
+  color: #2f4a66;
+  background: rgba(60, 90, 120, .07);
+}
+
+/* 认可/不认可要一直看得见，这一栏的主操作就是它 */
+.note-critic .nc-acts { opacity: 1; pointer-events: auto; }
+
+.note-critic .note-accept.on {
+  background: rgba(47, 111, 78, .3) !important;
+  font-weight: 600;
+}
+
+.note-critic .note-ignore.on {
+  border-color: var(--ink-mute);
+  background: rgba(35, 40, 36, .08);
+  color: var(--ink);
+}
+
 @media (max-width: 1100px) {
-  .paper-notes { flex: 0 0 134px; }
+  .paper-notes { flex: 0 0 158px; }
   .note-why { font-size: 11px; }
 }
 

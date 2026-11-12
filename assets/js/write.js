@@ -791,11 +791,16 @@
 
   /* 批注锚点所在的段落序号，渲染旁批时用来对齐行位置 */
   var markPara = {};
+  /* AI 评改句所在的段落序号，评改也走右栏旁批 */
+  var criticPara = {};
 
   function buildMarkedParagraph(paraText, marks, paraIndex) {
     var el = document.createElement("p");
     if (typeof paraIndex === "number") el.setAttribute("data-para", String(paraIndex));
     var ivs = intervalsFor(paraText, marks);
+    if (typeof paraIndex === "number") {
+      criticIntervalsIn(paraText).forEach(function (c) { criticPara[c.item.id] = paraIndex; });
+    }
     var pos = 0;
     ivs.forEach(function (it) {
       if (it.start > pos) appendRichText(el, paraText.slice(pos, it.start));
@@ -871,13 +876,146 @@
     hideInkDock();
   }
 
-  /* 把待处理批注按所在段落排进右栏，同段的多条依次下移，不互相盖住 */
+  /* ---------------- 右栏条目：手批一条 ---------------- */
+  function buildMarkNote(m) {
+    var note = document.createElement("div");
+    note.className = "note note-" + m.type;
+    note.setAttribute("data-mark-id", String(m.id));
+
+    var head = document.createElement("div");
+    head.className = "note-head";
+    var no = document.createElement("span");
+    no.className = "note-no";
+    no.textContent = markNo(m.no);
+    var typ = document.createElement("span");
+    typ.className = "note-type";
+    typ.textContent = SYMBOL_LABEL[m.type] || "批注";
+    head.appendChild(no);
+    head.appendChild(typ);
+    note.appendChild(head);
+
+    var why = document.createElement("div");
+    why.className = "note-why";
+    why.textContent = m.reason || "（这条没写原因）";
+    note.appendChild(why);
+
+    if (m.text && (m.type === "replace" || m.type === "insert")) {
+      var sug = document.createElement("div");
+      sug.className = "note-sug";
+      sug.textContent = (m.type === "insert" ? "增补：" : "改为：") + m.text;
+      note.appendChild(sug);
+    }
+
+    var acts = document.createElement("div");
+    acts.className = "note-acts";
+    var ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "note-accept";
+    ok.textContent = "采纳";
+    ok.addEventListener("click", function (e) {
+      e.stopPropagation();
+      applyMarkAction(m.id, "accept");
+    });
+    var no2 = document.createElement("button");
+    no2.type = "button";
+    no2.className = "note-ignore";
+    no2.textContent = "忽略";
+    no2.addEventListener("click", function (e) {
+      e.stopPropagation();
+      applyMarkAction(m.id, "ignore");
+    });
+    acts.appendChild(ok);
+    acts.appendChild(no2);
+    note.appendChild(acts);
+
+    note.addEventListener("click", function () {
+      clearActiveMarks();
+      note.classList.add("active");
+      var sp = els.paperBody.querySelector('.ink-mark[data-mark-id="' + m.id + '"]');
+      if (sp) sp.classList.add("active");
+    });
+    return note;
+  }
+
+  /* ---------------- 右栏条目：AI 评改一句 ---------------- */
+  function buildCriticNote(it) {
+    var note = document.createElement("div");
+    note.className = "note note-critic " + (it.verdict === "好" ? "nc-good" : "nc-bad") +
+      (it.agreed === "yes" ? " nc-yes" : it.agreed === "no" ? " nc-no" : "");
+    note.setAttribute("data-critic-id", String(it.id));
+
+    var head = document.createElement("div");
+    head.className = "note-head";
+    var no = document.createElement("span");
+    no.className = "note-no";
+    no.textContent = "#" + it.no;
+    var verdict = document.createElement("span");
+    verdict.className = "note-verdict";
+    verdict.textContent = it.verdict;
+    head.appendChild(no);
+    head.appendChild(verdict);
+    if (it.ai) {
+      var ai = document.createElement("span");
+      ai.className = "note-ai";
+      ai.textContent = "AI 味";
+      head.appendChild(ai);
+    }
+    if (it.agreed === "yes" || it.agreed === "no") {
+      var flag = document.createElement("span");
+      flag.className = "note-flag";
+      flag.textContent = it.agreed === "yes" ? "已认可" : "已否决";
+      head.appendChild(flag);
+    }
+    note.appendChild(head);
+
+    var why = document.createElement("div");
+    why.className = "note-why";
+    why.textContent = it.reason || (it.verdict === "好" ? "这句没问题，留着。" : "（这条没写原因）");
+    note.appendChild(why);
+
+    if (it.aiWhy) {
+      var aw = document.createElement("div");
+      aw.className = "note-why nc-sub";
+      aw.textContent = "AI 味：" + it.aiWhy;
+      note.appendChild(aw);
+    }
+    if (it.fix) {
+      var fx = document.createElement("div");
+      fx.className = "note-sug";
+      fx.textContent = "方向：" + it.fix;
+      note.appendChild(fx);
+    }
+
+    var acts = document.createElement("div");
+    acts.className = "note-acts nc-acts";
+    var yes = document.createElement("button");
+    yes.type = "button";
+    yes.className = "note-accept" + (it.agreed === "yes" ? " on" : "");
+    yes.textContent = "认可";
+    yes.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "yes"); });
+    var deny = document.createElement("button");
+    deny.type = "button";
+    deny.className = "note-ignore" + (it.agreed === "no" ? " on" : "");
+    deny.textContent = "不认可";
+    deny.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "no"); });
+    acts.appendChild(yes);
+    acts.appendChild(deny);
+    note.appendChild(acts);
+
+    note.addEventListener("click", function () {
+      focusSentence(it.sentence);
+      note.classList.add("active");
+    });
+    return note;
+  }
+
+  /* 把待处理批注与 AI 评改按所在段落一起排进右栏，同段/相邻的依次下移，不互相盖住 */
   function renderMarginNotes() {
     var host = els.paperNotes;
     if (!host) return;
     host.innerHTML = "";
     var marks = pendingMarks();
-    if (!marks.length) {
+    if (!marks.length && !criticItems.length) {
       host.style.height = "";
       return;
     }
@@ -888,76 +1026,32 @@
       if (typeof idx !== "number") return;
       var p = els.paperBody.querySelector('p[data-para="' + idx + '"]');
       if (!p) return;
-      items.push({ m: m, p: p });
+      items.push({ kind: "mark", m: m, p: p, sp: null });
+    });
+    criticItems.forEach(function (it) {
+      var idx = criticPara[it.id];
+      if (typeof idx !== "number") return;
+      var p = els.paperBody.querySelector('p[data-para="' + idx + '"]');
+      if (!p) return;
+      var sp = els.paperBody.querySelector('.critic-mark[data-critic-id="' + it.id + '"]');
+      items.push({ kind: "critic", it: it, p: p, sp: sp });
     });
     if (!items.length) { host.style.height = ""; return; }
 
     var hostTop = host.getBoundingClientRect().top;
     items.forEach(function (it) {
-      it.top = it.p.getBoundingClientRect().top - hostTop;
+      // 评改条目对齐到那句所在的字，比对齐段首更准
+      var base = it.sp ? it.sp.getBoundingClientRect().top : it.p.getBoundingClientRect().top;
+      it.top = base - hostTop;
     });
-    items.sort(function (a, b) { return a.top - b.top; });
+    items.sort(function (a, b) {
+      if (a.top !== b.top) return a.top - b.top;
+      return (a.kind === "mark" ? 0 : 1) - (b.kind === "mark" ? 0 : 1);
+    });
 
     var lastBottom = -999;
     items.forEach(function (it) {
-      var m = it.m;
-      var note = document.createElement("div");
-      note.className = "note note-" + m.type;
-      note.setAttribute("data-mark-id", String(m.id));
-
-      var head = document.createElement("div");
-      head.className = "note-head";
-      var no = document.createElement("span");
-      no.className = "note-no";
-      no.textContent = markNo(m.no);
-      var typ = document.createElement("span");
-      typ.className = "note-type";
-      typ.textContent = SYMBOL_LABEL[m.type] || "批注";
-      head.appendChild(no);
-      head.appendChild(typ);
-      note.appendChild(head);
-
-      var why = document.createElement("div");
-      why.className = "note-why";
-      why.textContent = m.reason || "（这条没写原因）";
-      note.appendChild(why);
-
-      if (m.text && (m.type === "replace" || m.type === "insert")) {
-        var sug = document.createElement("div");
-        sug.className = "note-sug";
-        sug.textContent = (m.type === "insert" ? "增补：" : "改为：") + m.text;
-        note.appendChild(sug);
-      }
-
-      var acts = document.createElement("div");
-      acts.className = "note-acts";
-      var ok = document.createElement("button");
-      ok.type = "button";
-      ok.className = "note-accept";
-      ok.textContent = "采纳";
-      ok.addEventListener("click", function (e) {
-        e.stopPropagation();
-        applyMarkAction(m.id, "accept");
-      });
-      var no2 = document.createElement("button");
-      no2.type = "button";
-      no2.className = "note-ignore";
-      no2.textContent = "忽略";
-      no2.addEventListener("click", function (e) {
-        e.stopPropagation();
-        applyMarkAction(m.id, "ignore");
-      });
-      acts.appendChild(ok);
-      acts.appendChild(no2);
-      note.appendChild(acts);
-
-      note.addEventListener("click", function () {
-        clearActiveMarks();
-        note.classList.add("active");
-        var sp = els.paperBody.querySelector('.ink-mark[data-mark-id="' + m.id + '"]');
-        if (sp) sp.classList.add("active");
-      });
-
+      var note = it.kind === "mark" ? buildMarkNote(it.m) : buildCriticNote(it.it);
       var top = Math.max(0, it.top);
       if (top < lastBottom + 6) top = lastBottom + 6;
       note.style.top = top + "px";
@@ -1002,6 +1096,7 @@
     els.paperBody.textContent = "";
     els.paperBody.classList.remove("paper-empty");
     markPara = {};
+    criticPara = {};
     var marks = pendingMarks();
     docBody.split(/\n+/).filter(function (p) { return p.trim(); }).forEach(function (p, idx) {
       els.paperBody.appendChild(buildMarkedParagraph(p.replace(/\n/g, ""), marks, idx));
@@ -1958,7 +2053,7 @@
     els.outlinePane.hidden = paper;
     els.paperPane.hidden = !paper;
     if (els.criticDock) {
-      els.criticDock.hidden = !paper || !criticItems.length || criticDockClosed;
+      els.criticDock.hidden = !paper || (!criticItems.length && !criticScores.length) || criticDockClosed;
     }
     els.docTabs.querySelectorAll(".doc-tab").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-pane") === name);
@@ -2050,7 +2145,7 @@
     prevAcceptedTexts = [];
     criticItems = [];
     criticScores = [];
-    els.criticList.innerHTML = "";
+    if (els.criticList) els.criticList.innerHTML = "";
     els.criticStat.textContent = "逐句判好坏与 AI 味，不给总分的空头评价。";
     syncAnnotTools();
     setChatMode("annotate");
@@ -2190,7 +2285,7 @@
     outline = { title: "", thesis: "", points: [], note: "" };
     stage = "outline";
     setChatMode("annotate");
-    els.criticList.innerHTML = "";
+    if (els.criticList) els.criticList.innerHTML = "";
     els.criticStat.textContent = "逐句判好坏与 AI 味，不给总分的空头评价。";
     syncAnnotTools();
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
@@ -2612,14 +2707,20 @@
     els.criticApplyBtn.textContent = n ? ("把认可的 " + n + " 条交给 AI 改") : "把认可的问题交给 AI 改";
   }
 
-  // 点稿纸上的评改标记 -> 滚到对应卡片并短暂高亮
+  // 点稿纸上的评改标记 -> 点亮右栏对应旁批
   function focusCriticCard(id) {
-    var card = els.criticList.querySelector('.critic-card[data-critic-id="' + id + '"]');
-    if (!card) return;
-    if (els.criticDock) els.criticDock.hidden = false;
-    card.scrollIntoView({ block: "center", behavior: "smooth" });
-    card.classList.add("critic-focus");
-    setTimeout(function () { card.classList.remove("critic-focus"); }, 1600);
+    if (!els.paperNotes) return;
+    var note = els.paperNotes.querySelector('.note-critic[data-critic-id="' + id + '"]');
+    if (!note) return;
+    var list = els.paperNotes.querySelectorAll(".note.active");
+    for (var i = 0; i < list.length; i++) list[i].classList.remove("active");
+    note.classList.add("active");
+    var paper = note.closest(".paper");
+    if (paper) {
+      var pr = paper.getBoundingClientRect();
+      var nr = note.getBoundingClientRect();
+      if (nr.top < pr.top + 6 || nr.bottom > pr.bottom - 6) note.scrollIntoView({ block: "nearest" });
+    }
   }
 
   function setCriticAgree(id, val) {
@@ -2627,7 +2728,6 @@
     if (!it) return;
     it.agreed = it.agreed === val ? "" : val;
     renderCritic();
-    renderAnnotated();
     setDocHint(it.agreed === "yes" ? ("已认可 #" + it.no + "，可继续挑，最后一起交给 AI 改")
       : it.agreed === "no" ? ("已否决 #" + it.no + "，这条不会交给 AI") : "已取消表态");
   }
@@ -2688,11 +2788,12 @@
   }
 
   function renderCritic() {
-    els.criticList.innerHTML = "";
+    if (els.criticList) els.criticList.innerHTML = "";
     renderCriticScores();
     if (!criticItems.length && !criticScores.length) {
       if (els.criticDock) els.criticDock.hidden = true;
       syncCriticApply();
+      renderAnnotated();
       return;
     }
     criticDockClosed = false;
@@ -2705,85 +2806,10 @@
     }).join(" · ");
     els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
       "共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt +
-      " 句" + (picked ? " · 已认可 " + picked + " 条" : " · 逐条点「认可」再一起交给 AI 改");
+      " 句" + (picked ? " · 已认可 " + picked + " 条" : " · 右栏旁批里逐条点「认可」再一起交给 AI 改");
     syncCriticApply();
-
-    criticItems.forEach(function (it) {
-      var card = document.createElement("div");
-      card.className = "critic-card verdict-" + (it.verdict === "好" ? "good" : "bad") +
-        (it.agreed === "yes" ? " critic-yes" : it.agreed === "no" ? " critic-no" : "");
-      card.setAttribute("data-critic-id", String(it.id));
-      card.title = "点一下定位到稿纸里这句话";
-      (function (sentence) {
-        card.addEventListener("click", function () { focusSentence(sentence); });
-      })(it.sentence);
-
-      var top = document.createElement("div");
-      top.className = "critic-top";
-      var no = document.createElement("span");
-      no.className = "critic-no";
-      no.textContent = "#" + it.no;
-      var verdict = document.createElement("span");
-      verdict.className = "critic-verdict";
-      verdict.textContent = it.verdict;
-      top.appendChild(no);
-      top.appendChild(verdict);
-      if (it.ai) {
-        var ai = document.createElement("span");
-        ai.className = "critic-ai";
-        ai.textContent = "AI 味";
-        top.appendChild(ai);
-      }
-      if (it.agreed === "yes" || it.agreed === "no") {
-        var flag = document.createElement("span");
-        flag.className = "critic-flag";
-        flag.textContent = it.agreed === "yes" ? "我认可" : "不认可";
-        top.appendChild(flag);
-      }
-      card.appendChild(top);
-
-      var sent = document.createElement("div");
-      sent.className = "critic-sentence";
-      sent.textContent = it.sentence;
-      card.appendChild(sent);
-
-      if (it.reason) {
-        var why = document.createElement("div");
-        why.className = "critic-reason";
-        why.textContent = it.reason;
-        card.appendChild(why);
-      }
-      if (it.aiWhy) {
-        var aw = document.createElement("div");
-        aw.className = "critic-aiwhy";
-        aw.textContent = "AI 味：" + it.aiWhy;
-        card.appendChild(aw);
-      }
-      if (it.fix) {
-        var fx = document.createElement("div");
-        fx.className = "critic-fix";
-        fx.textContent = "方向：" + it.fix;
-        card.appendChild(fx);
-      }
-
-      var acts = document.createElement("div");
-      acts.className = "critic-acts";
-      var yes = document.createElement("button");
-      yes.type = "button";
-      yes.className = "critic-agree" + (it.agreed === "yes" ? " on" : "");
-      yes.textContent = "认可";
-      yes.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "yes"); });
-      var deny = document.createElement("button");
-      deny.type = "button";
-      deny.className = "critic-deny" + (it.agreed === "no" ? " on" : "");
-      deny.textContent = "不认可";
-      deny.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "no"); });
-      acts.appendChild(yes);
-      acts.appendChild(deny);
-      card.appendChild(acts);
-
-      els.criticList.appendChild(card);
-    });
+    // 逐句结果全部走右栏旁批，坞里只留评分与汇总
+    renderAnnotated();
   }
 
   // 把学生认可的评改意见拼成一次修改要求，交给批改老师出手批
@@ -2814,7 +2840,7 @@
     if (!c.base || !c.key || !c.model) { setPaperHint("接口未配置，先回工作台填好。"); return; }
 
     els.criticStat.textContent = "正在打分并逐句判…";
-    els.criticList.innerHTML = "";
+    if (els.criticList) els.criticList.innerHTML = "";
     if (els.criticScore) { els.criticScore.innerHTML = ""; els.criticScore.hidden = true; }
     criticItems = [];
     criticScores = [];
@@ -2833,8 +2859,7 @@
       var obj = parseCriticJSON(raw);
       criticItems = obj.items;
       criticScores = obj.scores || [];
-      renderCritic();
-      renderAnnotated();   // 评改句子直接标在原文相应位置
+      renderCritic();      // 内部会重渲染稿纸，评改句标在原句上、评语排进右栏旁批
       switchPane("paper");
 
       var scoreTxt = criticScores.map(function (s) {
@@ -2854,8 +2879,8 @@
       var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
       bubble.textContent = (obj.overall ? obj.overall + " " : "") +
         (scoreTxt ? "得分 " + scoreTxt + "；" : "") +
-        "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），批注在稿纸下方，点一条可以跳到那句。";
-      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评改 " + criticItems.length + " 条在稿纸下方");
+        "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），评语写在稿纸右栏旁批里，点旁批高亮原句。";
+      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评改 " + criticItems.length + " 条在右栏旁批");
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
