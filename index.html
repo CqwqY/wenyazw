@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI 写作工作台 - 文芽作文</title>
-<meta name="description" content="文芽作文 AI 写作工作台：输入题目与接口，AI 先回应你，再把作文逐字写进方格稿纸。">
+<title>创建作文工作台 - 文芽作文</title>
+<meta name="description" content="文芽作文：流程式创建作文工作台，选类别、定题目、设字数、挑评分标准，再进入 AI 生成与修改界面。">
 <link rel="stylesheet" href="assets/css/style.css">
-<link rel="stylesheet" href="assets/css/write.css?v=20261112">
+<link rel="stylesheet" href="assets/css/write.css?v=20261112b">
 </head>
 <body>
 
@@ -21,159 +21,209 @@
 
 <main class="wrap">
 
-  <div class="tool-head">
-    <div>
-      <h1>AI 写作工作台<span class="badge-new">核心功能</span></h1>
-      <p>输入题目与接口，AI 先回应你，再把作文逐字写进方格稿纸。</p>
-    </div>
-    <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
-  </div>
+  <!-- ============ 创建作文工作台 ============ -->
+  <section id="wizard">
 
-  <section class="config-panel" id="configPanel" hidden>
-    <div class="config-grid">
+    <div class="tool-head">
       <div>
-        <div class="config-note">
-          <strong>密钥只存在本机浏览器</strong>，不会上传到本站 —— 本站是纯静态页面，没有后端。
-          浏览器直连需要服务商允许跨域。公共电脑请勿勾选「记住 Key」，用完点清除配置。
+        <h1>创建作文工作台<span class="badge-new">核心功能</span></h1>
+        <p>四步定好题目，挑一个评分标准，再进入 AI 生成与修改界面。</p>
+      </div>
+      <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
+    </div>
+
+    <section class="config-panel" id="configPanel" hidden>
+      <div class="config-grid">
+        <div>
+          <div class="config-note">
+            <strong>密钥只存在本机浏览器</strong>，不会上传到本站 —— 本站是纯静态页面，没有后端。
+            浏览器直连需要服务商允许跨域。公共电脑请勿勾选「记住 Key」，用完点清除配置。
+          </div>
+          <div class="field">
+            <label for="cfgPreset">服务商预设</label>
+            <select class="select" id="cfgPreset">
+              <option value="deepseek">DeepSeek</option>
+              <option value="moonshot">Moonshot / Kimi</option>
+              <option value="qwen">通义千问（兼容模式）</option>
+              <option value="openai">OpenAI</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cfgBase">Base URL</label>
+            <input class="input" id="cfgBase" placeholder="https://api.deepseek.com/v1" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="cfgKey">API Key</label>
+            <div class="key-row">
+              <input class="input" id="cfgKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off">
+              <button class="btn-mini" id="keyToggle">显示</button>
+            </div>
+          </div>
         </div>
-        <div class="field">
-          <label for="cfgPreset">服务商预设</label>
-          <select class="select" id="cfgPreset">
-            <option value="deepseek">DeepSeek</option>
-            <option value="moonshot">Moonshot / Kimi</option>
-            <option value="qwen">通义千问（兼容模式）</option>
-            <option value="openai">OpenAI</option>
-            <option value="custom">自定义</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="cfgBase">Base URL</label>
-          <input class="input" id="cfgBase" placeholder="https://api.deepseek.com/v1" spellcheck="false">
-        </div>
-        <div class="field">
-          <label for="cfgKey">API Key</label>
-          <div class="key-row">
-            <input class="input" id="cfgKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off">
-            <button class="btn-mini" id="keyToggle">显示</button>
+        <div>
+          <div class="field">
+            <label for="cfgModel">模型名</label>
+            <input class="input" id="cfgModel" placeholder="deepseek-chat" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="cfgPath">接口路径</label>
+            <input class="input" id="cfgPath" spellcheck="false">
+          </div>
+          <div class="row-2">
+            <div class="field">
+              <label for="cfgTemp">temperature</label>
+              <input class="input" id="cfgTemp" type="number" min="0" max="2" step="0.1">
+            </div>
+            <div class="field">
+              <label for="cfgMaxTokens">max_tokens</label>
+              <input class="input" id="cfgMaxTokens" type="number" min="64" max="16000" step="100">
+            </div>
+          </div>
+          <label style="font-size:13.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:center">
+            <input type="checkbox" id="cfgRemember"> 记住 Key（本机）
+          </label>
+          <div class="actions" style="margin-top:14px">
+            <button class="btn-outline" id="testBtn">测试连接</button>
+            <div class="spacer"></div>
+            <button class="btn-outline" id="resetCfg">清除配置</button>
           </div>
         </div>
       </div>
-      <div>
-        <div class="field">
-          <label for="cfgModel">模型名</label>
-          <input class="input" id="cfgModel" placeholder="deepseek-chat" spellcheck="false">
+    </section>
+
+    <!-- 步骤条 -->
+    <ol class="wizard-steps" id="wizardSteps">
+      <li class="done" data-step="1"><span class="dot">1</span>选择类别</li>
+      <li data-step="2"><span class="dot">2</span>输入题目</li>
+      <li data-step="3"><span class="dot">3</span>选择字数</li>
+      <li data-step="4"><span class="dot">4</span>额外要求</li>
+    </ol>
+
+    <div class="wizard-body">
+
+      <!-- 步骤 1：类别 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">1</span><h2>选择类别</h2></div>
+        <div class="cat-grid" id="catGrid">
+          <button class="cat-card" data-cat="命题">
+            <div class="cat-name">命题</div>
+            <div class="cat-desc">题目已经给定，照题写。</div>
+          </button>
+          <button class="cat-card" data-cat="半命题">
+            <div class="cat-name">半命题</div>
+            <div class="cat-desc">题目留空，你来补全。</div>
+          </button>
+          <button class="cat-card" data-cat="自拟">
+            <div class="cat-name">自拟</div>
+            <div class="cat-desc">题目与内容都由你定。</div>
+          </button>
         </div>
-        <div class="field">
-          <label for="cfgPath">接口路径</label>
-          <input class="input" id="cfgPath" spellcheck="false">
-        </div>
-        <div class="row-2">
-          <div class="field">
-            <label for="cfgTemp">temperature</label>
-            <input class="input" id="cfgTemp" type="number" min="0" max="2" step="0.1">
-          </div>
-          <div class="field">
-            <label for="cfgMaxTokens">max_tokens</label>
-            <input class="input" id="cfgMaxTokens" type="number" min="64" max="16000" step="100">
-          </div>
-        </div>
-        <label style="font-size:13.5px;color:var(--ink-soft);display:flex;gap:8px;align-items:center">
-          <input type="checkbox" id="cfgRemember"> 记住 Key（本机）
-        </label>
-        <div class="actions" style="margin-top:14px">
-          <button class="btn-outline" id="testBtn">测试连接</button>
-          <div class="spacer"></div>
-          <button class="btn-outline" id="resetCfg">清除配置</button>
-        </div>
+        <p class="wstep-tip" id="catTip">三选一：命题 / 半命题 / 自拟。</p>
       </div>
-    </div>
-  </section>
 
-  <div class="stage">
-
-    <div class="left-col">
-
-      <section class="panel context-panel">
-        <div class="panel-title">
-          <h2>对话上下文</h2>
-          <span class="hint">本次会话</span>
-        </div>
-        <div class="context-list" id="contextList">
-          <div class="context-empty" id="contextEmpty">还没有对话。写下题目，点「生成作文」，AI 的回应和作文会依次出现在这里。</div>
-        </div>
-      </section>
-
-      <section class="panel input-panel">
-        <div class="panel-title">
-          <h2>输入</h2>
-          <span class="hint">Ctrl + Enter 生成</span>
-        </div>
-        <div class="field">
-          <label for="topic">作文题目 / 题材</label>
-          <textarea class="textarea" id="topic" placeholder="例：老窑厂那批蛤蟆纹茶碗，老师傅守旧纹样，徒弟想换成招财猫"></textarea>
+      <!-- 步骤 2：题目 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">2</span><h2>输入题目</h2></div>
+        <div class="chat-box">
+          <textarea class="chat-input-area" id="topic" rows="3"
+            placeholder="例：老窑厂那批蛤蟆纹茶碗，老师傅守旧纹样，徒弟想换成招财猫"></textarea>
+          <div class="chat-hint">把题目或题材写在这里，像给 AI 发一句话。</div>
           <div class="examples">
             <button class="ex-chip" data-topic="窑上那批蛤蟆纹茶碗：老师傅守老纹样，小辈想改成招财的样式">蛤蟆纹茶碗</button>
             <button class="ex-chip" data-topic="老木匾上刻着「立马发财」，招牌要翻新，老师傅说这是倒反天罡">立马发财匾</button>
             <button class="ex-chip" data-topic="修伞铺最后一把伞，师父嘴上骂，夜里把伞骨换了新的">修伞铺</button>
           </div>
         </div>
-        <details class="more-options">
-          <summary>更多选项（学段、篇幅、额外要求）</summary>
-          <div class="body">
-            <div class="row-2">
-              <div class="field">
-                <label for="grade">学段</label>
-                <select class="select" id="grade">
-                  <option value="">不限</option>
-                  <option value="小学">小学</option>
-                  <option value="初中">初中</option>
-                  <option value="高中">高中</option>
-                </select>
-              </div>
-              <div class="field">
-                <label for="length">篇幅</label>
-                <select class="select" id="length">
-                  <option value="约 800 字">约 800 字</option>
-                  <option value="约 600 字">约 600 字</option>
-                  <option value="约 1000 字">约 1000 字</option>
-                  <option value="不限">不限</option>
-                </select>
-              </div>
-            </div>
-            <div class="field">
-              <label for="extra">额外要求 <span class="opt">（选填）</span></label>
-              <input class="input" id="extra" placeholder="例：分歧落在一只碗的釉色上">
-            </div>
-          </div>
-        </details>
-        <div class="actions">
-          <button class="btn btn-primary" id="genBtn">生成作文</button>
-          <button class="btn-outline" id="stopBtn" disabled>停止</button>
-          <button class="btn-outline" id="clearBtn">清空</button>
+      </div>
+
+      <!-- 步骤 3：字数 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">3</span><h2>选择字数</h2></div>
+        <div class="word-roller">
+          <button class="roller-btn" id="wordMinus" aria-label="减少">−</button>
+          <div class="roller-num" id="wordNum">800</div>
+          <button class="roller-btn" id="wordPlus" aria-label="增加">+</button>
         </div>
-        <div class="status-line" id="status" role="status"></div>
-      </section>
+        <input type="range" class="word-range" id="wordRange" min="300" max="2000" step="50" value="800">
+        <div class="word-scale">
+          <span>300</span><span>800</span><span>1300</span><span>2000</span>
+        </div>
+        <p class="wstep-tip">目标字数（<strong>包含标点</strong>），拖动滚动条或点 ± 调整。</p>
+      </div>
+
+      <!-- 步骤 4：额外要求 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">4</span><h2>额外要求</h2><span class="wstep-opt">选填</span></div>
+        <div class="chat-box">
+          <textarea class="chat-input-area" id="extra" rows="3"
+            placeholder="例：分歧落在一只碗的釉色上；结尾用一句老师傅的话收住"></textarea>
+          <div class="chat-hint">补充立意、器物、风格等要求，没有就留空。</div>
+        </div>
+      </div>
+
+      <!-- 评分标准 -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">5</span><h2>评分标准（给 AI 参照）</h2></div>
+        <div class="scoring-grid" id="scoringGrid">
+          <button class="scoring-card selected" data-province="全国卷（通用）">
+            <div class="scoring-name">全国卷（通用）</div>
+            <div class="scoring-desc">基础40+发展20，先定档再给分</div>
+          </button>
+        </div>
+        <p class="wstep-tip" id="scoringTip">已选：全国卷（通用）。选定省份的评分细则会注入提示词，引导 AI 按该尺度写作。</p>
+      </div>
+
+      <div class="wizard-actions">
+        <button class="btn btn-primary btn-lg" id="startBtn">开始生成</button>
+        <div class="status-line" id="wizardStatus" role="status"></div>
+      </div>
 
     </div>
+  </section>
 
-    <section class="paper-col">
-      <div class="paper-bar">
-        <h2>作文</h2>
-        <div class="tools">
-          <span class="paper-stat" id="paperStat"></span>
-          <button class="btn-outline" id="copyBtn">复制</button>
-          <button class="btn-outline" id="downloadBtn">下载 txt</button>
+  <!-- ============ 生成界面 ============ -->
+  <section id="studio" hidden>
+
+    <div class="studio-top">
+      <button class="btn-outline" id="backBtn">← 返回工作台</button>
+      <div class="studio-meta" id="studioMeta"></div>
+      <div class="studio-tools">
+        <span class="paper-stat" id="paperStat"></span>
+        <button class="btn-outline" id="copyBtn">复制</button>
+        <button class="btn-outline" id="downloadBtn">下载 txt</button>
+      </div>
+    </div>
+
+    <div class="studio-grid">
+      <div class="studio-left">
+        <div class="chat-panel">
+          <div class="chat-list" id="contextList">
+            <div class="context-empty" id="contextEmpty">还没有对话。AI 的回应会显示在上方，作文写在右侧稿纸。</div>
+          </div>
+          <div class="chat-foot">
+            <textarea class="chat-input-area" id="chatInput" rows="2"
+              placeholder="对这篇作文提个修改要求，例如：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的话"></textarea>
+            <div class="chat-send-row">
+              <button class="btn-outline" id="stopBtn2" disabled>停止</button>
+              <div class="spacer"></div>
+              <button class="btn btn-primary" id="sendBtn">发送</button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="paper">
-        <div class="paper-inner">
-          <div class="paper-title" id="paperTitle">作文稿纸</div>
-          <div class="paper-body paper-empty" id="paperBody"></div>
+
+      <div class="studio-right">
+        <div class="paper">
+          <div class="paper-inner">
+            <div class="paper-title" id="paperTitle">作文稿纸</div>
+            <div class="paper-body paper-empty" id="paperBody"></div>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
 
-  </div>
+  </section>
 
 </main>
 
@@ -186,7 +236,7 @@
   </div>
 </footer>
 
-<script src="assets/js/prompt.js?v=20261112"></script>
-<script src="assets/js/write.js?v=20261112"></script>
+<script src="assets/js/prompt.js?v=20261112b"></script>
+<script src="assets/js/write.js?v=20261112b"></script>
 </body>
 </html>
