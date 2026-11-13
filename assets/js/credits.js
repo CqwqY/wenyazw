@@ -46,6 +46,8 @@
     return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
   }
 
+  var COIN = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="#d9a441" stroke="#a97b1f" stroke-width="1"/><circle cx="8" cy="8" r="2.6" fill="#fdf3dd"/></svg>';
+
   function renderLog(rows) {
     els.log.innerHTML = "";
     if (!rows || !rows.length) {
@@ -71,7 +73,7 @@
       var d = document.createElement("span");
       var delta = Number(r.delta) || 0;
       d.className = "credit-delta " + (delta > 0 ? "plus" : "minus");
-      d.textContent = (delta > 0 ? "+" : "") + delta;
+      d.innerHTML = COIN + "<span>" + (delta > 0 ? "+" : "") + delta + "</span>";
 
       row.appendChild(t);
       row.appendChild(why);
@@ -87,8 +89,8 @@
       els.balance.textContent = String(j.credits);
       if (window.WY_AUTH && window.WY_AUTH.setCredits) window.WY_AUTH.setCredits(j.credits);
       if (j.costPerCall && els.heroTip) {
-        els.heroTip.textContent = "每次 AI 操作扣 " + j.costPerCall +
-          " 分 · 生成失败自动退回 · 用自己的接口不扣";
+        els.heroTip.textContent = "每次 AI 操作消耗 " + j.costPerCall +
+          " 积分 · 生成失败自动退回 · 用自己的接口不消耗";
       }
       renderLog(j.log);
       if (els.balance.textContent === "0") {

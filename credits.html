@@ -11,13 +11,13 @@
 <link rel="mask-icon" href="assets/img/wenya-icon.svg" color="#2C6B4A">
 <meta name="theme-color" content="#2C6B4A">
 <title>积分与兑换 - 文芽作文</title>
-<meta name="description" content="文芽作文积分：查看余额与明细，用兑换码换积分。站内模型每次 AI 操作扣 1 积分，生成失败自动退回。">
+<meta name="description" content="文芽作文积分：查看余额与明细，用兑换码换积分。站内模型每次 AI 操作消耗 1 积分，生成失败自动退回。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261114B">
-<link rel="stylesheet" href="assets/css/write.css?v=20261114B">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261114B">
-<link rel="stylesheet" href="assets/css/account.css?v=20261114B">
-<link rel="stylesheet" href="assets/css/credits.css?v=20261114B">
+<link rel="stylesheet" href="assets/css/style.css?v=20261114C">
+<link rel="stylesheet" href="assets/css/write.css?v=20261114C">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261114C">
+<link rel="stylesheet" href="assets/css/account.css?v=20261114C">
+<link rel="stylesheet" href="assets/css/credits.css?v=20261114C">
 </head>
 <body class="page-stick">
 
@@ -35,7 +35,7 @@
   <div class="tool-head">
     <div>
       <h1>积分</h1>
-      <p>站内模型每次 AI 操作扣 1 分，生成失败自动退回；换成自己填的接口不扣分。</p>
+      <p>站内模型每次 AI 操作消耗 1 积分，生成失败自动退回；换成自己填的接口不消耗积分。</p>
     </div>
     <a class="btn btn-ghost" href="write.html">返回工作台</a>
   </div>
@@ -51,9 +51,10 @@
       <div>
         <span class="credit-hero-label">当前余额</span>
         <div class="credit-hero-num">
+          <svg class="credit-coin" viewBox="0 0 16 16" width="30" height="30" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="#d9a441" stroke="#a97b1f" stroke-width="1"/><circle cx="8" cy="8" r="2.6" fill="#fdf3dd"/></svg>
           <span id="creditBalance">—</span><span class="credit-hero-unit">积分</span>
         </div>
-        <p class="credit-hero-tip" id="creditHeroTip">注册送 15 分 · 每次 AI 操作扣 1 分 · 失败自动退回</p>
+        <p class="credit-hero-tip" id="creditHeroTip">注册送 15 分 · 每次 AI 操作消耗 1 积分 · 失败自动退回</p>
       </div>
       <div class="credit-hero-side">
         <a class="btn btn-primary" href="write.html">去写作文</a>
@@ -76,7 +77,7 @@
         <h2 class="credit-title">积分怎么算</h2>
         <ul class="credit-rules">
           <li>注册即送 15 积分。</li>
-          <li>站内模型每发一次请求扣 1 分：拟大纲、写正文、AI 增补、批改、评改、提问、测试连接都算。</li>
+          <li>站内模型每发一次请求消耗 1 积分：拟大纲、写正文、AI 增补、批改、评改、提问、测试连接都算。</li>
           <li>整次请求失败（所有模型都没出内容）会自动把那 1 分退回，明细里能看到「退回」记录。</li>
           <li>切到「自填 Key」用自己的接口，不消耗积分。</li>
         </ul>
@@ -140,7 +141,7 @@
   </div>
 </div>
 
-<script src="assets/js/auth.js?v=20261114B"></script>
-<script src="assets/js/credits.js?v=20261114B"></script>
+<script src="assets/js/auth.js?v=20261114C"></script>
+<script src="assets/js/credits.js?v=20261114C"></script>
 </body>
 </html>
