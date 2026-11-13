@@ -2523,9 +2523,29 @@
       + "该条款与通用铁律冲突时以文体规则为准。";
   }
 
+  // 把「广东」这类短名对到评分表真实 key（如「广东（中考）」）：
+  // 否则取不到该省标准，会错回退成「全国卷（通用）」60 分制
+  function resolveProvinceKey(p) {
+    p = trim(p);
+    if (!p) return "";
+    var all = window.WY_SCORING || {};
+    if (all[p]) return p;
+    var hit = "";
+    Object.keys(all).forEach(function (k) {
+      if (hit) return;
+      if (k.indexOf(p) >= 0 || p.indexOf(k) >= 0) hit = k;
+    });
+    return hit;
+  }
+
   function provinceList() {
     var list = (activeProvinces && activeProvinces.length) ? activeProvinces : selectedProvinces;
-    return list && list.length ? list : ["全国卷（通用）"];
+    var out = [];
+    (list || []).forEach(function (p) {
+      var k = resolveProvinceKey(p) || p;
+      if (k && out.indexOf(k) < 0) out.push(k);
+    });
+    return out.length ? out : ["全国卷（通用）"];
   }
 
   function stageNow() { return activeStage || selectedStage || "初中"; }
@@ -3165,7 +3185,11 @@
 
   function resumeProvinceList(str) {
     var all = String(str || "").split(/[、,，]/).map(trim).filter(Boolean);
-    var ok = all.filter(function (p) { return window.WY_SCORING && window.WY_SCORING[p]; });
+    var ok = [];
+    all.forEach(function (p) {
+      var k = resolveProvinceKey(p);   // 「广东」→「广东（中考）」，保住 50 分制
+      if (k && ok.indexOf(k) < 0) ok.push(k);
+    });
     return ok.length ? ok : selectedProvinces.slice();
   }
 
@@ -3685,13 +3709,21 @@
     var out = [];
     arr.forEach(function (r, i) {
       if (!r) return;
-      var prov = trim(r.province);
+      var prov = resolveProvinceKey(r.province) || trim(r.province);
       if (!all[prov]) {
         var hit = "";
         wanted.forEach(function (p) {
           if (hit) return;
           if (prov && (prov.indexOf(p) >= 0 || p.indexOf(prov) >= 0)) hit = p;
         });
+        // 评分表 key 可能带学段后缀（如「广东（中考）」），而 AI 只回「广东」；
+        // 再按表里真实的 key 模糊对一次，避免错回退成「全国卷（通用）」60 分制
+        if (!hit) {
+          Object.keys(all).forEach(function (k) {
+            if (hit) return;
+            if (prov && (k.indexOf(prov) >= 0 || prov.indexOf(k) >= 0)) hit = k;
+          });
+        }
         prov = hit || wanted[i] || wanted[0] || "";
       }
       var std = all[prov];
