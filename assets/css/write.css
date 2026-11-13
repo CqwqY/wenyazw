@@ -2541,3 +2541,85 @@ table.score-table .score-table-key {
 .history-diff-body .diff-add { background: rgba(47, 111, 78, .12); color: #1f5135; }
 .history-diff-body .diff-ins { background: rgba(47, 111, 78, .35); color: #0f3a22; border-radius: 2px; }
 .history-diff-body .diff-del-inline { background: rgba(192, 100, 47, .35); color: #6e3a1c; border-radius: 2px; text-decoration: line-through; }
+
+/* ============ 点评判句：悬浮评语小卡（非弹窗、无遮罩、不遮稿纸） ============ */
+.critic-pop {
+  position: fixed;
+  z-index: 90;
+  max-width: 320px;
+  padding: 10px 12px 8px;
+  border: 1px solid var(--line, #e3e0d6);
+  border-radius: 12px;
+  background: #fffdf8;
+  box-shadow: 0 10px 30px rgba(35, 40, 36, .18), 0 2px 6px rgba(35, 40, 36, .08);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink, #232824);
+}
+.critic-pop-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
+.critic-pop-no {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  padding: 0 6px;
+  border-radius: 999px;
+}
+.critic-pop-no.bad { background: #c0642f; }
+.critic-pop-no.good { background: #2f6f4e; }
+.critic-pop-verdict { font-weight: 600; font-size: 12.5px; }
+.critic-pop-verdict.bad { color: #a34f1c; }
+.critic-pop-verdict.good { color: #2f6f4e; }
+.critic-pop-tag {
+  font-size: 10.5px;
+  color: #8a4a25;
+  background: rgba(192, 100, 47, .14);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.critic-pop-quote {
+  margin: 2px 0 6px;
+  color: var(--ink-mute, #6b6b6b);
+  font-family: var(--hand, inherit);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.critic-pop-row { margin: 4px 0; }
+.critic-pop-row b { font-weight: 600; color: var(--ink, #232824); }
+.critic-pop-row.warn { color: #8a4a25; }
+.critic-pop-row.warn b { color: #8a4a25; }
+.critic-pop-row.fix { color: #2f6f4e; }
+.critic-pop-row.fix b { color: #2f6f4e; }
+.critic-pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line, #e3e0d6);
+}
+.critic-pop-more {
+  border: 0;
+  background: transparent;
+  color: var(--brand, #2f6f4e);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.critic-pop-more:hover { text-decoration: underline; }
+
+/* 正在看小卡的那一句：留个轮廓，和抽屉里的选中态一致 */
+.paper-body .critic-mark.pop-on { outline: 2px solid #2f6f4e; outline-offset: 1px; }
+
+@media (max-width: 720px) {
+  .critic-pop { max-width: calc(100vw - 16px); font-size: 12px; }
+}
+.history-diff-legend {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--ink-mute, #8a8a8a);
+  margin: 2px 0 6px;
+}
+.history-diff-legend .lg-add { color: #1f5135; }
+.history-diff-legend .lg-del { color: #8a4a25; }

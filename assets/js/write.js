@@ -94,7 +94,7 @@
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
-    paperNotes: $("paperNotes"), undoRewriteBtn: $("undoRewriteBtn"),
+    paperNotes: $("paperNotes"), undoRewriteBtn: $("undoRewriteBtn"), diffBtn: $("diffBtn"),
     drawerNoteList: $("drawerNoteList"), drawerNoteEmpty: $("drawerNoteEmpty"),
     drawerDotNotes: $("drawerDotNotes"),
 
@@ -218,6 +218,7 @@
     if (versions.length > 60) versions.shift();
     persistVersions();
     if (els.historyList) renderHistoryList();
+    updateDiffBtn();
     syncDrawerDots();
   }
   function resetComposition() {
@@ -353,6 +354,16 @@
     });
   }
 
+  // 两段够不够像「同一段的改写」：逐字 LCS 命中比例，太低就别硬做 inline 交错，
+  // 否则两段不相干的文字会被拼成一句读不通的乱码。
+  function paraSimilarity(a, b) {
+    a = String(a || ""); b = String(b || "");
+    if (!a.length || !b.length) return 0;
+    var ops = charDiff(a, b), hit = 0;
+    ops.forEach(function (o) { if (o.t === "eq") hit += o.s.length; });
+    return hit / Math.max(a.length, b.length);
+  }
+
   function renderHistoryDiff(prevV, curV) {
     if (!els.historyList) return;
     var box = document.createElement("div");
@@ -360,43 +371,70 @@
     var h = document.createElement("div");
     h.className = "history-diff-head";
     h.textContent = "改动对照：上一版 → 本版";
+    var lg = document.createElement("div");
+    lg.className = "history-diff-legend";
+    var lAdd = document.createElement("span");
+    lAdd.className = "lg-add";
+    lAdd.textContent = "绿色 = 新增";
+    var lDel = document.createElement("span");
+    lDel.className = "lg-del";
+    lDel.textContent = "红色 = 删除";
+    lg.appendChild(lAdd);
+    lg.appendChild(lDel);
     box.appendChild(h);
+    box.appendChild(lg);
 
     var pa = splitParas(prevV.body), pb = splitParas(curV.body);
     var ops = diffParas(pa, pb);
     var body = document.createElement("div");
     body.className = "history-diff-body";
-    for (var k = 0; k < ops.length; k++) {
-      var o = ops[k], nxt = ops[k + 1];
+
+    function addPara(cls, txt) {
+      var p = document.createElement("p");
+      p.className = cls;
+      p.textContent = txt;
+      body.appendChild(p);
+    }
+    function addInline(aTxt, bTxt) {
+      var p = document.createElement("p");
+      p.className = "diff-add";
+      charDiff(aTxt, bTxt).forEach(function (c) {
+        if (c.t === "eq") p.appendChild(document.createTextNode(c.s));
+        else {
+          var sp = document.createElement("span");
+          sp.className = c.t === "add" ? "diff-ins" : "diff-del-inline";
+          sp.textContent = c.s;
+          p.appendChild(sp);
+        }
+      });
+      body.appendChild(p);
+    }
+
+    var i = 0;
+    while (i < ops.length) {
+      var o = ops[i];
       if (o.t === "eq") {
-        var pe = document.createElement("p");
-        pe.className = "diff-eq";
-        pe.textContent = pa[o.a];
-        body.appendChild(pe);
-      } else if (o.t === "del" && nxt && nxt.t === "add") {
-        var pc = document.createElement("p");
-        pc.className = "diff-add";
-        charDiff(pa[o.a], pb[nxt.b]).forEach(function (c) {
-          if (c.t === "eq") pc.appendChild(document.createTextNode(c.s));
-          else {
-            var sp = document.createElement("span");
-            sp.className = c.t === "add" ? "diff-ins" : "diff-del-inline";
-            sp.textContent = c.s;
-            pc.appendChild(sp);
-          }
-        });
-        body.appendChild(pc);
-        k++;   // 跳过紧随的 add
-      } else if (o.t === "del") {
-        var pd = document.createElement("p");
-        pd.className = "diff-del";
-        pd.textContent = pa[o.a];
-        body.appendChild(pd);
-      } else {
-        var pa2 = document.createElement("p");
-        pa2.className = "diff-add";
-        pa2.textContent = pb[o.b];
-        body.appendChild(pa2);
+        addPara("diff-eq", pa[o.a]);
+        i++;
+        continue;
+      }
+      // 把连续的一整块删除/新增收起来，再按顺序一对一配：
+      // 够像同一段改写的做逐字对照，不像的各出一行（红删、绿增）
+      var dels = [], adds = [];
+      while (i < ops.length && ops[i].t !== "eq") {
+        if (ops[i].t === "del") dels.push(pa[ops[i].a]);
+        else adds.push(pb[ops[i].b]);
+        i++;
+      }
+      var groupN = Math.max(dels.length, adds.length);
+      for (var g = 0; g < groupN; g++) {
+        var aTxt = g < dels.length ? dels[g] : null;
+        var bTxt = g < adds.length ? adds[g] : null;
+        if (aTxt != null && bTxt != null && paraSimilarity(aTxt, bTxt) >= 0.55) addInline(aTxt, bTxt);
+        else {
+          if (aTxt != null) addPara("diff-del", aTxt);
+          if (bTxt != null) addPara("diff-add", bTxt);
+        }
       }
     }
     box.appendChild(body);
@@ -424,6 +462,21 @@
     commitVersion("恢复到「" + (v.label || "修改") + "」版");
     setPaperHint("已恢复到 " + (v.label || "修改") + " 版（可再退回）");
     setDocHint("已恢复历史版本");
+  }
+
+  /* 工具条上的「改动对照」：只有两版以上才出现，点了直接看最新一版相对上一版改了什么 */
+  function updateDiffBtn() {
+    if (!els.diffBtn) return;
+    els.diffBtn.hidden = versions.length < 2;
+  }
+
+  function openLatestDiff() {
+    if (versions.length < 2) {
+      setPaperHint("还没有可比对的上一版，改一次稿就会自动存版本。");
+      return;
+    }
+    setDrawer(true, "history");
+    renderHistoryDiff(versions[versions.length - 2], versions[versions.length - 1]);
   }
 
   /* ---------------- 配置持久化 ---------------- */
@@ -1577,16 +1630,128 @@
       sp.setAttribute("data-critic-id", String(c.item.id));
       sp.setAttribute("data-critic-no", String(c.item.no));
       sp.title = "AI 评改 #" + c.item.no + "（" + c.item.verdict + "）：" + (c.item.reason || "");
-      (function (item) {
-        sp.addEventListener("click", function (e) {
+      (function (item, node) {
+        node.addEventListener("click", function (e) {
           e.stopPropagation();
+          showCriticPop(item, node);
           focusCriticCard(item.id);
         });
-      })(c.item);
+      })(c.item, sp);
       el.appendChild(sp);
       p = en;
     });
     if (p < text.length) appendPlainWithHighlights(el, text.slice(p));
+  }
+
+  /* ---------------- 点评判句 → 悬浮小卡（非弹窗、不遮稿纸） ----------------
+     fixed 定位挂在句子旁边，不加遮罩、不进排版流、不改稿纸几何；
+     点别处 / Esc / 滚动即收。卡片只解释这一句为什么被判成好坏，
+     要「认可 / 不认可」再去右侧抽屉，避免小卡上堆一排按钮。 */
+
+  var criticPopEl = null, criticPopId = null;
+
+  function ensureCriticPop() {
+    if (criticPopEl && document.body.contains(criticPopEl)) return criticPopEl;
+    var d = document.createElement("div");
+    d.className = "critic-pop";
+    d.hidden = true;
+    d.addEventListener("click", function (e) { e.stopPropagation(); });
+    document.body.appendChild(d);
+    criticPopEl = d;
+    return d;
+  }
+
+  function hideCriticPop() {
+    if (criticPopEl) criticPopEl.hidden = true;
+    if (els.paperBody) {
+      var m = els.paperBody.querySelector(".critic-mark.pop-on");
+      if (m) m.classList.remove("pop-on");
+    }
+    criticPopId = null;
+  }
+
+  function popLine(label, text, cls) {
+    var p = document.createElement("p");
+    p.className = "critic-pop-row" + (cls ? " " + cls : "");
+    var b = document.createElement("b");
+    b.textContent = label;
+    p.appendChild(b);
+    p.appendChild(document.createTextNode(text));
+    return p;
+  }
+
+  function placeCriticPop(pop, anchor) {
+    pop.style.visibility = "hidden";
+    pop.hidden = false;
+    pop.style.left = "0px";
+    pop.style.top = "0px";
+    var w = pop.offsetWidth, h = pop.offsetHeight;
+    var r = anchor.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var left = Math.min(Math.max(8, r.left - 4), Math.max(8, vw - w - 8));
+    var top = r.top - h - 10;
+    if (top < 8) top = Math.min(r.bottom + 10, Math.max(8, vh - h - 8));
+    pop.style.left = Math.round(left) + "px";
+    pop.style.top = Math.round(top) + "px";
+    pop.style.visibility = "";
+  }
+
+  function showCriticPop(item, anchor) {
+    if (!item) return;
+    var pop = ensureCriticPop();
+    if (criticPopId === item.id && !pop.hidden) { hideCriticPop(); return; }
+    hideCriticPop();
+    pop.innerHTML = "";
+
+    var head = document.createElement("div");
+    head.className = "critic-pop-head";
+    var no = document.createElement("span");
+    no.className = "critic-pop-no " + (item.verdict === "好" ? "good" : "bad");
+    no.textContent = "#" + item.no;
+    var vd = document.createElement("span");
+    vd.className = "critic-pop-verdict " + (item.verdict === "好" ? "good" : "bad");
+    vd.textContent = item.verdict === "好" ? "这句写得好" : (item.hard ? "硬伤 · " + item.hard : "小毛病");
+    head.appendChild(no);
+    head.appendChild(vd);
+    if (item.ai) {
+      var t = document.createElement("span");
+      t.className = "critic-pop-tag";
+      t.textContent = "有 AI 味";
+      head.appendChild(t);
+    }
+    pop.appendChild(head);
+
+    if (item.sentence) {
+      var q = document.createElement("p");
+      q.className = "critic-pop-quote";
+      q.textContent = "「" + item.sentence.slice(0, 64) + "」";
+      pop.appendChild(q);
+    }
+    if (item.reason) pop.appendChild(popLine("为什么：", item.reason));
+    if (item.ai && item.aiWhy) pop.appendChild(popLine("AI 味：", item.aiWhy, "warn"));
+    if (item.fix) pop.appendChild(popLine("可以改成：", item.fix, "fix"));
+
+    var foot = document.createElement("div");
+    foot.className = "critic-pop-foot";
+    var more = document.createElement("button");
+    more.type = "button";
+    more.className = "critic-pop-more";
+    more.textContent = "在右侧看全部评语";
+    more.onclick = function () {
+      hideCriticPop();
+      setDrawer(true, "critic");
+      focusCriticCard(item.id);
+    };
+    foot.appendChild(more);
+    pop.appendChild(foot);
+
+    placeCriticPop(pop, anchor);
+
+    if (els.paperBody) {
+      var m = els.paperBody.querySelector('.critic-mark[data-critic-id="' + item.id + '"]');
+      if (m) m.classList.add("pop-on");
+    }
+    criticPopId = item.id;
   }
 
   /* 批注锚点所在的段落序号，渲染旁批时用来对齐行位置 */
@@ -3679,7 +3844,7 @@
     saveEssayToCloud();
     scheduleEssaySave();
 
-    var done = "已从头重写整篇 · 字数 " + plain(docBody) + " · 可用「恢复上一版」退回";
+    var done = "已从头重写整篇 · 字数 " + plain(docBody) + " · 可看「改动对照」或「恢复上一版」";
     setPaperHint(done);
     setDocHint(done);
     commitVersion("重写");
@@ -4462,6 +4627,27 @@
     setDocHint(msg);
   });
 
+  if (els.diffBtn) on(els.diffBtn, "click", openLatestDiff);
+
+  // 悬浮评语小卡：点别处 / Esc / 滚动即收（稿纸自己的选字逻辑不受影响）
+  document.addEventListener("click", function (e) {
+    if (!criticPopEl || criticPopEl.hidden) return;
+    var t = e.target;
+    if (t && t.closest && (t.closest(".critic-pop") || t.closest(".critic-mark"))) return;
+    hideCriticPop();
+  }, true);
+  document.addEventListener("touchstart", function (e) {
+    if (!criticPopEl || criticPopEl.hidden) return;
+    var t = e.target;
+    if (t && t.closest && (t.closest(".critic-pop") || t.closest(".critic-mark"))) return;
+    hideCriticPop();
+  }, { passive: true, capture: true });
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" || e.keyCode === 27) hideCriticPop();
+  });
+  window.addEventListener("scroll", function () { hideCriticPop(); }, true);
+  window.addEventListener("resize", function () { hideCriticPop(); });
+
   // 抽屉「旁批」页里点卡片：手机端先切到稿纸视图（捕获阶段，早于卡片自身的高亮逻辑），
   // 否则 focusSentence 会对着隐藏的稿纸空滚一次
   if (els.drawerNoteList) {
@@ -4826,10 +5012,12 @@
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       loadVersions();
+      updateDiffBtn();
       setTimeout(function () { tryResumeEssay(); }, 60);
     });
   } else {
     loadVersions();
+    updateDiffBtn();
     setTimeout(function () { tryResumeEssay(); }, 60);
   }
 })();
