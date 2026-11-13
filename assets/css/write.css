@@ -1769,43 +1769,44 @@ table.score-table .score-table-key {
   position: relative;
   cursor: pointer;
   border-radius: 3px;
-  padding: 0 1px;
+  padding: 1px 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-/* 评判句高亮：整句着色，精确到 AI 判的那一句；坏=暖红、好=青绿 */
+/* 评判句高亮：整句着色，精确到 AI 判的那一句；坏=暖红、好=青绿。
+   手机小字下也要一眼看得见，所以底色给足，再配清晰波浪下划线与句首小角标 */
 .paper-body .critic-mark.cm-bad {
-  background: rgba(192, 100, 47, .16);
-  text-decoration: underline wavy #c0642f;
-  text-underline-offset: 4px;
+  background: rgba(192, 100, 47, .30);
+  text-decoration: underline wavy #b8541f;
+  text-underline-offset: 3px;
   text-decoration-thickness: 2px;
 }
 .paper-body .critic-mark.cm-good {
-  background: rgba(47, 111, 78, .15);
+  background: rgba(47, 111, 78, .24);
   text-decoration: underline wavy #2f6f4e;
-  text-underline-offset: 4px;
+  text-underline-offset: 3px;
   text-decoration-thickness: 2px;
 }
-/* 句首小角标，直接标出第几号评判，点一下跳到右栏那条评语 */
+/* 句首小角标：直接标第几号评判，点一下跳到右栏那条评语。
+   用上标内联（不绝对定位），避免在 overflow:hidden 的稿纸顶部被裁掉，移动端也稳 */
 .paper-body .critic-mark::before {
   content: attr(data-critic-no);
-  position: absolute;
-  top: -9px;
-  left: -3px;
+  display: inline-block;
+  vertical-align: super;
   font-size: 9px;
   line-height: 1;
+  margin-right: 2px;
   padding: 1px 3px;
   border-radius: 6px 6px 6px 0;
   color: #fff;
   background: #c0642f;
-  transform: translateY(-1px);
   font-family: var(--sans);
 }
 .paper-body .critic-mark.cm-good::before { background: #2f6f4e; }
-.paper-body .critic-mark.cm-agreed { background: rgba(47, 111, 78, .28); text-decoration-style: solid; }
+.paper-body .critic-mark.cm-agreed { background: rgba(47, 111, 78, .34); text-decoration-style: solid; }
 .paper-body .critic-mark.cm-agreed::before { background: #2f6f4e; }
 .paper-body .critic-mark.cm-denied {
-  background: rgba(124, 124, 124, .14);
+  background: rgba(124, 124, 124, .18);
   text-decoration-style: dotted;
   color: #7c7c7c;
 }
