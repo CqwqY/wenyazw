@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261114G">
-<link rel="stylesheet" href="assets/css/write.css?v=20261114G">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261114G">
+<link rel="stylesheet" href="assets/css/style.css?v=20261114H">
+<link rel="stylesheet" href="assets/css/write.css?v=20261114H">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261114H">
 </head>
 <body>
 
@@ -215,7 +215,7 @@
           </select>
           <span class="flow-cost" id="flowCostHint"></span>
         </div>
-        <p class="wstep-tip">每轮只把「评分里说清具体毛病的句子」交给 AI 改；复评分数不升会自动回退到最好的一版。中途可随时停止。</p>
+        <p class="wstep-tip">每轮按「评分里说清具体毛病的句子」从头重写一版完整新稿；复评分数不升会自动回退到最好的一版。中途可随时停止。</p>
       </div>
 
       <div class="wizard-actions">
@@ -236,6 +236,7 @@
         <span class="paper-stat" id="paperStat"></span>
         <button class="btn-outline" id="acceptAllBtn" hidden>全部采纳</button>
         <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
+        <button class="btn-outline" id="undoRewriteBtn" hidden>恢复上一版</button>
         <button class="btn-outline" id="criticBtn">AI 评改</button>
         <button class="btn-outline" id="flowBtn">流程作文</button>
         <button class="btn-outline" id="copyBtn">复制</button>
@@ -256,16 +257,16 @@
       <div class="studio-left">
         <div class="chat-panel">
           <div class="chat-list" id="contextList">
-            <div class="context-empty" id="contextEmpty">先让 AI 拟大纲，改满意了再写正文。之后的提问、手批都在这里显示。</div>
+            <div class="context-empty" id="contextEmpty">先让 AI 拟大纲，改满意了再写正文。之后提修改要求，AI 会从头重写一版完整新稿。</div>
           </div>
           <div class="chat-foot">
             <div class="chat-mode" id="chatMode">
-              <button type="button" class="chat-mode-btn active" data-mode="annotate">手批改稿</button>
+              <button type="button" class="chat-mode-btn active" data-mode="annotate">整篇重写</button>
               <button type="button" class="chat-mode-btn" data-mode="explain">只问不改</button>
-              <span class="chat-mode-hint" id="chatModeHint">给朱红批注，逐条采纳</span>
+              <span class="chat-mode-hint" id="chatModeHint">提要求后从头写一版完整新稿</span>
             </div>
             <textarea class="chat-input-area" id="chatInput" rows="2"
-              placeholder="对这篇作文提个修改要求，例如：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的话"></textarea>
+              placeholder="例：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的话"></textarea>
             <div class="chat-send-row">
               <button class="btn-outline" id="stopBtn2" disabled>停止</button>
               <div class="spacer"></div>
@@ -357,6 +358,7 @@
       <div class="drawer-head">
         <div class="drawer-tabs" id="drawerTabs">
           <button class="drawer-tab active" data-drawer="critic" type="button">AI 评卷<i class="drawer-dot" id="drawerDotCritic" hidden></i></button>
+          <button class="drawer-tab" data-drawer="notes" type="button">旁批<i class="drawer-dot" id="drawerDotNotes" hidden></i></button>
           <button class="drawer-tab" data-drawer="flow" type="button">流程作文<i class="drawer-dot" id="drawerDotFlow" hidden></i></button>
           <button class="drawer-tab" data-drawer="score" type="button">评分标准</button>
         </div>
@@ -364,18 +366,25 @@
       </div>
 
       <div class="drawer-body">
-        <!-- 评卷：分数、汇总、把认可的问题交给 AI 改 -->
+        <!-- 评卷：分数、汇总、按认可的问题重写整篇 -->
         <section class="drawer-pane" id="drawerPaneCritic">
           <div class="critic-dock" id="criticDock" hidden>
             <div class="critic-dock-head">
               <span class="critic-dock-title">AI 评卷</span>
               <span class="critic-stat" id="criticStat">按所选评分标准给分，并逐句判好坏与 AI 味。</span>
-              <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>把认可的问题交给 AI 改</button>
+              <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>按认可的问题重写整篇</button>
               <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
             </div>
             <div class="critic-score" id="criticScore" hidden></div>
           </div>
-          <p class="drawer-empty" id="criticEmpty">还没有评改结果。点顶部「AI 评改」，分数与结论会出现在这里；逐句评语仍在稿纸右栏旁批。</p>
+          <p class="drawer-empty" id="criticEmpty">还没有评改结果。点顶部「AI 评改」，分数与结论会出现在这里；逐句评语在「旁批」页。</p>
+        </section>
+
+        <!-- 旁批：手机端不再挂在稿纸下方，统一收进抽屉；桌面端稿纸右栏仍是原来的对齐旁批 -->
+        <section class="drawer-pane" id="drawerPaneNotes" hidden>
+          <p class="drawer-notes-tip" id="drawerNotesTip">逐句评语在这里。点卡片可跳到稿纸里的原句；认可后可让 AI 按这些重写整篇。</p>
+          <div class="drawer-note-list" id="drawerNoteList"></div>
+          <p class="drawer-empty" id="drawerNoteEmpty">还没有旁批。点顶部「AI 评改」后，逐句评语会出现在这里；提修改要求会直接从头重写整篇。</p>
         </section>
 
         <!-- 流程作文：轮次随时可改（运行中改也生效），进度与停止都在这里 -->
@@ -395,7 +404,7 @@
             <p class="flow-setup-tip">运行中也能改：调大继续跑，调小下一步就收住。分数不升会自动回退到最高分版本。</p>
             <div class="flow-setup-acts">
               <button class="btn btn-primary" id="flowRerunBtn" type="button">按当前轮次重跑</button>
-              <span class="flow-setup-note" id="flowSetupNote">有正文时从评分开始，不会重写整篇。</span>
+              <span class="flow-setup-note" id="flowSetupNote">有正文时从评分开始，每轮按硬伤重写整篇。</span>
             </div>
           </div>
           <div class="flow-dock" id="flowDock" hidden>
@@ -464,8 +473,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261114G"></script>
-<script src="assets/js/write.js?v=20261114G"></script>
-<script src="assets/js/auth.js?v=20261114G"></script>
+<script src="assets/js/prompt.js?v=20261114H"></script>
+<script src="assets/js/write.js?v=20261114H"></script>
+<script src="assets/js/auth.js?v=20261114H"></script>
 </body>
 </html>

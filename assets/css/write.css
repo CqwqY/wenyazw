@@ -2425,3 +2425,33 @@ table.score-table .score-table-key {
 @media (max-height: 620px) {
   .work-drawer { top: 16px; max-height: calc(100vh - 32px); }
 }
+
+/* ============ 抽屉「旁批」页 ============
+   四个 tab 共用一行，稍微收紧；旁批卡片复用右栏 .note，但改成普通流式列表。 */
+.drawer-tabs { gap: 2px; }
+.drawer-tab { font-size: 12px; padding: 7px 2px; }
+
+.drawer-notes-tip {
+  margin: 0 0 10px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-mute);
+}
+.drawer-note-list { display: flex; flex-direction: column; gap: 8px; }
+.drawer-note-list .note {
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  width: auto;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+}
+.drawer-note-list .note-head { font-size: 12px; }
+.drawer-note-list .note-why { font-size: 12px; line-height: 1.65; }
+.drawer-note-list .note-acts { opacity: 1; pointer-events: auto; margin-top: 6px; }
+.drawer-note-list .note-accept,
+.drawer-note-list .note-ignore { height: 30px; padding: 0 12px; font-size: 12px; }

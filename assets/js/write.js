@@ -1,6 +1,6 @@
 /* 文芽作文 - 创建工作台 + 生成界面逻辑
  * 纯前端直连 OpenAI 兼容接口，无后端、无数据上传。
- * 首次生成走「写作引擎」；生成界面里用户提修改要求时切换为「作文修改大师」。
+ * 首次生成走「写作引擎」；生成界面里提修改要求、认可评改、流程改稿都走「整篇重写」。
  */
 
 (function () {
@@ -94,13 +94,16 @@
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
-    paperNotes: $("paperNotes"),
+    paperNotes: $("paperNotes"), undoRewriteBtn: $("undoRewriteBtn"),
+    drawerNoteList: $("drawerNoteList"), drawerNoteEmpty: $("drawerNoteEmpty"),
+    drawerDotNotes: $("drawerDotNotes"),
 
     drawerHandle: $("drawerHandle"), drawerBadge: $("drawerBadge"),
     workDrawer: $("workDrawer"),
     drawerTabs: $("drawerTabs"), drawerClose: $("drawerClose"),
     drawerPanes: {
-      critic: $("drawerPaneCritic"), flow: $("drawerPaneFlow"), score: $("drawerPaneScore")
+      critic: $("drawerPaneCritic"), notes: $("drawerPaneNotes"),
+      flow: $("drawerPaneFlow"), score: $("drawerPaneScore")
     },
     drawerDotCritic: $("drawerDotCritic"), drawerDotFlow: $("drawerDotFlow"),
 
@@ -159,6 +162,8 @@
   var criticItems = [];          // AI 评改的逐句结果
   var criticScores = [];         // AI 评改给出的分数（每份评分标准一条）
   var criticSeq = 0;             // 评改条目自增 id（用于稿纸标记与卡片互跳）
+  var undoStack = [];            // 整篇重写前的快照，供「恢复上一版」逐版退回
+  var lastNoteBody = "";         // 上次渲染旁批时对应的正文；正文一变就清对不上的旧旁批
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -651,13 +656,17 @@
      稿纸的高度、格线宽度、字格数始终不变；稿纸在抽屉打开时照样能点能选字。
      关闭只走拉手 / 头部「收起」/ Esc，不做「点外部关闭」，避免跟自绘选字打架。 */
   function drawerTabName(name) {
-    return name === "flow" || name === "score" ? name : "critic";
+    return name === "flow" || name === "score" || name === "notes" ? name : "critic";
   }
 
   function syncDrawerDots() {
     var criticNew = !!(criticItems.length || criticScores.length);
     var flowNew = !!(els.flowSteps && els.flowSteps.children.length);
+    var notesNew = pendingMarks().length + criticItems.filter(function (x) {
+      return !x.agreed && x.verdict === "坏";
+    }).length;
     if (els.drawerDotCritic) els.drawerDotCritic.hidden = !criticNew || (drawerOpen && drawerTab === "critic");
+    if (els.drawerDotNotes) els.drawerDotNotes.hidden = !notesNew || (drawerOpen && drawerTab === "notes");
     if (els.drawerDotFlow) els.drawerDotFlow.hidden = !flowNew || (drawerOpen && drawerTab === "flow") || flowActive;
     // 拉手角标：有待处理的朱红批注、流程进行中，或没看过的评改结果
     var n = pendingMarks().length;
@@ -686,6 +695,7 @@
       });
     }
     if (drawerTab === "score") renderScoreTables();
+    if (drawerTab === "notes") renderDrawerNotes();
     syncScoreToggle();
     syncDrawerDots();
   }
@@ -1467,7 +1477,7 @@
     yes.textContent = "认可";
     if (it.soft) {
       yes.disabled = true;
-      yes.title = "这条没说清具体毛病，不交给 AI 改";
+      yes.title = "这条没说清具体毛病，不交给整篇重写";
     }
     yes.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "yes"); });
     var deny = document.createElement("button");
@@ -1486,11 +1496,51 @@
     return note;
   }
 
+  /* 抽屉「旁批」页：手机端是旁批的唯一落点，桌面端额外给一个按正文顺序的列表视图。
+     卡片复用右栏那套构建函数，去掉绝对定位，按锚点在正文里的位置排好序。 */
+  function noteAnchorPos(s) {
+    var t = trim(String(s || "")).split("|||")[0].slice(0, 30);
+    var i = t ? docBody.indexOf(t) : -1;
+    return i < 0 ? 999999 : i;
+  }
+
+  function renderDrawerNotes() {
+    var host = els.drawerNoteList;
+    if (!host) return;
+    host.innerHTML = "";
+    var items = [];
+    pendingMarks().forEach(function (m) {
+      items.push({ kind: "mark", m: m, at: noteAnchorPos(m.anchor) });
+    });
+    criticItems.forEach(function (it) {
+      items.push({ kind: "critic", it: it, at: noteAnchorPos(it.sentence) });
+    });
+    items.sort(function (a, b) {
+      if (a.at !== b.at) return a.at - b.at;
+      return (a.kind === "mark" ? 0 : 1) - (b.kind === "mark" ? 0 : 1);
+    });
+    items.forEach(function (o) {
+      var note = o.kind === "mark" ? buildMarkNote(o.m) : buildCriticNote(o.it);
+      note.style.top = "";
+      note.classList.add("drawer-note");
+      host.appendChild(note);
+    });
+    if (els.drawerNoteEmpty) els.drawerNoteEmpty.hidden = items.length > 0;
+    syncDrawerDots();
+  }
+
   /* 把待处理批注与 AI 评改按所在段落一起排进右栏，同段/相邻的依次下移，不互相盖住 */
   function renderMarginNotes() {
     var host = els.paperNotes;
     if (!host) return;
     if (typeof syncPaperBadge === "function") syncPaperBadge();
+    renderDrawerNotes();
+    // 手机端旁批全部收进右侧工作窗，稿纸下方不再挂卡片列表
+    if (isMobile()) {
+      host.innerHTML = "";
+      host.style.height = "";
+      return;
+    }
     host.innerHTML = "";
     var marks = pendingMarks();
     if (!marks.length && !criticItems.length) {
@@ -1569,7 +1619,114 @@
     }
   }
 
+  /* 正文一变，上一版稿件上的朱红批注、逐句评改、分数就全都不作数了。
+     以「锚点还能不能在新正文里逐字找到」为准逐条清掉，避免旧旁批挂到新句子上。
+     这是兜底：整篇重写会显式全清，恢复云稿 / 流程回滚 / 手动改字走这里。 */
+  function normAnchor(s) {
+    return String(s || "").replace(/\s/g, "");
+  }
+
+  function pruneStaleNotes() {
+    if (!lastNoteBody) { lastNoteBody = docBody; return 0; }
+    if (lastNoteBody === docBody) return 0;
+    lastNoteBody = docBody;
+    var flat = normAnchor(docBody);
+    var dropped = 0;
+
+    if (annotations.length) {
+      var keep = annotations.filter(function (m) {
+        var a = normAnchor(m.type === "swap" ? String(m.anchor).split("|||")[0] : m.anchor);
+        return !!a && flat.indexOf(a) >= 0;
+      });
+      dropped += annotations.length - keep.length;
+      annotations = keep;
+    }
+    if (prevAcceptedTexts.length) {
+      prevAcceptedTexts = prevAcceptedTexts.filter(function (t) {
+        var a = normAnchor(t);
+        return !!a && flat.indexOf(a) >= 0;
+      });
+    }
+    if (criticItems.length) {
+      var keepC = criticItems.filter(function (it) {
+        var a = normAnchor(it.sentence);
+        return !!a && flat.indexOf(a) >= 0;
+      });
+      dropped += criticItems.length - keepC.length;
+      criticItems = keepC;
+    }
+    // 分数是对整篇给的，正文一变就作废，免得流程里拿旧分数比大小
+    if (criticScores.length) { criticScores = []; dropped += 1; }
+
+    if (!annotations.length && annotPanelEl) { annotPanelEl.remove(); annotPanelEl = null; }
+    syncAnnotTools();
+    renderCriticScores();
+    syncCriticApply();
+    syncCriticDock();
+    syncDrawerDots();
+    if (dropped && els.criticStat) {
+      els.criticStat.textContent = "正文已变，清掉 " + dropped + " 条对不上的旧旁批/旧评分；需要请重新评改。";
+    }
+    return dropped;
+  }
+
+  /* 整篇重写前后的稿件快照：连同锁句、批注、评改一起存，恢复后不重跑清理 */
+  function essaySnapshot() {
+    return {
+      title: docTitle, body: docBody, comp: currentComposition,
+      locked: lockedTexts.slice(),
+      notes: annotations.slice(), critic: criticItems.slice(),
+      scores: criticScores.slice(), yellow: prevAcceptedTexts.slice()
+    };
+  }
+
+  function restoreEssaySnapshot(snap) {
+    docTitle = snap.title;
+    docBody = snap.body;
+    currentComposition = snap.comp || ((snap.title ? snap.title + "\n\n" : "") + snap.body);
+    lockedTexts = snap.locked.slice();
+    annotations = snap.notes.slice();
+    criticItems = snap.critic.slice();
+    criticScores = snap.scores.slice();
+    prevAcceptedTexts = snap.yellow.slice();
+    saveLocked();
+    lastNoteBody = docBody;          // 快照是配套的，不触发「正文变了」清理
+    renderAnnotated();
+    renderAnnotPanel();
+    renderCriticScores();
+    syncCriticApply();
+    syncCriticDock();
+    syncAnnotTools();
+    syncDrawerDots();
+    syncUndoBtn();
+    saveEssayToCloud();
+    scheduleEssaySave();
+  }
+
+  // 整张稿纸都换了：旧批注、旧评改、旧分数、旧黄标一律作废
+  function clearNotesAfterRewrite() {
+    annotations = [];
+    criticItems = [];
+    criticScores = [];
+    prevAcceptedTexts = [];
+    if (annotPanelEl) { annotPanelEl.remove(); annotPanelEl = null; }
+    lastNoteBody = docBody;
+    syncAnnotTools();
+    renderCriticScores();
+    syncCriticApply();
+    syncCriticDock();
+    syncDrawerDots();
+    if (els.criticStat) {
+      els.criticStat.textContent = "已重写整篇，上一版的评分与旁批已清空；需要请重新评改。";
+    }
+  }
+
+  function syncUndoBtn() {
+    if (els.undoRewriteBtn) els.undoRewriteBtn.hidden = !undoStack.length;
+  }
+
   function renderAnnotated() {
+    pruneStaleNotes();
     els.paperTitle.textContent = docTitle || "作文";
     els.paperBody.textContent = "";
     els.paperBody.classList.remove("paper-empty");
@@ -2134,6 +2291,32 @@
     return lines.join("\n\n");
   }
 
+  /* 整篇重写：锁句的要求跟「只出手批」不同 —— 不是不许碰，而是必须逐字原样留在新稿里 */
+  function wrapLockedRewrite() {
+    if (!lockedTexts.length) return "";
+    return "【已锁住的句子：必须逐字原样保留在新稿里】{\n" +
+      lockedTexts.map(function (t, i) { return (i + 1) + ". " + t; }).join("\n") +
+      "\n}\n（这几句是学生自己认定要留的：一个字不许改、不许删、不许拆开、不许换成同义说法。" +
+      "重写其它段落时要算好上下文，别让它们接不上前后文。）";
+  }
+
+  function composeRewriteUser(req) {
+    var lines = [];
+    lines.push("【本次作文类别】" + activeCatName());
+    lines.push(genreLine());
+    var rule = categoryRule();
+    if (rule) lines.push(rule);
+    var st = scoringText();
+    if (st) lines.push(st);
+    lines.push("【本次大纲（段落任务必须照着写）】\n" + outlineJSON());
+    lines.push(wrapEssay());
+    lines.push(wrapLockedRewrite());
+    lines.push("学生本轮的修改要求：{\n" + req + "\n}\n" +
+      "（这是本轮唯一要解决的问题，逐条照办，一条不许漏；要求没提到的段落尽量沿用原文写住的句子，不要顺手润色一遍。）");
+    lines.push("请从头重写一版完整作文，按系统提示的 ===作文=== 格式输出：标记之后第一行是标题，空一行，然后是完整正文。不要输出批注 JSON、修改清单、说明文字或 Markdown。");
+    return lines.join("\n\n");
+  }
+
   function composeExplainUser(req) {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
@@ -2587,7 +2770,7 @@
     });
     if (paper) {
       els.docTabHint.textContent = stage === "draft"
-        ? "手批的朱红符号在稿纸上，点旁边的「采纳」才动字"
+        ? "提修改要求会从头重写整篇；可点「恢复上一版」退回"
         : "正文还没写，先回大纲改好再开始";
       els.paperPane.scrollTop = 0;
     } else {
@@ -2704,9 +2887,9 @@
     if (stage === "draft") {
       switchPane("paper");
       renderAnnotated();
-      setDocHint("已载入云端稿 · 直接提问就是手批改稿");
+      setDocHint("已载入云端稿 · 直接提问就是整篇重写");
       addAssistantBubble("文芽").textContent =
-        "已载入《" + docTitle + "》。接着改就行：直接提要求会出朱红批注，选「只问不改」则只讲不动字。";
+        "已载入《" + docTitle + "》。接着改就行：直接提要求会从头重写整篇，选「只问不改」则只讲不动字。";
     } else {
       switchPane("outline");
       showEmpty();
@@ -2949,8 +3132,8 @@
       els.chatModeHint.textContent = "只讲不改：不动一个字，不出批注";
       els.chatInput.placeholder = "例：为什么结尾这句算空泛？我该怎么想这一段";
     } else {
-      els.chatModeHint.textContent = "手批改稿：朱红批注逐条采纳";
-      els.chatInput.placeholder = "例：把开头再写细一点 / 结尾加一句老师傅的原话";
+      els.chatModeHint.textContent = "整篇重写：提要求后从头写一版完整新稿，可恢复上一版";
+      els.chatInput.placeholder = "例：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的原话";
     }
   }
 
@@ -2976,7 +3159,7 @@
       await askExplain(req, "你说了不让动稿，这次只讲不改。");
       return;
     }
-    await sendRevision(req);
+    await rewriteEssay(req);
   }
 
   /* 大纲阶段提问：只改大纲 */
@@ -3050,88 +3233,78 @@
     return t.length > 90 ? t.slice(0, 90) + "…（共 " + Array.from(trim(req)).length + " 字）" : t;
   }
 
-  /* 手批改稿 */
-  async function sendRevision(req, opts) {
+  /* 整篇重写：提要求 / 认可评改 / 流程改稿统一走这里。
+     模型交回一版完整新稿，整张稿纸一起换，不再出逐条朱红批注。
+     改前快照进 undoStack，随时可用「恢复上一版」退回；锁句丢失或字数骤降直接拒收新稿。 */
+  async function rewriteEssay(req, opts) {
+    opts = opts || {};
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
       setPaperHint("接口未配置，先回工作台填好。");
-      return;
+      return false;
     }
+    if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇。"); return false; }
 
-    addUserBubble(summarizeAsk(req));
-    els.chatInput.value = "";
-    assistantReplyEl = addAssistantBubble("批改老师");
-    if (assistantReplyEl) assistantReplyEl.textContent = "正在读稿、写批注…";
-    setPaperHint("批改老师正在读稿…");
+    var snap = essaySnapshot();
+    if (opts.silentBubble) {
+      assistantReplyEl = null;
+    } else {
+      addUserBubble(summarizeAsk(req));
+      els.chatInput.value = "";
+      assistantReplyEl = addAssistantBubble("批改老师");
+      if (assistantReplyEl) assistantReplyEl.textContent = "正在从头重写整篇…";
+    }
+    setPaperHint("正在从头重写整篇…");
+    setDocHint("整篇重写中 · 改好会整张稿纸一起换");
+    switchPane("paper");
 
-    var sys = window.WY_ANNOTATOR;
+    var sys = window.WY_REWRITE || window.WY_PROMPT;
     var gr = genreRule();
     if (gr) sys += "\n\n" + gr;
     var rule = categoryRule();
     if (rule) sys += "\n\n" + rule;
     var st = scoringText();
     if (st) sys += "\n\n" + st;
-    if (opts && opts.lockedList) {
-      // 学生只勾了其中几条：这轮只准按清单出手批，不许自己另找问题凑数
-      sys += "\n\n【本轮只按清单批】学生已经从评改里逐条勾选，只认可了下面这几条。" +
-        "你这一次的 marks 必须与清单一条对一条：条数相同、顺序对应、anchor 一一落在清单里的原句上。" +
-        "不许新增清单以外的地方，不许把清单里的某条换成你认为更值得改的句子，不许合并成一条，也不许删掉任何一条。" +
-        "清单之外的地方，即使你觉得问题更大，这一轮也一个字都不要批。";
+
+    var ok = await runStream(sys, composeRewriteUser(req));
+    var plain = function (t) { return String(t || "").replace(/\s/g, "").length; };
+    var reason = "";
+    if (!ok || !docBody.trim()) reason = "没拿到完整新稿";
+    else if (docBody === snap.body) reason = "新稿和原稿完全一样";
+    else if (plain(docBody) < plain(snap.body) * 0.6) reason = "新稿字数掉得太多";
+    else if (snap.locked.length) {
+      // 用改前的快照做基准：稿纸重绘会顺手把对不上的锁句清掉，不能用当前 lockedTexts
+      var flat = normLock(docBody);
+      var lost = snap.locked.filter(function (t) { return flat.indexOf(normLock(t)) < 0; });
+      if (lost.length) reason = "新稿丢了你锁住的 " + lost.length + " 句";
     }
 
-    try {
-      var raw = await fetchAnnotation(sys, composeReviseUser(req));
-      var obj = parseAnnotJSON(raw);
-      var offList = 0;
-      if (opts && opts.lockedList) {
-        // 模型偶尔还是会顺手多批几处：清单之外的直接丢掉，只留学生勾过的
-        var allowed = criticItems.filter(function (x) { return x.agreed === "yes"; })
-          .map(function (x) { return String(x.sentence || "").replace(/\s/g, ""); });
-        var kept = (obj.marks || []).filter(function (m) {
-          var a = String(m.anchor || "").replace(/\s/g, "");
-          if (!a) return false;
-          for (var k = 0; k < allowed.length; k++) {
-            if (allowed[k].indexOf(a) >= 0 || a.indexOf(allowed[k]) >= 0) return true;
-          }
-          return false;
-        });
-        offList = (obj.marks || []).length - kept.length;
-        obj.marks = kept;
-      }
-      // 黄标在采纳当时就已标上，这里不再重置，免得改动痕迹忽然消失
-      annotations = normalizeMarks(obj);
-      // 新一轮批注：移除上一轮面板（正文已采纳的改动仍生效），在对话底部重建
-      if (annotPanelEl) { annotPanelEl.remove(); annotPanelEl = null; }
-      if (assistantReplyEl) assistantReplyEl.textContent = trim(obj.reply) || "已批注，看稿纸上的朱红标注逐条决定。";
-      renderAnnotated();                  // 稿纸上标出朱红修改符号
-      renderAnnotPanel();                 // 左侧列出可采纳/忽略的批注
-      switchPane("paper");
-      if (offList && assistantReplyEl) {
-        assistantReplyEl.textContent += " （另有 " + offList + " 条不在你勾选的清单里，已丢弃）";
-      }
-      if (annotDropped && assistantReplyEl) {
-        // 模型写了说明文字、引号不配对或标点接不上，这些条被拦下来了，要如实告诉学生
-        assistantReplyEl.textContent += " （另有 " + annotDropped + " 条因为替换文字里混了说明、引号不配对或标点接不上，已丢弃）";
-      }
-      if (!annotations.length) {
-        if (assistantReplyEl) assistantReplyEl.textContent =
-          (trim(obj.reply) || "已批注。") + " 但这轮没有能定位到原文的批注，可换个更具体的要求再试。";
-      }
-    } catch (e) {
-      if (e && e.name === "AbortError") {
-        if (assistantReplyEl) assistantReplyEl.textContent = "已停止批改，原稿保留。";
-        renderAnnotated();
-        setPaperHint("已停止，原稿保留。");
-        return;
-      }
-      var msg = (e && e.message) || "未知错误";
-      if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
-        msg = "请求发不出去：多为浏览器跨域被拦或网络不通。换支持 CORS 的接口，或改用本地代理。";
-      }
-      if (assistantReplyEl) assistantReplyEl.textContent = "批改失败：" + msg;
-      setPaperHint("批改失败：" + msg);
-      renderAnnotated();
+    if (reason) {
+      restoreEssaySnapshot(snap);
+      var fail = reason + "，已恢复原稿。";
+      setPaperHint(fail);
+      setDocHint(fail);
+      if (assistantReplyEl) assistantReplyEl.textContent = fail;
+      return false;
     }
+
+    // 整篇都换了：上一版的旁批、评改、分数、黄标全部作废
+    clearNotesAfterRewrite();
+    undoStack.push(snap);
+    if (undoStack.length > 5) undoStack.shift();
+    syncUndoBtn();
+    renderAnnotated();
+    saveEssayToCloud();
+    scheduleEssaySave();
+
+    var done = "已从头重写整篇 · 字数 " + plain(docBody) + " · 可用「恢复上一版」退回";
+    setPaperHint(done);
+    setDocHint(done);
+    if (assistantReplyEl) {
+      assistantReplyEl.textContent =
+        (trim(splitTwo(fullText).reply).slice(0, 120) || "已重写一版完整新稿。") + " 旧旁批已清空。";
+    }
+    return true;
   }
 
   /* ---------------- AI 评改：逐句判好坏与 AI 味 ---------------- */
@@ -3272,7 +3445,7 @@
     if (!els.criticApplyBtn) return;
     var n = criticItems.filter(function (x) { return x.agreed === "yes"; }).length;
     els.criticApplyBtn.disabled = n === 0;
-    els.criticApplyBtn.textContent = n ? ("把认可的 " + n + " 条交给 AI 改") : "把认可的问题交给 AI 改";
+    els.criticApplyBtn.textContent = n ? ("按认可的 " + n + " 条重写整篇") : "按认可的问题重写整篇";
   }
 
   // 点稿纸上的评改标记 -> 点亮右栏对应旁批
@@ -3300,7 +3473,7 @@
     }
     it.agreed = it.agreed === val ? "" : val;
     renderCritic();
-    setDocHint(it.agreed === "yes" ? ("已认可 #" + it.no + "，可继续挑，最后一起交给 AI 改")
+    setDocHint(it.agreed === "yes" ? ("已认可 #" + it.no + "，可继续挑，最后按这些重写整篇")
       : it.agreed === "no" ? ("已否决 #" + it.no + "，这条不会交给 AI") : "已取消表态");
   }
 
@@ -3384,18 +3557,18 @@
           (softCnt ? " · 其中 " + softCnt + " 条没说清具体毛病，已标灰、不给改" : ""))
         : "这次没挑出确实有毛病的句子，说明写得住。") +
       (picked ? " · 已认可 " + picked + " 条"
-        : (criticItems.length ? " · 右栏旁批里逐条点「认可」再一起交给 AI 改" : ""));
+        : (criticItems.length ? " · 「旁批」页里逐条点「认可」，再按这些重写整篇" : ""));
     syncCriticApply();
     // 逐句结果全部走右栏旁批，坞里只留评分与汇总
     renderAnnotated();
   }
 
-  // 把学生认可的评改意见拼成一次修改要求，交给批改老师出手批
+  // 把学生认可的评改意见拼成一次修改要求，交给整篇重写
   function criticReqText() {
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; });
     if (!picked.length) return "";
-    var lines = ["下面这些是我认可的评改问题，一共 " + picked.length + " 条，请只照它们出手批：每处只标该改的原文片段，不要重写全篇。",
-      "只批这 " + picked.length + " 条，我勾过的地方之外不要动，也不要另找问题凑数。"];
+    var lines = ["下面这些是我认可的评改问题，一共 " + picked.length + " 条。请照它们从头重写一版完整作文：把这些地方改到位，其余段落尽量沿用原文写住的句子。",
+      "只解决这 " + picked.length + " 条，不要顺手把没问题的句子改一遍，也不要另找问题凑数。"];
     if (criticScores.length) {
       lines.push("上一轮评卷给分：" + criticScores.map(function (s) {
         return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "") +
@@ -3408,7 +3581,7 @@
       if (it.aiWhy) lines.push("   AI 味：" + it.aiWhy);
       if (it.fix) lines.push("   方向：" + it.fix);
     });
-    lines.push("注意：上面这些只是给你看的说明，不要把它们写进正文；text 只写替换后的正文文字。");
+    lines.push("注意：上面这些只是给你看的说明，不要写进正文；交回的是一篇完整作文，不是替换句清单。");
     return lines.join("\n");
   }
 
@@ -3460,8 +3633,8 @@
       var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
       bubble.textContent = (obj.overall ? obj.overall + " " : "") +
         (scoreTxt ? "得分 " + scoreTxt + "；" : "") +
-        "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），评语写在稿纸右栏旁批里，点旁批高亮原句。";
-      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评改 " + criticItems.length + " 条在右栏旁批");
+        "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），逐句评语在工作窗「旁批」页，点卡片跳到原句。";
+      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评改 " + criticItems.length + " 条在「旁批」页");
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
@@ -3574,7 +3747,7 @@
     return { pct: flowPct(criticScores), label: label };
   }
 
-  // 只把「说清具体毛病」的坏句交给批改老师；软条目、锁住的句子一律不动
+  // 只把「说清具体毛病」的硬伤交给整篇重写；软条目、锁住的句子一律不动
   async function flowReviseOnce() {
     var hards = criticItems.filter(function (it) {
       return it.verdict === "坏" && it.hard && !it.soft && !isLocked(it.sentence);
@@ -3585,25 +3758,14 @@
     }
     criticItems.forEach(function (it) { it.agreed = hards.indexOf(it) >= 0 ? "yes" : ""; });
     renderCritic();
-    flowSetStat("正在按 " + hards.length + " 条硬伤出手批…");
-    var before = docBody;
-    await sendRevision(criticReqText(), { lockedList: true });
+    flowSetStat("正在按 " + hards.length + " 条硬伤重写整篇…");
+    var ok = await rewriteEssay(criticReqText(), { silentBubble: true });
     if (flowAbort) return false;
-    if (!annotations.length) {
-      flowStep("这次没拿到能落地的批注，流程结束");
+    if (!ok) {
+      flowStep("这轮没拿到合格新稿，已恢复改前版本", "warn");
       return false;
     }
-    applyAll("accept");
-    // 改动异常（没改上 / 被大段删掉）直接回退，不让 AI 把稿子改残
-    var plain = function (t) { return String(t).replace(/\s/g, "").length; };
-    if (docBody === before || plain(docBody) < plain(before) * 0.6) {
-      flowRestore({ title: docTitle, body: before });
-      flowStep("改动异常，已回退到改前版本，流程结束", "warn");
-      return false;
-    }
-    annotations = [];
-    renderAnnotated();
-    flowStep("已按硬伤改 " + hards.length + " 处");
+    flowStep("已按 " + hards.length + " 条硬伤重写整篇");
     return true;
   }
 
@@ -3623,8 +3785,8 @@
     }
     var budget = flowBudget(!!docBody.trim());
     if (!opts.confirmed && !confirm(
-      "流程作文：最多 " + flowRoundLimit() + " 轮「评分 → 只改硬伤 → 复评」，约 " + budget +
-      " 次 AI 调用，每次消耗 1 积分。\n轮次在右侧工作窗里可以随时改；分数不升会自动回退到最好的一版；中途可随时停止。继续？"
+      "流程作文：最多 " + flowRoundLimit() + " 轮「评分 → 按硬伤重写整篇 → 复评」，约 " + budget +
+      " 次 AI 调用，每次消耗 1 积分。\n每轮会从头重写一版完整新稿，轮次在右侧工作窗里可以随时改；分数不升会自动回退到最好的一版；中途可随时停止。继续？"
     )) return;
 
     flowActive = true;
@@ -3665,7 +3827,7 @@
         } else {
           flowRestore(best);
           finalLabel = best.label;
-          flowStep("分数没涨，回退到最高分版本，流程结束", "warn");
+          flowStep("分数没涨，回退到最高分版本", "warn");
           break;
         }
         if (after.pct >= 90) { flowStep("已进入高档区间，提前收住", "done"); break; }
@@ -3889,10 +4051,30 @@
 
   on(els.criticApplyBtn, "click", function () {
     var req = criticReqText();
-    if (!req) { setDocHint("先在上面的评改卡片里点「认可」，再一起交给 AI。"); return; }
+    if (!req) { setDocHint("先在「旁批」页里点「认可」，再按这些重写整篇。"); return; }
     if (!docBody.trim()) { setDocHint("正文是空的，改不了。"); return; }
-    sendRevision(req, { lockedList: true });
+    rewriteEssay(req);
   });
+
+  on(els.undoRewriteBtn, "click", function () {
+    if (!undoStack.length) return;
+    var snap = undoStack.pop();
+    restoreEssaySnapshot(snap);
+    var msg = "已恢复上一版" + (undoStack.length ? "（还可再退 " + undoStack.length + " 版）" : "");
+    setPaperHint(msg);
+    setDocHint(msg);
+  });
+
+  // 抽屉「旁批」页里点卡片：手机端先切到稿纸视图（捕获阶段，早于卡片自身的高亮逻辑），
+  // 否则 focusSentence 会对着隐藏的稿纸空滚一次
+  if (els.drawerNoteList) {
+    els.drawerNoteList.addEventListener("click", function (e) {
+      var card = e.target.closest && e.target.closest(".drawer-note");
+      if (!card || !isMobile()) return;
+      if (els.paperPane && els.paperPane.hidden) switchPane("paper");
+      else setMView("paper");
+    }, true);
+  }
 
   on(els.paperBody, "click", function () { clearActiveMarks(); hideInkDock(); });
 
@@ -4206,6 +4388,8 @@
   setChatMode("annotate");
   setMView("outline");
   loadLocked();
+  renderDrawerNotes();   // 抽屉「旁批」页的空态先摆好，等有批注时再增量重建
+  syncUndoBtn();
 
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(function () { alignPaperGrid(); });
