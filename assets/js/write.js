@@ -3909,7 +3909,16 @@
   async function runCritic() {
     if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇再评改。"); return; }
     var c = currentConfig();
-    if (!c.base || !c.key || !c.model) { setPaperHint("接口未配置，先回工作台填好。"); return; }
+    if (!c.base || !c.key || !c.model) {
+      // 评改没配置就静默早返回，用户会以为"高亮没出"；这里把原因摆到抽屉里，移动端也一眼可见
+      var needLogin = (c.preset === "site");
+      setDrawer(true, "critic");
+      els.criticStat.textContent = needLogin
+        ? "请先登录再评改（站内模型需要登录后消耗积分）。"
+        : "接口未配置：先回工作台填好 Base URL / API Key / 模型名。";
+      setDocHint(needLogin ? "请先登录" : "请先配置接口");
+      return;
+    }
 
     els.criticStat.textContent = "正在打分并逐句判…";
     if (els.criticList) els.criticList.innerHTML = "";
