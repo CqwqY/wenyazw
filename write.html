@@ -361,6 +361,7 @@
           <button class="drawer-tab" data-drawer="notes" type="button">旁批<i class="drawer-dot" id="drawerDotNotes" hidden></i></button>
           <button class="drawer-tab" data-drawer="flow" type="button">流程作文<i class="drawer-dot" id="drawerDotFlow" hidden></i></button>
           <button class="drawer-tab" data-drawer="score" type="button">评分标准</button>
+          <button class="drawer-tab" data-drawer="history" type="button">历史版本<i class="drawer-dot" id="drawerDotHistory" hidden></i></button>
         </div>
         <button class="drawer-close" id="drawerClose" type="button" aria-label="收起工作窗">收起</button>
       </div>
@@ -421,6 +422,13 @@
         <!-- 评分标准：完整表格，打开抽屉才渲染位置，不再挤压稿纸 -->
         <section class="drawer-pane" id="drawerPaneScore" hidden>
           <div class="score-tables" id="scoreTables"></div>
+        </section>
+
+        <!-- 历史版本：GitHub 式更改查看（绿增红删），每次生成/重写/恢复自动存一版 -->
+        <section class="drawer-pane" id="drawerPaneHistory" hidden>
+          <p class="drawer-empty" id="historyEmpty">还没有版本。每次生成、重写、恢复都会自动存一版，刷新也在。</p>
+          <p class="history-intro" id="historyIntro" hidden>点「查看与上一版的改动」看 GitHub 式对照（绿色为新增、红色为删除）；「恢复到此版」可随时退回。</p>
+          <div class="history-list" id="historyList"></div>
         </section>
       </div>
     </aside>

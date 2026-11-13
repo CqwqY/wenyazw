@@ -103,9 +103,11 @@
     drawerTabs: $("drawerTabs"), drawerClose: $("drawerClose"),
     drawerPanes: {
       critic: $("drawerPaneCritic"), notes: $("drawerPaneNotes"),
-      flow: $("drawerPaneFlow"), score: $("drawerPaneScore")
+      flow: $("drawerPaneFlow"), score: $("drawerPaneScore"), history: $("drawerPaneHistory")
     },
-    drawerDotCritic: $("drawerDotCritic"), drawerDotFlow: $("drawerDotFlow"),
+    drawerDotCritic: $("drawerDotCritic"), drawerDotFlow: $("drawerDotFlow"), drawerDotHistory: $("drawerDotHistory"),
+    drawerPaneHistory: $("drawerPaneHistory"),
+    historyList: $("historyList"), historyEmpty: $("historyEmpty"), historyIntro: $("historyIntro"),
 
     docTabs: $("docTabs"), docTabHint: $("docTabHint"),
     outlinePane: $("outlinePane"), paperPane: $("paperPane"),
@@ -141,6 +143,7 @@
   /* 运行态 */
   var controller = null;
   var fullText = "";
+  var streamIsEssay = false;     // 当前流式请求是否为「生成/重写作文」（JSON 输出，需按 JSON 解析）
   var lastTitle = "作文";
   var assistantReplyEl = null;
   var currentComposition = "";   // 当前作文纯文本（标题+正文），用于修改大师上下文
@@ -164,6 +167,264 @@
   var criticSeq = 0;             // 评改条目自增 id（用于稿纸标记与卡片互跳）
   var undoStack = [];            // 整篇重写前的快照，供「恢复上一版」逐版退回
   var lastNoteBody = "";         // 上次渲染旁批时对应的正文；正文一变就清对不上的旧旁批
+
+  /* ---------------- 历史版本：存下每一次更改 ----------------
+     每次生成初稿、整篇重写、流程迭代、恢复上一版、恢复历史版本都存一版快照。
+     按 compositionId 持久化到 localStorage，刷新后仍在；不同作文（不同云端 id）互不串。 */
+  var VER_PREFIX = "wy.versions.v1.";
+  var COMP_KEY = "wy.compositionId.v1";
+  var compositionId = null;
+  var versions = [];
+
+  function setCompositionId(id) {
+    compositionId = id;
+    try { localStorage.setItem(COMP_KEY, id); } catch (e) { /* 存不下就算了 */ }
+  }
+  function compId() {
+    if (compositionId) return compositionId;
+    try { compositionId = localStorage.getItem(COMP_KEY); } catch (e) { compositionId = null; }
+    if (!compositionId) {
+      compositionId = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      setCompositionId(compositionId);
+    }
+    return compositionId;
+  }
+  function versionKey() { return VER_PREFIX + compId(); }
+  function loadVersions() {
+    try {
+      var a = JSON.parse(localStorage.getItem(versionKey()) || "[]");
+      versions = Array.isArray(a) ? a : [];
+    } catch (e) { versions = []; }
+  }
+  function persistVersions() {
+    try { localStorage.setItem(versionKey(), JSON.stringify(versions)); } catch (e) { /* 隐私模式忽略 */ }
+  }
+  function resetVersions() { versions = []; persistVersions(); }
+  function plainLen(t) { return String(t || "").replace(/\s/g, "").length; }
+  function criticScoresSummary() {
+    return (criticScores || []).map(function (s) { return s.province + " " + s.total + "/" + s.full; }).join(" · ");
+  }
+  function commitVersion(label, score) {
+    if (!docTitle.trim() && !docBody.trim()) return;
+    versions.push({
+      id: "v" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      ts: Date.now(),
+      title: docTitle || "作文",
+      body: docBody,
+      label: label || "修改",
+      words: plainLen(docBody),
+      score: score || criticScoresSummary() || ""
+    });
+    if (versions.length > 60) versions.shift();
+    persistVersions();
+    if (els.historyList) renderHistoryList();
+    syncDrawerDots();
+  }
+  function resetComposition() {
+    compositionId = "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    setCompositionId(compositionId);
+    resetVersions();
+  }
+
+  /* ---------------- 历史版本：GitHub 式更改查看 ----------------
+     每次生成 / 重写 / 恢复都 commitVersion 快照；版本按 compositionId 存 localStorage，刷新仍在。
+     列表新→旧；点版本看它与上一版相比的改动（段落级 LCS 对齐，再做段落内字符级 LCS，inline 渲染）。 */
+
+  function timeAgo(ts) {
+    var d = Math.max(0, Date.now() - ts);
+    var s = Math.floor(d / 1000);
+    if (s < 60) return s + " 秒前";
+    var m = Math.floor(s / 60);
+    if (m < 60) return m + " 分钟前";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + " 小时前";
+    var day = Math.floor(h / 24);
+    if (day < 30) return day + " 天前";
+    var dt = new Date(ts);
+    return (dt.getMonth() + 1) + "月" + dt.getDate() + "日";
+  }
+
+  function splitParas(t) {
+    return String(t || "").replace(/\r/g, "").split(/\n+/)
+      .map(function (p) { return p.replace(/\n/g, ""); })
+      .filter(function (p) { return p.trim().length; });
+  }
+
+  // 段落级 LCS：返回 [{t:'eq',a,b} | {t:'del',a} | {t:'add',b}]
+  function diffParas(a, b) {
+    var n = a.length, m = b.length;
+    if (!n) return b.map(function (x, i) { return { t: "add", b: i }; });
+    if (!m) return a.map(function (x, i) { return { t: "del", a: i }; });
+    var dp = [];
+    for (var i = 0; i <= n; i++) dp.push(new Int32Array(m + 1));
+    for (var i2 = n - 1; i2 >= 0; i2--) {
+      for (var j2 = m - 1; j2 >= 0; j2--) {
+        dp[i2][j2] = (a[i2] === b[j2]) ? dp[i2 + 1][j2 + 1] + 1 : Math.max(dp[i2 + 1][j2], dp[i2][j2 + 1]);
+      }
+    }
+    var ops = [], i = 0, j = 0;
+    while (i < n && j < m) {
+      if (a[i] === b[j]) { ops.push({ t: "eq", a: i, b: j }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ t: "del", a: i }); i++; }
+      else { ops.push({ t: "add", b: j }); j++; }
+    }
+    while (i < n) { ops.push({ t: "del", a: i }); i++; }
+    while (j < m) { ops.push({ t: "add", b: j }); j++; }
+    return ops;
+  }
+
+  // 字符级 LCS：返回合并后的 [{t:'eq'|'del'|'add', s}]
+  function charDiff(a, b) {
+    a = String(a || ""); b = String(b || "");
+    var n = a.length, m = b.length;
+    if (!n) return b ? [{ t: "add", s: b }] : [];
+    if (!m) return a ? [{ t: "del", s: a }] : [];
+    var dp = [];
+    for (var i = 0; i <= n; i++) dp.push(new Int32Array(m + 1));
+    for (var i2 = n - 1; i2 >= 0; i2--) {
+      for (var j2 = m - 1; j2 >= 0; j2--) {
+        dp[i2][j2] = (a.charAt(i2) === b.charAt(j2)) ? dp[i2 + 1][j2 + 1] + 1 : Math.max(dp[i2 + 1][j2], dp[i2][j2 + 1]);
+      }
+    }
+    var ops = [], i = 0, j = 0;
+    while (i < n && j < m) {
+      if (a.charAt(i) === b.charAt(j)) { ops.push({ t: "eq", s: a.charAt(i) }); i++; j++; }
+      else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ t: "del", s: a.charAt(i) }); i++; }
+      else { ops.push({ t: "add", s: b.charAt(j) }); j++; }
+    }
+    while (i < n) { ops.push({ t: "del", s: a.charAt(i) }); i++; }
+    while (j < m) { ops.push({ t: "add", s: b.charAt(j) }); j++; }
+    return ops;
+  }
+
+  function diffStat(aBody, bBody) {
+    var ops = diffParas(splitParas(aBody), splitParas(bBody));
+    var add = 0, del = 0;
+    ops.forEach(function (o) { if (o.t === "add") add++; else if (o.t === "del") del++; });
+    return "增 " + add + " · 删 " + del;
+  }
+
+  function renderHistoryList() {
+    if (!els.historyList) return;
+    var list = versions.slice().reverse();   // 新→旧
+    if (!list.length) {
+      if (els.historyEmpty) els.historyEmpty.hidden = false;
+      if (els.historyIntro) els.historyIntro.hidden = true;
+      els.historyList.innerHTML = "";
+      return;
+    }
+    if (els.historyEmpty) els.historyEmpty.hidden = true;
+    if (els.historyIntro) els.historyIntro.hidden = false;
+    els.historyList.innerHTML = "";
+    list.forEach(function (v, idx) {
+      var prev = idx < list.length - 1 ? list[idx + 1] : null;   // 列表新→旧，后一项是它上一版
+      var li = document.createElement("div");
+      li.className = "history-item";
+
+      var head = document.createElement("div");
+      head.className = "history-head";
+      var lab = document.createElement("span");
+      lab.className = "history-label";
+      lab.textContent = v.label || "修改";
+      var tm = document.createElement("span");
+      tm.className = "history-time";
+      tm.textContent = timeAgo(v.ts);
+      head.appendChild(lab); head.appendChild(tm);
+
+      var meta = document.createElement("div");
+      meta.className = "history-meta";
+      meta.textContent = (v.words || 0) + " 字" + (v.score ? " · " + v.score : "");
+
+      var act = document.createElement("div");
+      act.className = "history-act";
+      var diffBtn = document.createElement("button");
+      diffBtn.className = "history-btn";
+      diffBtn.disabled = !prev;
+      diffBtn.textContent = prev ? ("查看与上一版的改动（" + diffStat(prev.body, v.body) + "）") : "首版（无对比）";
+      diffBtn.onclick = function () { renderHistoryDiff(prev, v); };
+      var restBtn = document.createElement("button");
+      restBtn.className = "history-btn ghost";
+      restBtn.textContent = "恢复到此版";
+      restBtn.onclick = function () { restoreVersion(v.id); };
+      act.appendChild(diffBtn); act.appendChild(restBtn);
+
+      li.appendChild(head); li.appendChild(meta); li.appendChild(act);
+      els.historyList.appendChild(li);
+    });
+  }
+
+  function renderHistoryDiff(prevV, curV) {
+    if (!els.historyList) return;
+    var box = document.createElement("div");
+    box.className = "history-diff";
+    var h = document.createElement("div");
+    h.className = "history-diff-head";
+    h.textContent = "改动对照：上一版 → 本版";
+    box.appendChild(h);
+
+    var pa = splitParas(prevV.body), pb = splitParas(curV.body);
+    var ops = diffParas(pa, pb);
+    var body = document.createElement("div");
+    body.className = "history-diff-body";
+    for (var k = 0; k < ops.length; k++) {
+      var o = ops[k], nxt = ops[k + 1];
+      if (o.t === "eq") {
+        var pe = document.createElement("p");
+        pe.className = "diff-eq";
+        pe.textContent = pa[o.a];
+        body.appendChild(pe);
+      } else if (o.t === "del" && nxt && nxt.t === "add") {
+        var pc = document.createElement("p");
+        pc.className = "diff-add";
+        charDiff(pa[o.a], pb[nxt.b]).forEach(function (c) {
+          if (c.t === "eq") pc.appendChild(document.createTextNode(c.s));
+          else {
+            var sp = document.createElement("span");
+            sp.className = c.t === "add" ? "diff-ins" : "diff-del-inline";
+            sp.textContent = c.s;
+            pc.appendChild(sp);
+          }
+        });
+        body.appendChild(pc);
+        k++;   // 跳过紧随的 add
+      } else if (o.t === "del") {
+        var pd = document.createElement("p");
+        pd.className = "diff-del";
+        pd.textContent = pa[o.a];
+        body.appendChild(pd);
+      } else {
+        var pa2 = document.createElement("p");
+        pa2.className = "diff-add";
+        pa2.textContent = pb[o.b];
+        body.appendChild(pa2);
+      }
+    }
+    box.appendChild(body);
+
+    var back = document.createElement("button");
+    back.className = "history-btn ghost";
+    back.textContent = "← 返回版本列表";
+    back.onclick = renderHistoryList;
+    box.appendChild(back);
+
+    els.historyList.innerHTML = "";
+    els.historyList.appendChild(box);
+    if (els.historyEmpty) els.historyEmpty.hidden = true;
+    if (els.historyIntro) els.historyIntro.hidden = true;
+  }
+
+  function restoreVersion(id) {
+    var v = null;
+    versions.forEach(function (x) { if (x.id === id) v = x; });
+    if (!v) return;
+    docTitle = v.title || "作文";
+    docBody = v.body;
+    currentComposition = (v.title ? v.title + "\n\n" : "") + v.body;
+    renderAnnotated();
+    commitVersion("恢复到「" + (v.label || "修改") + "」版");
+    setPaperHint("已恢复到 " + (v.label || "修改") + " 版（可再退回）");
+    setDocHint("已恢复历史版本");
+  }
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -656,7 +917,7 @@
      稿纸的高度、格线宽度、字格数始终不变；稿纸在抽屉打开时照样能点能选字。
      关闭只走拉手 / 头部「收起」/ Esc，不做「点外部关闭」，避免跟自绘选字打架。 */
   function drawerTabName(name) {
-    return name === "flow" || name === "score" || name === "notes" ? name : "critic";
+    return name === "flow" || name === "score" || name === "notes" || name === "history" ? name : "critic";
   }
 
   function syncDrawerDots() {
@@ -668,6 +929,7 @@
     if (els.drawerDotCritic) els.drawerDotCritic.hidden = !criticNew || (drawerOpen && drawerTab === "critic");
     if (els.drawerDotNotes) els.drawerDotNotes.hidden = !notesNew || (drawerOpen && drawerTab === "notes");
     if (els.drawerDotFlow) els.drawerDotFlow.hidden = !flowNew || (drawerOpen && drawerTab === "flow") || flowActive;
+    if (els.drawerDotHistory) els.drawerDotHistory.hidden = !(versions.length > 0) || (drawerOpen && drawerTab === "history");
     // 拉手角标：有待处理的朱红批注、流程进行中，或没看过的评改结果
     var n = pendingMarks().length;
     var tip = flowActive ? "流程进行中" : "";
@@ -696,6 +958,7 @@
     }
     if (drawerTab === "score") renderScoreTables();
     if (drawerTab === "notes") renderDrawerNotes();
+    if (drawerTab === "history") renderHistoryList();
     syncScoreToggle();
     syncDrawerDots();
   }
@@ -854,6 +1117,36 @@
     var reply = parts[0].replace(/^\s*===回应===\s*$/m, "").trim();
     var comp = parts.slice(1).join("===作文===").replace(/^\s+|\s+$/g, "");
     return { reply: reply, comp: comp };
+  }
+
+  /* 作文以 JSON 输出：从模型返回里抠出 {title, body} 对象，外壳任何客套话（"好的，以下是修改后的作文："之类）
+     一律忽略。这是比解析 ===作文=== 文本更安全的方式——模型再啰嗦也不会把回答写进正文。 */
+  function parseCompositionJSON(raw) {
+    var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    var a = s.indexOf("{");
+    if (a < 0) throw new Error("模型没有返回作文 JSON，换一个模型再试。");
+    // 从第一个 { 起做括号配对，找到与之匹配的最外层 }：正文里的花括号不会干扰
+    var depth = 0, inStr = false, esc = false, end = -1;
+    for (var i = a; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === "\\") esc = true;
+        else if (ch === "\"") inStr = false;
+      } else {
+        if (ch === "\"") inStr = true;
+        else if (ch === "{") depth++;
+        else if (ch === "}") { depth--; if (depth === 0) { end = i; break; } }
+      }
+    }
+    if (end < 0) throw new Error("作文 JSON 解析失败，换一个模型再试。");
+    var obj;
+    try { obj = JSON.parse(s.slice(a, end + 1)); }
+    catch (e) { throw new Error("作文 JSON 解析失败，换一个模型再试。"); }
+    var title = trim(obj && obj.title) || "";
+    var body = trim(obj && obj.body) || "";
+    if (!body) throw new Error("作文 JSON 里没有正文，换一个模型再试。");
+    return { title: title, body: body };
   }
 
   // forceTitle=true 用于「===作文===」之后的作文块：按输出格式第一行必定是标题，直接剥掉首行，
@@ -1953,6 +2246,16 @@
   /* ---------------- 输出更新（流式驱动） ---------------- */
 
   function updateOutput(streaming) {
+    if (streamIsEssay) {
+      if (streaming) {
+        if (assistantReplyEl) assistantReplyEl.textContent = "正在生成正文…已写 " + Array.from(trim(fullText)).length + " 字";
+        showEmpty();
+        return;
+      }
+      if (assistantReplyEl) assistantReplyEl.textContent = (docTitle && docTitle !== "作文") ? ("「" + docTitle + "」已生成") : "正文已生成";
+      return;
+    }
+    // 非作文流兜底（outline/explain 走 onProgress，正常不会到这）：保留旧逻辑
     var hasMarker = /^\s*===作文===\s*$/m.test(fullText);
     if (!hasMarker) {
       if (streaming) {
@@ -1970,9 +2273,8 @@
   }
 
   function cacheComposition() {
-    var hasMarker = /^\s*===作文===\s*$/m.test(fullText);
-    var parts = splitTwo(fullText);
-    var t = titledParts(parts.comp, hasMarker);
+    // 作文一律按 JSON 解析：title 单独成字段，正文纯文本，不再靠首行启发式，也不受 AI 客套话污染
+    var t = parseCompositionJSON(fullText);
     docTitle = t.title || "作文";
     docBody = t.body;
     currentComposition = (t.title ? t.title + "\n\n" : "") + t.body;
@@ -2271,7 +2573,7 @@
     var st = scoringText();
     if (st) lines.push(st);
     lines.push("【本次大纲（已由用户确认，必须照着写）】\n" + outlineJSON());
-    lines.push("\n这是首次生成，请直接输出「===作文===」和作文正文，不用写「回应」部分。正文必须落实上面大纲里每一段的人物、器物、动作，不得另起炉灶。严格按系统提示的写作铁律、本类别的标题与扣题规则、以及上述评分标准执行。");
+    lines.push("\n这是首次生成，请按系统提示的 JSON 格式输出：一个 {title, body} 对象，title 是标题、body 是完整正文（段落间用空行隔开）。不要写「回应」部分，不要写任何 JSON 之外的文字。正文必须落实上面大纲里每一段的人物、器物、动作，不得另起炉灶。严格按系统提示的写作铁律、本类别的标题与扣题规则、以及上述评分标准执行。");
     return lines.join("\n");
   }
 
@@ -2313,7 +2615,7 @@
     lines.push(wrapLockedRewrite());
     lines.push("学生本轮的修改要求：{\n" + req + "\n}\n" +
       "（这是本轮唯一要解决的问题，逐条照办，一条不许漏；要求没提到的段落尽量沿用原文写住的句子，不要顺手润色一遍。）");
-    lines.push("请从头重写一版完整作文，按系统提示的 ===作文=== 格式输出：标记之后第一行是标题，空一行，然后是完整正文。不要输出批注 JSON、修改清单、说明文字或 Markdown。");
+    lines.push("请从头重写一版完整作文，按系统提示的 JSON 格式输出：一个 {\"title\":\"...\", \"body\":\"...\"} 对象，title 是标题、body 是完整正文（段落间用空行隔开）。不要输出批注 JSON、修改清单、说明文字或 Markdown，不要写任何 JSON 之外的文字。");
     return lines.join("\n\n");
   }
 
@@ -2323,6 +2625,8 @@
     lines.push(genreLine());
     var st = scoringText();
     if (st) lines.push(st);
+    var wr = window.WY_WRITING_RULES;
+    if (wr) lines.push("【讲评尺度（写作规范，讲评时以此为准）】\n" + wr);
     lines.push(wrapEssay());
     lines.push(wrapAsk(req));
     lines.push("学生这次只想弄明白问题，不想动稿。按系统提示只做讲评：不要改作文，不要给替换句，不要输出批注 JSON。");
@@ -2335,6 +2639,8 @@
     lines.push(genreLine());
     var st = scoringText();
     if (st) lines.push(st);
+    var wr = window.WY_WRITING_RULES;
+    if (wr) lines.push("【评判尺度（写作规范，评判时以此为准，与上面给分规则并用）】\n" + wr);
     lines.push(wrapEssay());
     lines.push(wrapLocked());
     lines.push("用户提问：{\n按上面的尺度逐句判好坏与 AI 味。只判确实有硬伤的，挑不出就不要凑数，也不许把学生的朴素写法当成缺点。\n}");
@@ -2343,6 +2649,7 @@
 
   async function runStream(systemPrompt, userContent, opts) {
     opts = opts || {};
+    streamIsEssay = (opts.mode === "essay");
     var c = currentConfig();
     controller = new AbortController();
     fullText = "";
@@ -2392,12 +2699,24 @@
       }
 
       if (!got || !fullText.trim()) throw new Error("接口没有返回内容，换一个模型或检查额度。");
-      if (!opts.onProgress) { updateOutput(false); cacheComposition(); }
+      if (!opts.onProgress) {
+        if (streamIsEssay) {
+          try { cacheComposition(); }   // 按 JSON 解析并设置正文，失败则拒收、保留原稿
+          catch (e2) {
+            var em = (e2 && e2.message) || "作文解析失败";
+            setPaperHint("生成失败：" + em);
+            if (assistantReplyEl) assistantReplyEl.textContent = "生成失败：" + em;
+            return false;
+          }
+        } else {
+          updateOutput(false); cacheComposition();
+        }
+      }
       return true;
 
     } catch (e) {
       if (e && e.name === "AbortError") {
-        if (!opts.onProgress) { updateOutput(false); cacheComposition(); }
+        if (!opts.onProgress && !streamIsEssay) { updateOutput(false); cacheComposition(); }
         setPaperHint("已停止，保留已生成的部分。");
         return false;
       }
@@ -3103,7 +3422,8 @@
     var st = scoringText();
     if (st) sys += "\n\n" + st;
 
-    var ok = await runStream(sys, composeWriteUser());
+    var wasDraft = (stage === "draft");
+    var ok = await runStream(sys, composeWriteUser(), { mode: "essay" });
     if (ok && docBody.trim()) {
       stage = "draft";
       updateWriteBtn();
@@ -3112,6 +3432,7 @@
       setDocHint("正文已生成 · 左上可切回大纲");
       saveEssayToCloud();
       scheduleEssaySave();
+      commitVersion(wasDraft ? "重新生成" : "初稿");
     } else {
       setDocHint("正文没生成出来，可再点一次「按大纲开始写」");
     }
@@ -3266,7 +3587,7 @@
     var st = scoringText();
     if (st) sys += "\n\n" + st;
 
-    var ok = await runStream(sys, composeRewriteUser(req));
+    var ok = await runStream(sys, composeRewriteUser(req), { mode: "essay" });
     var plain = function (t) { return String(t || "").replace(/\s/g, "").length; };
     var reason = "";
     if (!ok || !docBody.trim()) reason = "没拿到完整新稿";
@@ -3300,9 +3621,9 @@
     var done = "已从头重写整篇 · 字数 " + plain(docBody) + " · 可用「恢复上一版」退回";
     setPaperHint(done);
     setDocHint(done);
+    commitVersion("重写");
     if (assistantReplyEl) {
-      assistantReplyEl.textContent =
-        (trim(splitTwo(fullText).reply).slice(0, 120) || "已重写一版完整新稿。") + " 旧旁批已清空。";
+      assistantReplyEl.textContent = "已重写一版完整新稿（" + plain(docBody) + " 字）。旧旁批已清空。";
     }
     return true;
   }
@@ -3863,11 +4184,8 @@
   /* ---------------- 输出操作 ---------------- */
 
   function compositionText() {
-    // 采纳批注后正文已变，优先用 docTitle/docBody（最终稿），而不是最初的 fullText
-    if (currentComposition) return { title: docTitle, body: docBody };
-    var hasMarker = /^\s*===作文===\s*$/m.test(fullText);
-    var parts = splitTwo(fullText);
-    return titledParts(parts.comp, hasMarker);
+    // docTitle/docBody 是收稿后唯一可信的作文（JSON 解析得到），不再回溯 fullText
+    return { title: docTitle, body: docBody };
   }
 
   function plainOutput() {
@@ -4060,6 +4378,7 @@
     if (!undoStack.length) return;
     var snap = undoStack.pop();
     restoreEssaySnapshot(snap);
+    commitVersion("恢复上一版");
     var msg = "已恢复上一版" + (undoStack.length ? "（还可再退 " + undoStack.length + " 版）" : "");
     setPaperHint(msg);
     setDocHint(msg);
@@ -4428,9 +4747,11 @@
      所以延后到 DOM 就绪再读登录态。 */
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
+      loadVersions();
       setTimeout(function () { tryResumeEssay(); }, 60);
     });
   } else {
+    loadVersions();
     setTimeout(function () { tryResumeEssay(); }, 60);
   }
 })();

@@ -1768,25 +1768,49 @@ table.score-table .score-table-key {
 .paper-body .critic-mark {
   position: relative;
   cursor: pointer;
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
+/* 评判句高亮：整句着色，精确到 AI 判的那一句；坏=暖红、好=青绿 */
 .paper-body .critic-mark.cm-bad {
+  background: rgba(192, 100, 47, .16);
   text-decoration: underline wavy #c0642f;
-  text-underline-offset: 5px;
-  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 2px;
 }
 .paper-body .critic-mark.cm-good {
+  background: rgba(47, 111, 78, .15);
   text-decoration: underline wavy #2f6f4e;
-  text-underline-offset: 5px;
-  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 2px;
 }
-.paper-body .critic-mark.cm-agreed {
-  background: rgba(47, 111, 78, .12);
-  text-decoration-style: solid;
+/* 句首小角标，直接标出第几号评判，点一下跳到右栏那条评语 */
+.paper-body .critic-mark::before {
+  content: attr(data-critic-no);
+  position: absolute;
+  top: -9px;
+  left: -3px;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 6px 6px 6px 0;
+  color: #fff;
+  background: #c0642f;
+  transform: translateY(-1px);
+  font-family: var(--sans);
 }
+.paper-body .critic-mark.cm-good::before { background: #2f6f4e; }
+.paper-body .critic-mark.cm-agreed { background: rgba(47, 111, 78, .28); text-decoration-style: solid; }
+.paper-body .critic-mark.cm-agreed::before { background: #2f6f4e; }
 .paper-body .critic-mark.cm-denied {
+  background: rgba(124, 124, 124, .14);
   text-decoration-style: dotted;
   color: #7c7c7c;
 }
+.paper-body .critic-mark.cm-denied::before { background: #7c7c7c; }
+.paper-body .critic-mark.active { outline: 2px solid #2f6f4e; outline-offset: 1px; }
 
 .critic-dock-send {
   flex: none;
@@ -2455,3 +2479,54 @@ table.score-table .score-table-key {
 .drawer-note-list .note-acts { opacity: 1; pointer-events: auto; margin-top: 6px; }
 .drawer-note-list .note-accept,
 .drawer-note-list .note-ignore { height: 30px; padding: 0 12px; font-size: 12px; }
+
+/* ============ 历史版本：GitHub 式更改查看 ============ */
+.history-intro {
+  margin: 4px 2px 10px;
+  color: var(--ink-mute, #6b6b6b);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-item {
+  border: 1px solid var(--line, #e3e0d6);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--paper-2, #faf8f2);
+}
+.history-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.history-label { font-family: var(--sans); font-weight: 600; font-size: 13.5px; color: var(--ink, #233); }
+.history-time { font-size: 11px; color: var(--ink-mute, #8a8a8a); white-space: nowrap; }
+.history-meta { font-size: 12px; color: var(--ink-mute, #6b6b6b); margin-top: 2px; }
+.history-act { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.history-btn {
+  font-family: var(--sans);
+  font-size: 12px;
+  border: 1px solid var(--brand, #2f6f4e);
+  background: var(--brand, #2f6f4e);
+  color: #fff;
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.history-btn:disabled { background: var(--paper-2, #faf8f2); color: var(--ink-mute, #9a9a9a); border-color: var(--line, #e3e0d6); cursor: default; }
+.history-btn.ghost { background: transparent; color: var(--brand, #2f6f4e); }
+.history-btn.ghost:hover { background: rgba(47,111,78,.08); }
+
+.history-diff { display: flex; flex-direction: column; gap: 8px; }
+.history-diff-head { font-family: var(--sans); font-weight: 600; font-size: 13px; color: var(--ink, #233); margin-bottom: 2px; }
+.history-diff-body { display: flex; flex-direction: column; gap: 4px; }
+.history-diff-body p {
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.history-diff-body .diff-eq { color: var(--ink, #233); background: transparent; }
+.history-diff-body .diff-del { background: rgba(192, 100, 47, .12); color: #8a4a25; text-decoration: line-through; text-decoration-color: rgba(192,100,47,.6); }
+.history-diff-body .diff-add { background: rgba(47, 111, 78, .12); color: #1f5135; }
+.history-diff-body .diff-ins { background: rgba(47, 111, 78, .35); color: #0f3a22; border-radius: 2px; }
+.history-diff-body .diff-del-inline { background: rgba(192, 100, 47, .35); color: #6e3a1c; border-radius: 2px; text-decoration: line-through; }
