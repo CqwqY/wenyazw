@@ -263,37 +263,56 @@
     return out;
   }
 
+  function sessionData() {
+    return {
+      ts: Date.now(),
+      essayId: currentEssayId || 0,
+      title: docTitle || "",
+      body: docBody || "",
+      stage: stage,
+      outline: outlineStore(),
+      category: categoryStore(),
+      province: (activeProvinces.length ? activeProvinces : selectedProvinces).join("、"),
+      chat: chatSnapshot(),
+      flow: flowSnapshot(),
+      critic: {
+        items: criticItems,
+        scores: criticScores,
+        stat: els.criticStat ? els.criticStat.textContent : ""
+      },
+      notes: annotations,
+      annotSeq: annotSeq,
+      locks: lockedTexts,
+      mode: chatMode
+    };
+  }
+
+  /* 传云端的那份去掉正文/大纲/类别这些已经有独立列的字段，只留"现场"，
+     免得同一篇正文在库里存两遍。 */
+  function cloudSession() {
+    var d = sessionData();
+    delete d.title; delete d.body; delete d.outline;
+    delete d.category; delete d.province;
+    d.essayId = 0;                       // 由数据库行 id 决定，不必自报
+    return JSON.stringify(d);
+  }
+
   function saveSessionNow() {
     try {
-      var data = {
-        ts: Date.now(),
-        essayId: currentEssayId || 0,
-        title: docTitle || "",
-        body: docBody || "",
-        stage: stage,
-        outline: outlineStore(),
-        category: categoryStore(),
-        province: (activeProvinces.length ? activeProvinces : selectedProvinces).join("、"),
-        chat: chatSnapshot(),
-        flow: flowSnapshot(),
-        critic: {
-          items: criticItems,
-          scores: criticScores,
-          stat: els.criticStat ? els.criticStat.textContent : ""
-        },
-        notes: annotations,
-        annotSeq: annotSeq,
-        locks: lockedTexts,
-        mode: chatMode
-      };
-      localStorage.setItem(sessionKey(), JSON.stringify(data));
+      localStorage.setItem(sessionKey(), JSON.stringify(sessionData()));
     } catch (e) { /* 存不下（隐私模式/超配额）就算了，不影响写作 */ }
   }
 
   var sessionTimer = null;
+  var cloudSessionTimer = null;
   function scheduleSessionSave() {
     if (sessionTimer) clearTimeout(sessionTimer);
     sessionTimer = setTimeout(function () { sessionTimer = null; saveSessionNow(); }, 600);
+    // 同时把现场推到云端（跟着作文行存），换设备/清缓存也能接回来
+    if (authToken()) {
+      if (cloudSessionTimer) clearTimeout(cloudSessionTimer);
+      cloudSessionTimer = setTimeout(function () { cloudSessionTimer = null; saveEssayToCloud(); }, 2500);
+    }
   }
 
   function readSession() {
@@ -415,6 +434,38 @@
     switchPane(stage === "draft" ? "paper" : "outline");
     setPaperHint("已恢复上次的写作现场（对话、评改、旁批都在）");
     setDocHint(stage === "draft" ? "正文已恢复 · 可继续改" : "大纲已恢复");
+    return true;
+  }
+
+  /* 从控制台打开一篇存档作文时，把这同一条作文自己的现场接回来：
+     对话、评改结果、旁批、锁句。本机有就用本机的（更新），没有就用云端随稿存的那份，换设备也不丢。
+     正文和大纲以云端为准（可能在别的设备改过），所以这里只铺 UI，不覆盖稿子。 */
+  function hydrateEssaySession(cloudRaw) {
+    var d = readSession();
+    if (d && d.essayId && currentEssayId && String(d.essayId) !== String(currentEssayId)) d = null;
+    if (!d && cloudRaw) {
+      try { d = JSON.parse(cloudRaw); } catch (e) { d = null; }
+    }
+    if (!d) return false;
+
+    if (Array.isArray(d.chat) && d.chat.length) paintChat(d.chat);
+
+    if (d.critic && Array.isArray(d.critic.items) && d.critic.items.length && !criticItems.length) {
+      criticItems = d.critic.items;
+      criticScores = Array.isArray(d.critic.scores) ? d.critic.scores : [];
+      criticSeq = criticItems.reduce(function (m, it) { return Math.max(m, it.id || 0); }, criticSeq);
+      if (els.criticStat && d.critic.stat) els.criticStat.textContent = d.critic.stat;
+    }
+    if (Array.isArray(d.notes) && d.notes.length && !annotations.length) {
+      annotations = d.notes;
+      annotSeq = d.annotSeq || annotations.length;
+    }
+    if (Array.isArray(d.locks) && d.locks.length && !lockedTexts.length) {
+      lockedTexts = d.locks;
+      saveLocked();
+    }
+    if (Array.isArray(d.flow) && d.flow.length) paintFlow(d.flow);
+    if (d.mode) setChatMode(d.mode);
     return true;
   }
 
@@ -1723,6 +1774,7 @@
 
   function saveLocked() {
     try { localStorage.setItem(LOCK_STORE, JSON.stringify(lockedTexts)); } catch (e) { /* 存不下就算了 */ }
+    scheduleSessionSave();     // 锁句也算现场的一部分，跟着会话一起存
   }
 
   function isLocked(text) {
@@ -2353,6 +2405,7 @@
     if (dropped && els.criticStat) {
       els.criticStat.textContent = "正文已变，清掉 " + dropped + " 条对不上的旧旁批/旧评分；需要请重新评改。";
     }
+    scheduleSessionSave();     // 清理结果要落盘，否则刷新又被旧的脏批注带回来
     return dropped;
   }
 
@@ -2405,6 +2458,7 @@
     if (els.criticStat) {
       els.criticStat.textContent = "已重写整篇，上一版的评分与旁批已清空；需要请重新评改。";
     }
+    scheduleSessionSave();
   }
 
   function syncUndoBtn() {
@@ -2764,6 +2818,7 @@
       outline: outlineStore(),
       category: categoryStore(),
       province: (activeProvinces.length ? activeProvinces : selectedProvinces).join("、"),
+      session: cloudSession(),
       wordCount: Array.from(docBody.replace(/\s/g, "")).length
     };
   }
@@ -3668,6 +3723,9 @@
 
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
+
+    // 这篇以前写过的话，把对话/评改/旁批/锁句接回来（本机没有就用云端随稿存的那份）
+    if (hydrateEssaySession(data.session) && criticItems.length) renderCritic();
 
     addUserBubble("从控制台打开《" + (docTitle || "作文") + "》继续改", "你");
     if (stage === "draft") {
@@ -5251,16 +5309,34 @@
   }
 
   /* 从控制台跳回来时恢复那篇作文。auth.js 在本脚本之后加载，
-     所以延后到 DOM 就绪再读登录态。 */
+     所以延后到 DOM 就绪再读登录态。?essay 优先；没有就接上次的写作现场。 */
+  function bootRestore() {
+    Promise.resolve()
+      .then(function () { return tryResumeEssay(); })
+      .catch(function () { /* 取稿失败已由内部提示 */ })
+      .then(function () { trySessionRestore(); });
+  }
+
+  // 关页/切后台时补一刀：定时器可能还差几百毫秒没落盘
+  function flushSession() {
+    if (sessionTimer) { clearTimeout(sessionTimer); sessionTimer = null; }
+    saveSessionNow();
+  }
+  window.addEventListener("beforeunload", flushSession);
+  window.addEventListener("pagehide", flushSession);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") flushSession();
+  });
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       loadVersions();
       updateDiffBtn();
-      setTimeout(function () { tryResumeEssay(); }, 60);
+      setTimeout(bootRestore, 60);
     });
   } else {
     loadVersions();
     updateDiffBtn();
-    setTimeout(function () { tryResumeEssay(); }, 60);
+    setTimeout(bootRestore, 60);
   }
 })();
