@@ -2230,9 +2230,13 @@ table.score-table .score-table-key {
   .note-acts { opacity: 1; pointer-events: auto; }
 }
 
-/* ============ 右侧工作窗抽屉 ============
-   评卷 / 流程 / 评分标准都装在这里。fixed 浮层，不参与 studio 的 flex 布局，
-   稿纸的高度、格线宽度、旁批定位都不会因为打开工作窗而变。 */
+/* ============ 右侧工作窗：贴边拉出的悬浮卡片 ============
+   零嵌入：fixed 浮层，不插进 .doc-body、不铺满视口、不铺遮罩、不改 body，
+   稿纸的高度、格线宽度、旁批定位、字格数都不会因为拉出工作窗而变。 */
+:root {
+  --wy-drawer-w: min(372px, calc(100vw - 32px));
+  --wy-drawer-gap: 16px;
+}
 
 .drawer-handle {
   position: fixed;
@@ -2255,7 +2259,7 @@ table.score-table .score-table-key {
   transition: opacity .2s ease, background .2s ease;
 }
 .drawer-handle:hover { background: var(--paper-2); }
-/* 打开后收掉拉手，别让它压在稿纸字上；收起用抽屉头部的按钮或 Esc */
+/* 拉出后收掉拉手：卡片左边缘外面就是稿纸，留着会压字；收起走卡片头部按钮或 Esc */
 .drawer-handle.is-open { opacity: 0; pointer-events: none; }
 .drawer-handle-txt {
   writing-mode: vertical-rl;
@@ -2278,31 +2282,26 @@ table.score-table .score-table-key {
 }
 .drawer-badge[hidden] { display: none; }
 
-.drawer-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 88;
-  background: rgba(38, 32, 24, .28);
-}
-.drawer-mask[hidden] { display: none; }
-
 .work-drawer {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: 132px;          /* 避开顶部工具按钮和评分摘要行 */
+  right: var(--wy-drawer-gap);
+  bottom: auto;
   z-index: 90;
-  width: min(408px, 92vw);
+  width: var(--wy-drawer-w);
+  max-height: calc(100vh - 152px);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--paper);
-  border-left: 1px solid var(--line);
-  box-shadow: -12px 0 34px rgba(60, 48, 33, .16);
-  animation: drawer-in .22s ease-out;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: -10px 12px 36px rgba(60, 48, 33, .18), 0 2px 8px rgba(60, 48, 33, .06);
+  animation: drawer-in .24s cubic-bezier(.22, .68, 0, 1);
 }
 .work-drawer[hidden] { display: none; }
 @keyframes drawer-in {
-  from { transform: translateX(24px); opacity: .4; }
+  from { transform: translateX(calc(100% + var(--wy-drawer-gap))); opacity: .45; }
   to { transform: translateX(0); opacity: 1; }
 }
 
@@ -2394,7 +2393,8 @@ table.score-table .score-table-key {
 .drawer-pane .flow-stat { order: 3; flex: 1 1 100%; white-space: normal; }
 .drawer-pane .critic-score { padding: 10px 12px 12px; }
 .drawer-pane .cs-card { flex: 1 1 100%; min-width: 0; }
-.drawer-pane .flow-steps { max-height: 42vh; }
+/* 卡片高度有限，内容统一交给 .drawer-body 滚动，不叠第二层滚动条 */
+.drawer-pane .flow-steps { max-height: none; }
 .drawer-pane .critic-dock[hidden],
 .drawer-pane .flow-dock[hidden] { display: none; }
 
@@ -2421,11 +2421,7 @@ table.score-table .score-table-key {
 .flow-setup-acts .btn:disabled { opacity: .55; cursor: not-allowed; }
 .flow-setup-note { font-size: 11.5px; color: var(--ink-mute); }
 
-@media (max-width: 960px) {
-  .drawer-pane .flow-steps { max-height: 34vh; }
-}
-
-/* 桌面端不铺遮罩：抽屉浮在右侧，稿纸仍然能点、能选、能改 */
-@media (min-width: 761px) {
-  .drawer-mask { display: none !important; }
+/* 矮窗口：卡片跟着缩短，顶部留白也收一点，始终不铺满整屏 */
+@media (max-height: 620px) {
+  .work-drawer { top: 16px; max-height: calc(100vh - 32px); }
 }

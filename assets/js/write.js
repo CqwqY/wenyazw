@@ -97,7 +97,7 @@
     paperNotes: $("paperNotes"),
 
     drawerHandle: $("drawerHandle"), drawerBadge: $("drawerBadge"),
-    drawerMask: $("drawerMask"), workDrawer: $("workDrawer"),
+    workDrawer: $("workDrawer"),
     drawerTabs: $("drawerTabs"), drawerClose: $("drawerClose"),
     drawerPanes: {
       critic: $("drawerPaneCritic"), flow: $("drawerPaneFlow"), score: $("drawerPaneScore")
@@ -645,10 +645,11 @@
 
   buildStageCards();
 
-  /* ---------------- 右侧工作窗抽屉 ----------------
-     评卷、流程进度、评分标准表格全部收进这里。抽屉是 fixed 浮层，
-     不参与 .doc-body 的 flex 布局，稿纸高度与格线始终不变；
-     桌面端贴右侧盖一层，手机端全屏，点遮罩或「收起」关闭。 */
+  /* ---------------- 右侧工作窗（贴边悬浮卡片） ----------------
+     评卷、流程进度、评分标准表格全部收进这里。零嵌入：position fixed、
+     不插进 .doc-body、不铺满视口、不加遮罩、不改 body 宽度或滚动，
+     稿纸的高度、格线宽度、字格数始终不变；稿纸在抽屉打开时照样能点能选字。
+     关闭只走拉手 / 头部「收起」/ Esc，不做「点外部关闭」，避免跟自绘选字打架。 */
   function drawerTabName(name) {
     return name === "flow" || name === "score" ? name : "critic";
   }
@@ -701,10 +702,10 @@
     drawerOpen = !!open;
     if (open && tab) setDrawerTab(tab);
     if (els.workDrawer) els.workDrawer.hidden = !drawerOpen;
-    if (els.drawerMask) els.drawerMask.hidden = !drawerOpen;
     if (els.drawerHandle) {
       els.drawerHandle.classList.toggle("is-open", drawerOpen);
       els.drawerHandle.setAttribute("aria-expanded", String(drawerOpen));
+      els.drawerHandle.setAttribute("aria-label", drawerOpen ? "收起工作窗" : "拉出工作窗");
     }
     document.body.classList.toggle("drawer-open", drawerOpen);
     syncScoreToggle();
@@ -3802,12 +3803,11 @@
   on(els.acceptAllBtn, "click", function () { applyAll("accept"); });
   on(els.ignoreAllBtn, "click", function () { applyAll("ignore"); });
 
-  // 右侧工作窗抽屉：拉手 / 遮罩 / 关闭 / tab / Esc
+  // 右侧工作窗：拉手（开/收）/ 头部关闭 / tab / Esc；无遮罩、不拦截稿纸点击
   on(els.drawerHandle, "click", function () {
     if (drawerOpen) closeDrawer(true);
     else setDrawer(true);
   });
-  on(els.drawerMask, "click", function () { closeDrawer(true); });
   on(els.drawerClose, "click", function () { closeDrawer(true); });
   on(els.criticDockClose, "click", function () { closeDrawer(true); });
   on(els.drawerTabs, "click", function (e) {
@@ -3818,8 +3818,8 @@
   });
   on(document, "keydown", function (e) {
     if (e.key !== "Escape" || !drawerOpen) return;
-    var mask = document.getElementById("authMask");
-    if (mask && !mask.hasAttribute("hidden")) return;  // 登录弹窗优先
+    var authMask = document.getElementById("authMask");
+    if (authMask && !authMask.hasAttribute("hidden")) return;  // 登录弹窗优先
     closeDrawer(true);
   });
 
