@@ -274,7 +274,7 @@
   /* 失败提示统一补一句「积分退回去了」，免得用户以为白扣 */
   function withRefund(msg, refunded) {
     if (!refunded || els.preset.value !== "site") return msg;
-    return msg + "（这次扣的 1 积分已自动退回）";
+    return msg + "（这次的 1 积分已自动退回）";
   }
 
   function syncCreditsUI() {
@@ -289,7 +289,7 @@
   function refreshCreditLine() {
     if (!els.cfgCredits) return;
     var n = window.WY_AUTH && window.WY_AUTH.credits ? window.WY_AUTH.credits() : null;
-    var txt = n === null ? "剩余积分：登录后显示" : ("剩余积分 " + n + " · 每次操作扣 1 分");
+    var txt = n === null ? "剩余积分：登录后显示" : ("剩余积分 " + n + " · 每次操作消耗 1 积分");
     els.cfgCredits.textContent = txt;
   }
 
@@ -338,7 +338,7 @@
     if (els.preset.value === "site") {
       syncPresetUI();
       saveConfig();
-      setWizardStatus("站内模型：登录后直接用，每次操作扣 1 积分。", "");
+      setWizardStatus("站内模型：登录后直接用，每次操作消耗 1 积分。", "");
       return;
     }
     syncPresetUI();
@@ -677,10 +677,29 @@
 
       box.appendChild(table(["维度", "分值", "要求"], s.dims));
       box.appendChild(table(["档次", "分数", "要求"], s.bands));
-      if (s.notes) {
+      if (s.deduct && s.deduct.length) {
+        var COIN = '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="8" cy="8" r="6.6" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="8" cy="8" r="2.6" fill="currentColor"/></svg>';
+        var wrap = document.createElement("div");
+        wrap.className = "score-deduct";
+        s.deduct.forEach(function (d) {
+          var it = document.createElement("span");
+          it.className = "deduct-item";
+          if (d[1] > 0) it.classList.add("bonus");
+          it.appendChild(document.createTextNode(d[0] + " "));
+          var v = document.createElement("span");
+          v.className = "deduct-val";
+          var num = d[2] ? String(d[2]) : String(Math.abs(d[1]));
+          if (d[1] > 0) num = "+" + num;
+          else if (d[1] < 0) num = "-" + num;
+          v.innerHTML = COIN + "<span>" + num + "</span>";
+          it.appendChild(v);
+          wrap.appendChild(it);
+        });
+        box.appendChild(wrap);
+      } else if (s.notes) {
         var note = document.createElement("div");
         note.className = "score-table-note";
-        note.textContent = "扣分与降档：" + s.notes;
+        note.textContent = "评分细则：" + s.notes;
         box.appendChild(note);
       }
       els.scoreTables.appendChild(box);
@@ -3259,8 +3278,8 @@
     if (criticScores.length) {
       lines.push("上一轮评卷给分：" + criticScores.map(function (s) {
         return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "") +
-          (s.why ? "，扣在：" + s.why : "");
-      }).join("；") + "。先解决扣分最狠的地方，分数才能上来。");
+          (s.why ? "，失分在：" + s.why : "");
+      }).join("；") + "。先解决失分最多的地方，分数才能上来。");
     }
     picked.forEach(function (it, i) {
       lines.push((i + 1) + ". 原句：" + it.sentence);
