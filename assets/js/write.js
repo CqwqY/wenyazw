@@ -102,8 +102,16 @@
     outlinePoints: $("outlinePoints"), outlineEmpty: $("outlineEmpty"),
     outlineAddBtn: $("outlineAddBtn"), outlineAiBtn: $("outlineAiBtn"),
     outlineRetryBtn: $("outlineRetryBtn"),
+    flowAuto: $("flowAuto"), flowRounds: $("flowRounds"), flowCostHint: $("flowCostHint"),
+    flowBtn: $("flowBtn"), flowDock: $("flowDock"), flowStat: $("flowStat"),
+    flowSteps: $("flowSteps"), flowStopBtn: $("flowStopBtn"),
     writeEssayBtn: $("writeEssayBtn")
   };
+
+  /* 流程作文状态 */
+  var flowActive = false;
+  var flowAbort = false;
+  var flowRounds = 2;
 
   /* 向导状态 */
   var selectedCat = "";
@@ -259,7 +267,7 @@
   /* 站内模式下，凡是会扣分的按钮都挂一个角标（CSS 画，避免改 textContent 时被清掉） */
   var COST_BTN_KEYS = [
     "startBtn", "outlineAiBtn", "outlineRetryBtn", "writeEssayBtn",
-    "sendBtn", "criticBtn", "criticApplyBtn", "testBtn"
+    "sendBtn", "criticBtn", "criticApplyBtn", "flowBtn", "testBtn"
   ];
   function syncCostBadges() {
     var site = els.preset.value === "site";
@@ -2674,6 +2682,13 @@
 
   async function startWriting() {
     if (!loginReady()) { requireLoginForStart(); return; }
+    if (flowActive) { setWizardStatus("流程作文正在进行中，先停下来再重开。", "error"); return; }
+    var flowFromWizard = !!(els.flowAuto && els.flowAuto.checked);
+    if (flowFromWizard && !confirm(
+      "流程作文：先拟大纲、写正文，再最多 " + flowRoundLimit() +
+      " 轮「评分 → 只改硬伤 → 复评」，约 " + (flowBudget(false) + 1) +
+      " 次 AI 调用，每次消耗 1 积分。\n分数不升会回退到最好的一版；中途可停止。继续？"
+    )) return;
     if (!selectedCat) { setWizardStatus("请先选择作文类别（命题/半命题/自拟）。", "error"); return; }
     if (!els.topic.value.trim()) {
       setWizardStatus(selectedCat === "自拟" ? "请先写一段题材或范围。" : "请先写下作文题目。", "error");
@@ -2767,6 +2782,10 @@
         setDocHint(e.message || "大纲解析失败");
         renderOutline();
       }
+    }
+    // 流程作文：大纲已就绪，直接接着写正文 → 评分 → 改 → 复评（预算已在开跑前确认过）
+    if (flowFromWizard && outline.points.some(function (p) { return trim(p.text); })) {
+      runFlow({ confirmed: true });
     }
   }
 
@@ -3351,6 +3370,199 @@
     }
   }
 
+  /* ---------------- 流程作文：写 → 评 → 只改硬伤 → 复评 ----------------
+     护栏：轮数上限 / 分数不升回滚 / 只认硬伤 / 锁句不动 / 随时停止 / 开跑前报积分预算。
+     不做无脑循环：AI 改坏的情况由「保留最高分版本」兜住。 */
+  function flowRoundLimit() {
+    var n = parseInt(els.flowRounds && els.flowRounds.value, 10);
+    return isNaN(n) ? 2 : Math.max(1, Math.min(3, n));
+  }
+
+  // 预算：每轮 = 1 次评分 + 1 次批改，最后再 1 次复评；没稿子还要 1 次写作
+  function flowBudget(hasDraft) {
+    return (hasDraft ? 0 : 1) + flowRoundLimit() * 2 + 1;
+  }
+
+  function syncFlowCost() {
+    if (!els.flowCostHint) return;
+    els.flowCostHint.textContent = "约 " + flowBudget(true) + " 次 AI 调用（每次消耗 1 积分）" +
+      (els.flowAuto && els.flowAuto.checked ? "；从向导启动另含大纲、正文各 1 次" : "");
+  }
+
+  function flowSetStat(text) {
+    if (els.flowStat) els.flowStat.textContent = text;
+    setDocHint(text);
+  }
+
+  function flowStep(text, kind) {
+    if (!els.flowSteps) return;
+    var d = document.createElement("div");
+    d.className = "flow-step" + (kind ? " " + kind : "");
+    d.textContent = text;
+    els.flowSteps.appendChild(d);
+    els.flowSteps.scrollTop = els.flowSteps.scrollHeight;
+  }
+
+  function flowScoreLabel(scores) {
+    return (scores || []).map(function (s) {
+      return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
+    }).join(" · ") || "没拿到分数";
+  }
+
+  // 多份标准时按满分折算成百分比再取平均，避免 50 分制被 60 分制压过去
+  function flowPct(scores) {
+    var arr = (scores || []).filter(function (s) { return s.full > 0; });
+    if (!arr.length) return 0;
+    var sum = 0;
+    arr.forEach(function (s) { sum += s.total / s.full * 100; });
+    return sum / arr.length;
+  }
+
+  function flowRestore(snap) {
+    docTitle = snap.title;
+    docBody = snap.body;
+    currentComposition = (docTitle ? docTitle + "\n\n" : "") + docBody;
+    annotations = [];
+    criticItems = [];
+    criticScores = [];
+    renderAnnotated();
+    syncAnnotTools();
+  }
+
+  async function flowScoreOnce(tag) {
+    flowSetStat(tag + "：正在按评分标准打分…");
+    var sys = window.WY_CRITIC;
+    var gr = genreRule();
+    if (gr) sys += "\n\n" + gr;
+    var raw = await fetchAnnotation(sys, composeCriticUser());
+    var obj = parseCriticJSON(raw);
+    criticItems = obj.items.filter(function (it) { return !isLocked(it.sentence); });
+    criticScores = obj.scores || [];
+    renderCritic();
+    switchPane("paper");
+    var label = flowScoreLabel(criticScores);
+    flowStep(tag + " · " + label);
+    return { pct: flowPct(criticScores), label: label };
+  }
+
+  // 只把「说清具体毛病」的坏句交给批改老师；软条目、锁住的句子一律不动
+  async function flowReviseOnce() {
+    var hards = criticItems.filter(function (it) {
+      return it.verdict === "坏" && it.hard && !it.soft && !isLocked(it.sentence);
+    }).slice(0, 6);
+    if (!hards.length) {
+      flowStep("这轮没有可定位的硬伤，流程结束");
+      return false;
+    }
+    criticItems.forEach(function (it) { it.agreed = hards.indexOf(it) >= 0 ? "yes" : ""; });
+    renderCritic();
+    flowSetStat("正在按 " + hards.length + " 条硬伤出手批…");
+    var before = docBody;
+    await sendRevision(criticReqText(), { lockedList: true });
+    if (flowAbort) return false;
+    if (!annotations.length) {
+      flowStep("这次没拿到能落地的批注，流程结束");
+      return false;
+    }
+    applyAll("accept");
+    // 改动异常（没改上 / 被大段删掉）直接回退，不让 AI 把稿子改残
+    var plain = function (t) { return String(t).replace(/\s/g, "").length; };
+    if (docBody === before || plain(docBody) < plain(before) * 0.6) {
+      flowRestore({ title: docTitle, body: before });
+      flowStep("改动异常，已回退到改前版本，流程结束", "warn");
+      return false;
+    }
+    annotations = [];
+    renderAnnotated();
+    flowStep("已按硬伤改 " + hards.length + " 处");
+    return true;
+  }
+
+  function stopFlow() {
+    if (!flowActive) return;
+    flowAbort = true;
+    if (controller) controller.abort();
+    flowStep("已请求停止，当前步骤跑完就收住", "warn");
+  }
+
+  async function runFlow(opts) {
+    opts = opts || {};
+    if (flowActive) { setPaperHint("流程作文正在进行中。"); return; }
+    if (!loginReady()) { requireLoginInline(); return; }
+    if (!docBody.trim() && !outline.points.some(function (p) { return trim(p.text); })) {
+      setPaperHint("还没有大纲和正文，先点「开始生成」。"); return;
+    }
+    var rounds = flowRoundLimit();
+    var budget = flowBudget(!!docBody.trim());
+    if (!opts.confirmed && !confirm(
+      "流程作文：最多 " + rounds + " 轮「评分 → 只改硬伤 → 复评」，约 " + budget +
+      " 次 AI 调用，每次消耗 1 积分。\n分数不升会自动回退到最好的一版；中途可随时停止。继续？"
+    )) return;
+
+    flowActive = true;
+    flowAbort = false;
+    if (els.flowDock) els.flowDock.hidden = false;
+    if (els.flowSteps) els.flowSteps.innerHTML = "";
+    if (els.flowBtn) els.flowBtn.disabled = true;
+    if (els.flowStopBtn) els.flowStopBtn.disabled = false;
+    if (isMobile()) setMView("paper");
+
+    var best = null;
+    var finalLabel = "";
+    try {
+      if (!docBody.trim()) {
+        flowStep("写正文");
+        await generateEssay();
+        if (flowAbort) { flowStep("已停止，保留当前稿纸", "warn"); return; }
+        if (!docBody.trim()) throw new Error("正文没生成出来，流程停下。");
+      }
+      flowStep("开始 · " + rounds + " 轮上限");
+      var first = await flowScoreOnce("初评");
+      best = { title: docTitle, body: docBody, pct: first.pct, label: first.label };
+      finalLabel = first.label;
+
+      for (var r = 1; r <= rounds && !flowAbort; r++) {
+        flowSetStat("第 " + r + " 轮 / 共 " + rounds + " 轮");
+        var revised = await flowReviseOnce();
+        if (!revised || flowAbort) break;
+        var after = await flowScoreOnce("第 " + r + " 轮复评");
+        finalLabel = after.label;
+        if (after.pct > best.pct) {
+          best = { title: docTitle, body: docBody, pct: after.pct, label: after.label };
+          flowStep("分数上升，保留这一版", "done");
+        } else {
+          flowRestore(best);
+          finalLabel = best.label;
+          flowStep("分数没涨，回退到最高分版本，流程结束", "warn");
+          break;
+        }
+        if (after.pct >= 90) { flowStep("已进入高档区间，提前收住", "done"); break; }
+      }
+      // 正常路径上当前稿纸就是最高分版本，只有回退过才需要再恢复；避免清掉最终评分卡片
+      if (docBody !== best.body) flowRestore(best);
+      saveEssayToCloud();
+      scheduleEssaySave();
+      if (flowAbort) {
+        flowStep("已停止流程 · 保留当前最高分版本", "warn");
+        flowSetStat("已停止 · " + finalLabel);
+      } else {
+        flowStep("完成 · 初评 " + first.label + " → 终稿 " + finalLabel, "done");
+        flowSetStat("流程结束 · 终稿 " + finalLabel);
+      }
+    } catch (e) {
+      if (best) flowRestore(best);
+      var msg = (e && e.message) || "未知错误";
+      flowStep("流程中断：" + msg + (best ? "，已保留最高分版本" : ""), "warn");
+      flowSetStat("流程中断 · " + msg);
+    } finally {
+      flowActive = false;
+      flowAbort = false;
+      if (els.flowBtn) { els.flowBtn.disabled = false; els.flowBtn.textContent = "流程作文"; }
+      if (els.flowStopBtn) els.flowStopBtn.disabled = true;
+      renderAnnotated();
+    }
+  }
+
   /* ---------------- 输出操作 ---------------- */
 
   function compositionText() {
@@ -3465,6 +3677,15 @@
     if (isMobile()) setMView("paper");
     runCritic();
   });
+
+  on(els.flowBtn, "click", function () {
+    if (isMobile()) setMView("paper");
+    runFlow();
+  });
+  on(els.flowStopBtn, "click", stopFlow);
+  on(els.flowRounds, "change", syncFlowCost);
+  on(els.flowAuto, "change", syncFlowCost);
+  syncFlowCost();
 
   // 大纲 / 稿纸切换
   on(els.docTabs, "click", function (e) {

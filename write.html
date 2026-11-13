@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261114C">
-<link rel="stylesheet" href="assets/css/write.css?v=20261114C">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261114C">
+<link rel="stylesheet" href="assets/css/style.css?v=20261114D">
+<link rel="stylesheet" href="assets/css/write.css?v=20261114D">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261114D">
 </head>
 <body>
 
@@ -200,6 +200,22 @@
         <p class="wstep-tip" id="scoringTip">可同时选几个地方的评分标准，完整表格会注入提示词，生成界面顶部也能展开查看。</p>
       </div>
 
+      <!-- 流程作文（自动迭代） -->
+      <div class="wstep">
+        <div class="wstep-head"><span class="wstep-no">7</span><h2>流程作文</h2><span class="wstep-opt">自动写→评→改→评</span></div>
+        <label class="flow-toggle"><input type="checkbox" id="flowAuto"> 开启：大纲拟好后自动写正文、评分、只改硬伤、再评分</label>
+        <div class="flow-row">
+          <label for="flowRounds">最多改稿轮数</label>
+          <select class="input flow-rounds" id="flowRounds">
+            <option value="1">1 轮</option>
+            <option value="2" selected>2 轮</option>
+            <option value="3">3 轮</option>
+          </select>
+          <span class="flow-cost" id="flowCostHint"></span>
+        </div>
+        <p class="wstep-tip">每轮只把「评分里说清具体毛病的句子」交给 AI 改；复评分数不升会自动回退到最好的一版。中途可随时停止。</p>
+      </div>
+
       <div class="wizard-actions">
         <button class="btn btn-primary btn-lg" id="startBtn">开始生成</button>
         <div class="status-line" id="wizardStatus" role="status"></div>
@@ -219,6 +235,7 @@
         <button class="btn-outline" id="acceptAllBtn" hidden>全部采纳</button>
         <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
         <button class="btn-outline" id="criticBtn">AI 评改</button>
+        <button class="btn-outline" id="flowBtn">流程作文</button>
         <button class="btn-outline" id="copyBtn">复制</button>
         <button class="btn-outline" id="downloadBtn">下载 txt</button>
       </div>
@@ -319,6 +336,15 @@
               </div>
               <div class="critic-score" id="criticScore" hidden></div>
             </div>
+            <!-- 流程作文进度坞：写作 / 评分 / 改稿 / 复评，分数不升自动回退 -->
+            <div class="flow-dock" id="flowDock" hidden>
+              <div class="flow-dock-head">
+                <span class="flow-dock-title">流程作文</span>
+                <span class="flow-stat" id="flowStat">准备中…</span>
+                <button class="flow-dock-btn" id="flowStopBtn" type="button">停止流程</button>
+              </div>
+              <div class="flow-steps" id="flowSteps"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -390,8 +416,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261114C"></script>
-<script src="assets/js/write.js?v=20261114C"></script>
-<script src="assets/js/auth.js?v=20261114C"></script>
+<script src="assets/js/prompt.js?v=20261114D"></script>
+<script src="assets/js/write.js?v=20261114D"></script>
+<script src="assets/js/auth.js?v=20261114D"></script>
 </body>
 </html>

@@ -1684,6 +1684,69 @@ table.score-table .score-table-key {
   .critic-dock { max-height: 40vh; }
 }
 
+/* ============ 流程作文（自动迭代） ============ */
+.flow-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: var(--ink);
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.flow-toggle input { width: 16px; height: 16px; accent-color: var(--brand); flex: none; }
+.flow-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--ink-mute); }
+.flow-rounds { width: auto; padding: 6px 10px; font-size: 13px; }
+.flow-cost { font-size: 12.5px; color: var(--ink-mute); }
+
+.flow-dock {
+  flex: none;
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  max-height: 30vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.flow-dock[hidden] { display: none; }
+.flow-dock-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.flow-dock-title { font-size: 13.5px; font-weight: 600; color: var(--brand); flex: none; }
+.flow-stat { font-size: 12px; color: var(--ink-mute); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow-dock-btn {
+  margin-left: auto;
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--sans);
+}
+.flow-dock-btn:hover { border-color: var(--brand); }
+.flow-steps { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 12px 10px; }
+.flow-step { font-size: 12.5px; line-height: 1.7; color: var(--ink-mute); padding-left: 16px; position: relative; }
+.flow-step::before { content: ""; position: absolute; left: 3px; top: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--brand); }
+.flow-step.warn::before { background: #b3543f; }
+.flow-step.warn { color: #b3543f; }
+.flow-step.done { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 960px) {
+  .flow-dock { max-height: 40vh; }
+}
+
 /* ============ 批注条：建议文字单独一栏，不挤进稿纸格子 ============ */
 
 .ink-dock-sug {
