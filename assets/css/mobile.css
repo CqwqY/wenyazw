@@ -422,7 +422,10 @@
   /* 旁批：手机端全部收进右侧工作窗「旁批」页，稿纸下方不再留这一块 */
   .paper-cols { display: block; }
   .paper-notes { display: none !important; }
-  .drawer-tab { font-size: 11.5px; padding: 8px 1px; }
+  /* 五个标签在窄屏挤在一起会串字：改成横向滑动，每个标签保持原宽度 */
+  .drawer-tabs { overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+  .drawer-tabs::-webkit-scrollbar { display: none; }
+  .drawer-tab { flex: 0 0 auto; font-size: 11.5px; padding: 8px 7px; }
   .drawer-note-list .note { padding: 9px 10px; }
 
   /* 评卷坞：从下方顶起，只留结论和按钮 */

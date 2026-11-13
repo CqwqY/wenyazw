@@ -94,6 +94,8 @@
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
+    debateRounds: $("debateRounds"), debateCost: $("debateCost"),
+    debateLog: $("debateLog"), debateSetup: $("debateSetup"),
     paperNotes: $("paperNotes"), undoRewriteBtn: $("undoRewriteBtn"), diffBtn: $("diffBtn"),
     drawerNoteList: $("drawerNoteList"), drawerNoteEmpty: $("drawerNoteEmpty"),
     drawerDotNotes: $("drawerDotNotes"),
@@ -128,6 +130,11 @@
   var flowActive = false;
   var flowAbort = false;
   var flowRounds = 2;                // 轮次单一真值：向导和抽屉共用，运行中改即时生效
+
+  /* 两评讨论状态：甲（主评）与乙（复核）逐轮谈，谈完的定稿里只有"坐实"的条目能交给重写 */
+  var DEBATE_STORE = "wy.debate.v1";
+  var debateRounds = 1;              // 讨论轮数，0 表示关闭（单评一次）
+  var debateLog = [];                // 每轮：乙的质疑 + 甲的表态
 
   /* 右侧工作窗抽屉状态：稿纸布局不受抽屉影响 */
   var drawerOpen = false;
@@ -278,7 +285,8 @@
       critic: {
         items: criticItems,
         scores: criticScores,
-        stat: els.criticStat ? els.criticStat.textContent : ""
+        stat: els.criticStat ? els.criticStat.textContent : "",
+        debate: { rounds: debateRounds, log: debateLog }   // 两评讨论的记录也存下来
       },
       notes: annotations,
       annotSeq: annotSeq,
@@ -404,6 +412,10 @@
       criticItems = d.critic.items;
       criticScores = Array.isArray(d.critic.scores) ? d.critic.scores : [];
       criticSeq = criticItems.reduce(function (m, it) { return Math.max(m, it.id || 0); }, criticSeq);
+      if (d.critic.debate) {
+        if (typeof d.critic.debate.rounds === "number") setDebateRounds(d.critic.debate.rounds, true);
+        debateLog = Array.isArray(d.critic.debate.log) ? d.critic.debate.log : [];
+      }
     }
     if (Array.isArray(d.chat) && d.chat.length) paintChat(d.chat);
     if (Array.isArray(d.flow) && d.flow.length) paintFlow(d.flow);
@@ -455,6 +467,10 @@
       criticScores = Array.isArray(d.critic.scores) ? d.critic.scores : [];
       criticSeq = criticItems.reduce(function (m, it) { return Math.max(m, it.id || 0); }, criticSeq);
       if (els.criticStat && d.critic.stat) els.criticStat.textContent = d.critic.stat;
+      if (d.critic.debate) {
+        if (typeof d.critic.debate.rounds === "number") setDebateRounds(d.critic.debate.rounds, true);
+        debateLog = Array.isArray(d.critic.debate.log) ? d.critic.debate.log : [];
+      }
     }
     if (Array.isArray(d.notes) && d.notes.length && !annotations.length) {
       annotations = d.notes;
@@ -2150,6 +2166,7 @@
     var note = document.createElement("div");
     note.className = "note note-critic " + (it.verdict === "好" ? "nc-good" : "nc-bad") +
       (it.soft ? " nc-soft" : "") +
+      (it.settled === false ? " nc-dispute" : "") +
       (it.agreed === "yes" ? " nc-yes" : it.agreed === "no" ? " nc-no" : "");
     note.setAttribute("data-critic-id", String(it.id));
 
@@ -2174,6 +2191,12 @@
       sf.className = "note-soft";
       sf.textContent = "理由不具体";
       head.appendChild(sf);
+    }
+    if (it.settled === false) {
+      var dsp = document.createElement("span");
+      dsp.className = "note-dispute";
+      dsp.textContent = "两评未谈拢";
+      head.appendChild(dsp);
     }
     if (it.ai) {
       var ai = document.createElement("span");
@@ -2206,6 +2229,13 @@
       fx.textContent = "方向：" + it.fix;
       note.appendChild(fx);
     }
+    if (it.dispute && it.dispute.why) {
+      var dp = document.createElement("div");
+      dp.className = "note-why nc-sub nc-dispute-why";
+      dp.textContent = (it.settled === false ? "另一评不同意：" : "复核时提过：") + it.dispute.why +
+        (it.dispute.reply ? "（主评：" + it.dispute.reply + "）" : "");
+      note.appendChild(dp);
+    }
 
     var acts = document.createElement("div");
     acts.className = "note-acts nc-acts";
@@ -2216,6 +2246,9 @@
     if (it.soft) {
       yes.disabled = true;
       yes.title = "这条没说清具体毛病，不交给整篇重写";
+    } else if (it.settled === false) {
+      yes.disabled = true;
+      yes.title = "两评还没谈拢，不交给整篇重写";
     }
     yes.addEventListener("click", function (e) { e.stopPropagation(); setCriticAgree(it.id, "yes"); });
     var deny = document.createElement("button");
@@ -2652,6 +2685,8 @@
     "批改老师": "role-annot",
     "讲评老师": "role-explain",
     "评改": "role-critic",
+    "评卷甲": "role-critic",
+    "评卷乙": "role-critic-b",
     "文芽": "role-ai"
   };
 
@@ -3145,7 +3180,8 @@
     return lines.join("\n\n");
   }
 
-  function composeCriticUser() {
+  // 评改/讨论共用的上下文头：类别、文体、评分标准、写作规范
+  function criticContextLines() {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
     lines.push(genreLine());
@@ -3153,6 +3189,11 @@
     if (st) lines.push(st);
     var wr = window.WY_WRITING_RULES;
     if (wr) lines.push("【评判尺度（写作规范，评判时以此为准，与上面给分规则并用）】\n" + wr);
+    return lines;
+  }
+
+  function composeCriticUser() {
+    var lines = criticContextLines();
     lines.push(wrapEssay());
     lines.push(wrapLocked());
     lines.push("用户提问：{\n按上面的尺度逐句判好坏与 AI 味。只判确实有硬伤的，挑不出就不要凑数，也不许把学生的朴素写法当成缺点。\n}");
@@ -4249,6 +4290,12 @@
     var obj;
     try { obj = JSON.parse(s.slice(a, b + 1)); }
     catch (e) { throw new Error("评改 JSON 解析失败，可重试。"); }
+    return criticFromObject(obj);
+  }
+
+  // 把评审 JSON 对象归一成内部结构；单评与讨论定稿共用，避免两套字段口径
+  function criticFromObject(obj) {
+    obj = obj || {};
     var items = Array.isArray(obj.items) ? obj.items : [];
     return {
       overall: trim(obj.overall),
@@ -4321,6 +4368,10 @@
   function setCriticAgree(id, val) {
     var it = criticById(id);
     if (!it) return;
+    if (val === "yes" && it.settled === false) {
+      setDocHint("这条两评还没谈拢（另一方仍反对），先别交给重写。真觉得该改，就在下面直接说要改成什么。");
+      return;
+    }
     if (val === "yes" && it.soft) {
       setDocHint("这条没说明具体毛病，不给它派活。真觉得该改，可以在下面直接说要改成什么。");
       return;
@@ -4390,6 +4441,7 @@
     scheduleSessionSave();
     if (els.criticList) els.criticList.innerHTML = "";
     renderCriticScores();
+    renderDebateLog();       // 讨论记录与评改结果一起刷新，刷新页面也还在
     if (!criticItems.length && !criticScores.length) {
       syncCriticDock();
       syncCriticApply();
@@ -4402,6 +4454,7 @@
     var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
     var softCnt = criticItems.filter(function (x) { return x.soft; }).length;
     var aiCnt = criticItems.filter(function (x) { return x.ai; }).length;
+    var openCnt = criticItems.filter(function (x) { return x.settled === false; }).length;
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; }).length;
     var scoreTxt = criticScores.map(function (s) {
       return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
@@ -4409,7 +4462,8 @@
     els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
       (criticItems.length
         ? ("共 " + criticItems.length + " 句：坏 " + bad + " 句，带 AI 味 " + aiCnt + " 句" +
-          (softCnt ? " · 其中 " + softCnt + " 条没说清具体毛病，已标灰、不给改" : ""))
+          (softCnt ? " · 其中 " + softCnt + " 条没说清具体毛病，已标灰、不给改" : "") +
+          (openCnt ? " · " + openCnt + " 条两评没谈拢，已标灰、不给改" : ""))
         : "这次没挑出确实有毛病的句子，说明写得住。") +
       (picked ? " · 已认可 " + picked + " 条"
         : (criticItems.length ? " · 「旁批」页里逐条点「认可」，再按这些重写整篇" : ""));
@@ -4422,7 +4476,7 @@
   function criticReqText() {
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; });
     if (!picked.length) return "";
-    var lines = ["下面这些是我认可的评改问题，一共 " + picked.length + " 条。请照它们从头重写一版完整作文：把这些地方改到位，其余段落尽量沿用原文写住的句子。",
+    var lines = ["下面这些是我认可的评改问题，一共 " + picked.length + " 条（两评讨论过、坐实的）。请照它们从头重写一版完整作文：把这些地方改到位，其余段落尽量沿用原文写住的句子。",
       "只解决这 " + picked.length + " 条，不要顺手把没问题的句子改一遍，也不要另找问题凑数。"];
     if (criticScores.length) {
       lines.push("上一轮评卷给分：" + criticScores.map(function (s) {
@@ -4440,6 +4494,384 @@
     return lines.join("\n");
   }
 
+  /* ---------------- 两评讨论：甲主评 / 乙复核，谈拢了再改 ----------------
+     一轮 = 乙挑错 + 甲逐条表态并交定稿。定稿里"甲坚持、乙仍反对"的条目算未坐实，
+     未坐实的不许点认可，也就进不了重写。轮数可选 0（关闭）到 3。 */
+
+  var DEBATE_MAX = 3;
+
+  function debateCost() {
+    return debateRounds > 0 ? (1 + debateRounds * 2) : 1;
+  }
+
+  function syncDebateCost() {
+    if (els.debateCost) {
+      els.debateCost.textContent = debateRounds > 0
+        ? ("共约 " + debateCost() + " 次调用，每次 1 积分")
+        : "单评一次，不讨论";
+    }
+  }
+
+  function setDebateRounds(n, silent) {
+    var v = parseInt(n, 10);
+    if (isNaN(v)) v = 1;
+    v = Math.max(0, Math.min(DEBATE_MAX, v));
+    debateRounds = v;
+    try { localStorage.setItem(DEBATE_STORE, String(v)); } catch (e) { /* 隐私模式就算了 */ }
+    if (els.debateRounds) els.debateRounds.value = String(v);
+    syncDebateCost();
+    // 初始化时不能顺手落盘：会话还没恢复就读出来再写回去，会把上次的正文冲掉
+    if (!silent) scheduleSessionSave();
+  }
+
+  function loadDebateRounds() {
+    var v = 1;
+    try {
+      var raw = localStorage.getItem(DEBATE_STORE);
+      if (raw !== null && raw !== "") v = parseInt(raw, 10);
+    } catch (e) { /* ignore */ }
+    if (isNaN(v)) v = 1;
+    setDebateRounds(v, true);
+  }
+
+  function jsonObjectIn(raw, failMsg) {
+    var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a < 0 || b <= a) throw new Error(failMsg);
+    try { return JSON.parse(s.slice(a, b + 1)); }
+    catch (e) { throw new Error(failMsg); }
+  }
+
+  // 给模型看的精简版评审：去掉内部字段（id/agreed/soft），只留它要判的东西
+  function slimReview(rev) {
+    return {
+      overall: (rev && rev.overall) || "",
+      scores: ((rev && rev.scores) || []).map(function (s) {
+        return { province: s.province, total: s.total, band: s.band, dims: s.dims || [], why: s.why || "" };
+      }),
+      items: ((rev && rev.items) || []).map(function (it) {
+        return {
+          no: it.no, sentence: it.sentence, verdict: it.verdict, hard: it.hard || "",
+          reason: it.reason || "", ai: !!it.ai, aiWhy: it.aiWhy || "", fix: it.fix || ""
+        };
+      })
+    };
+  }
+
+  function parseDebateB(raw) {
+    var o = jsonObjectIn(raw, "复核方没有返回 JSON，可再试一次。");
+    var dis = Array.isArray(o.disputes) ? o.disputes : [];
+    var missed = Array.isArray(o.missed) ? o.missed : [];
+    var list = dis.slice(0, 6).map(function (d) {
+      return {
+        no: parseInt(d && d.no, 10) || 0,
+        sentence: trim(d && d.sentence),
+        kind: trim(d && d.kind) || "误判",
+        why: trim(d && d.why),
+        ask: trim(d && d.ask)
+      };
+    }).filter(function (d) { return d.sentence || d.why; });
+    return {
+      stance: trim(o.stance) || (list.length ? "部分同意" : "同意"),
+      disputes: list,
+      missed: missed.slice(0, 4).map(function (m) {
+        return {
+          sentence: trim(m && m.sentence),
+          hard: hardLabel(m && m.hard),
+          reason: trim(m && m.reason),
+          fix: trim(m && m.fix)
+        };
+      }).filter(function (m) { return m.sentence; }),
+      scoreNote: trim(o.scoreNote)
+    };
+  }
+
+  function parseDebateA(raw) {
+    var o = jsonObjectIn(raw, "主评回应没有返回 JSON，可再试一次。");
+    var reps = Array.isArray(o.replies) ? o.replies : [];
+    return {
+      review: criticFromObject(o),
+      replies: reps.slice(0, 10).map(function (r) {
+        var st = trim(r && r.stance);
+        if (st !== "坚持" && st !== "撤回" && st !== "折中") st = "折中";
+        return {
+          no: parseInt(r && r.no, 10) || 0,
+          sentence: trim(r && r.sentence),
+          stance: st,
+          why: trim(r && r.why)
+        };
+      })
+    };
+  }
+
+  // 比对句子用归一化文本（去标点空格），模型抄句子时改了标点也能对上
+  function debateKey(s) {
+    return criticNormWithMap(trim(String(s || ""))).text.slice(0, 40);
+  }
+
+  /* 定稿后判定哪些条目"坐实"：
+     乙这轮还反对、甲又坚持 -> 未坐实（不许交给重写）
+     乙反对、甲撤回 -> 条目已不在清单里，自然消失
+     乙反对、甲折中 -> 算谈拢（理由已按乙方要求改过）
+     乙没提名 -> 两边一致，坐实 */
+  function markDebateSettled(review, lastB, replies) {
+    var dis = {};
+    ((lastB && lastB.disputes) || []).forEach(function (d) {
+      var k = debateKey(d.sentence);
+      if (k) dis[k] = d;
+    });
+    var repByNo = {}, repByKey = {};
+    (replies || []).forEach(function (r) {
+      if (r.no) repByNo[r.no] = r;
+      var k = debateKey(r.sentence);
+      if (k) repByKey[k] = r;
+    });
+    var open = 0;
+    (review.items || []).forEach(function (it) {
+      var k = debateKey(it.sentence);
+      var d = dis[k];
+      var r = repByKey[k] || repByNo[it.no];
+      if (d && r && r.stance === "坚持") {
+        it.settled = false;
+        it.dispute = { kind: d.kind, why: d.why, reply: r.why || "" };
+        open++;
+      } else if (d) {
+        it.settled = true;
+        it.dispute = { kind: d.kind, why: d.why, reply: (r && r.why) || "", compromised: true };
+      } else {
+        it.settled = true;
+      }
+    });
+    return open;
+  }
+
+  function debateHistoryText() {
+    if (!debateLog.length) return "";
+    var out = [];
+    debateLog.forEach(function (r) {
+      var dis = (r.b.disputes || []).map(function (d) {
+        return "  · #" + d.no + " " + d.kind + "：" + d.why;
+      });
+      var reps = (r.replies || []).map(function (x) {
+        return "  · #" + x.no + " " + x.stance + "：" + x.why;
+      });
+      out.push("第 " + r.round + " 轮\n乙方质疑：\n" + (dis.join("\n") || "  · 无") +
+        "\n甲方表态：\n" + (reps.join("\n") || "  · 无"));
+    });
+    return out.join("\n");
+  }
+
+  function composeDebateBUser(review, round) {
+    var lines = criticContextLines();
+    lines.push(wrapEssay());
+    lines.push(wrapLocked());
+    lines.push("【甲方（主评）这一版的评审】\n" + JSON.stringify(slimReview(review)));
+    var hist = debateHistoryText();
+    if (hist) lines.push("【前几轮已经谈过的】\n" + hist + "\n已经谈拢的不要再提一遍，除非甲方这版又改回去了。");
+    lines.push("用户提问：{\n第 " + round + " 轮复核。逐条看上面这版评审：判错、漏判、分数与档次表对不上，都指出来，每条写清依据。指不出依据的不要提；挑不出就交空数组。\n}");
+    return lines.join("\n\n");
+  }
+
+  function composeDebateAUser(review, bObj, round) {
+    var lines = criticContextLines();
+    lines.push(wrapEssay());
+    lines.push(wrapLocked());
+    lines.push("【你上一版的评审】\n" + JSON.stringify(slimReview(review)));
+    lines.push("【乙方这一轮的质疑】\n" + JSON.stringify(bObj));
+    var hist = debateHistoryText();
+    if (hist) lines.push("【前几轮已经谈过的】\n" + hist);
+    lines.push("用户提问：{\n第 " + round + " 轮。对乙方的每一条质疑表态（坚持或撤回或折中），然后交出一版定稿 JSON：replies 加 overall 加 scores 加 items。items 是完整清单，不是差异。\n}");
+    return lines.join("\n\n");
+  }
+
+  function debateBText(b) {
+    var n = (b.disputes || []).length, m = (b.missed || []).length;
+    if (!n && !m) return "复核完了，这版没有异议。" + (b.scoreNote ? " " + b.scoreNote : "");
+    var out = "复核：" + b.stance + "。";
+    if (n) out += "对 " + n + " 条有意见。";
+    if (m) out += "另外认为漏了 " + m + " 句。";
+    if (b.scoreNote) out += " " + b.scoreNote;
+    return out;
+  }
+
+  function debateAText(replies) {
+    if (!replies.length) return "这版没什么可争的，保持原判。";
+    var keep = replies.filter(function (r) { return r.stance === "坚持"; }).length;
+    var back = replies.filter(function (r) { return r.stance === "撤回"; }).length;
+    var mid = replies.filter(function (r) { return r.stance === "折中"; }).length;
+    var out = "逐条回应：" ;
+    var bits = [];
+    if (keep) bits.push("坚持 " + keep + " 条");
+    if (back) bits.push("撤回 " + back + " 条");
+    if (mid) bits.push("折中 " + mid + " 条");
+    return out + bits.join("，") + "。定稿已更新。";
+  }
+
+  /* 讨论记录渲染进「AI 评卷」页：每轮一张卡，左边乙方质疑，右边甲方表态 */
+  function renderDebateLog() {
+    var host = els.debateLog;
+    if (!host) return;
+    host.innerHTML = "";
+    var open = criticItems.filter(function (it) { return it.settled === false; }).length;
+    var settledCnt = criticItems.filter(function (it) { return it.settled !== false; }).length;
+    if (!debateLog.length) { host.hidden = true; return; }
+    host.hidden = false;
+
+    var head = document.createElement("div");
+    head.className = "debate-head";
+    head.textContent = "两评讨论 " + debateLog.length + " 轮 · 坐实 " + settledCnt + " 条" +
+      (open ? " · 仍有分歧 " + open + " 条" : "");
+    host.appendChild(head);
+
+    debateLog.forEach(function (r) {
+      var card = document.createElement("div");
+      card.className = "debate-round";
+
+      var ttl = document.createElement("div");
+      ttl.className = "debate-round-head";
+      ttl.textContent = "第 " + r.round + " 轮 · 乙方复核（" + (r.b.stance || "同意") + "）";
+      card.appendChild(ttl);
+
+      (r.b.disputes || []).forEach(function (d) {
+        var row = document.createElement("div");
+        row.className = "debate-line";
+        var tag = document.createElement("span");
+        tag.className = "debate-tag dtag-b";
+        tag.textContent = "#" + (d.no || "?") + " " + d.kind;
+        var txt = document.createElement("span");
+        txt.className = "debate-txt";
+        txt.textContent = d.why || "";
+        row.appendChild(tag);
+        row.appendChild(txt);
+        card.appendChild(row);
+        var rep = (r.replies || []).filter(function (x) {
+          return (x.no && x.no === d.no) || (x.sentence && debateKey(x.sentence) === debateKey(d.sentence));
+        })[0];
+        if (rep) {
+          var rr = document.createElement("div");
+          rr.className = "debate-line";
+          var tg = document.createElement("span");
+          tg.className = "debate-tag " + (rep.stance === "坚持" ? "dtag-keep" : rep.stance === "撤回" ? "dtag-back" : "dtag-mid");
+          tg.textContent = "甲方" + rep.stance;
+          var tt = document.createElement("span");
+          tt.className = "debate-txt";
+          tt.textContent = rep.why || "";
+          rr.appendChild(tg);
+          rr.appendChild(tt);
+          card.appendChild(rr);
+        }
+      });
+
+      (r.b.missed || []).forEach(function (m) {
+        var row = document.createElement("div");
+        row.className = "debate-line";
+        var tag = document.createElement("span");
+        tag.className = "debate-tag dtag-miss";
+        tag.textContent = "乙方认为漏了";
+        var txt = document.createElement("span");
+        txt.className = "debate-txt";
+        txt.textContent = m.reason || m.sentence;
+        row.appendChild(tag);
+        row.appendChild(txt);
+        card.appendChild(row);
+      });
+
+      if (r.b.scoreNote) {
+        var sc = document.createElement("div");
+        sc.className = "debate-line";
+        var s1 = document.createElement("span");
+        s1.className = "debate-tag dtag-score";
+        s1.textContent = "分数";
+        var s2 = document.createElement("span");
+        s2.className = "debate-txt";
+        s2.textContent = r.b.scoreNote;
+        sc.appendChild(s1);
+        sc.appendChild(s2);
+        card.appendChild(sc);
+      }
+      host.appendChild(card);
+    });
+  }
+
+  // 中途与结果都走同一套渲染：先把这一版摆出来，再继续谈
+  function showCriticReview(rev) {
+    criticItems = (rev.items || []).filter(function (it) { return !isLocked(it.sentence); });
+    criticScores = rev.scores || [];
+    renderCritic();       // 内部会连讨论记录一起刷新
+    switchPane("paper");
+  }
+
+  async function runCriticDebate() {
+    var sysA = window.WY_CRITIC || "";
+    var gr = genreRule();
+    if (gr) sysA += "\n\n" + gr;
+    var sysB = (window.WY_CRITIC_B || "") + (gr ? "\n\n" + gr : "");
+    var sysReplyA = sysA + (window.WY_CRITIC_A_REPLY || "");
+    debateLog = [];
+    setDocHint("两评讨论：约 " + debateCost() + " 次调用，甲评完乙复核再定稿");
+
+    try {
+      // 第 0 步：甲方初评
+      var bA = addAssistantBubble("评卷甲");
+      bA.textContent = "先按评分标准打一遍分，逐句判好坏与 AI 味。";
+      var rawA = await fetchAnnotation(sysA, composeCriticUser());
+      var review = parseCriticJSON(rawA);
+      showCriticReview(review);
+      bA.textContent = "初评：" + (review.overall || "已出第一版") + "。等乙方复核。";
+
+      // 逐轮：乙挑错 → 甲表态并改定稿
+      for (var r = 1; r <= debateRounds; r++) {
+        els.criticStat.textContent = "第 " + r + "/" + debateRounds + " 轮：复核方正在挑错…";
+        var bB = addAssistantBubble("评卷乙");
+        bB.textContent = "正在复核第 " + r + " 轮…";
+        var bObj = parseDebateB(await fetchAnnotation(sysB, composeDebateBUser(review, r)));
+        bB.textContent = debateBText(bObj);
+
+        els.criticStat.textContent = "第 " + r + "/" + debateRounds + " 轮：主评正在逐条回应…";
+        var bR = addAssistantBubble("评卷甲");
+        bR.textContent = "正在逐条回应乙方的质疑…";
+        var aObj = parseDebateA(await fetchAnnotation(sysReplyA, composeDebateAUser(review, bObj, r)));
+        bR.textContent = debateAText(aObj.replies);
+
+        debateLog.push({ round: r, b: bObj, replies: aObj.replies });
+        review = aObj.review;
+        showCriticReview(review);       // 每轮谈完就更新稿纸标记与旁批
+      }
+
+      // 定稿：判哪些坐实
+      var last = debateLog.length ? debateLog[debateLog.length - 1] : null;
+      var open = markDebateSettled(review, last ? last.b : null, last ? last.replies : []);
+      showCriticReview(review);
+
+      var scoreTxt = criticScores.map(function (s) {
+        return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
+      }).join("，");
+      var settledCnt = criticItems.filter(function (it) { return it.settled !== false; }).length;
+      els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
+        "两评谈了 " + debateLog.length + " 轮，坐实 " + settledCnt + " 条" +
+        (open ? "，另有 " + open + " 条仍未谈拢（标灰、不给改）" : "") + "。";
+      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "坐实 " + settledCnt + " 条" +
+        (open ? " / 分歧 " + open + " 条" : "") + "，逐条看「旁批」页");
+      var out = addAssistantBubble("评改");
+      out.textContent = "两评定稿：" + (review.overall || "") +
+        (scoreTxt ? " 得分 " + scoreTxt + "。" : "") +
+        "坐实 " + settledCnt + " 条" + (open ? "，还有 " + open + " 条两评没谈拢，已标灰不给改。" : "。") +
+        "逐句评语在「旁批」页，认可的条目会交给整篇重写。";
+    } catch (e) {
+      var msg = (e && e.message) || "未知错误";
+      if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
+        msg = "请求发不出去：多为浏览器跨域被拦或网络不通。";
+      }
+      els.criticStat.textContent = "两评讨论中断：" + msg;
+      setDocHint("两评讨论中断，可再点一次");
+      var eb = addAssistantBubble("评改");
+      eb.textContent = "两评讨论中断：" + msg + (criticItems.length ? "（已经拿到的这一版仍留在稿纸上）" : "");
+    } finally {
+      renderDebateLog();
+      syncCriticApply();
+    }
+  }
+
   async function runCritic() {
     if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇再评改。"); return; }
     var c = currentConfig();
@@ -4454,15 +4886,17 @@
       return;
     }
 
-    els.criticStat.textContent = "正在打分并逐句判…";
+    els.criticStat.textContent = debateRounds > 0 ? "两评讨论中：甲方先评…" : "正在打分并逐句判…";
     if (els.criticList) els.criticList.innerHTML = "";
     if (els.criticScore) { els.criticScore.innerHTML = ""; els.criticScore.hidden = true; }
     criticItems = [];
     criticScores = [];
+    debateLog = [];                  // 单评重跑时别把上一轮讨论记录留在抽屉里
     setDrawer(true, "critic");       // 评改一开始就把抽屉拉出来，进度与结果都在里面
     syncCriticDock(true);            // 正在打分也要看得见，别只留空态
     switchPane("paper");
     syncCriticDock(true);
+    if (debateRounds > 0) { await runCriticDebate(); return; }
     var bubble = addAssistantBubble("评改");
     bubble.textContent = "正在按评分标准打分，并逐句判好坏与 AI 味…";
 
@@ -4871,6 +5305,8 @@
   on(els.flowRoundsDrawer, "change", function () { setFlowRounds(els.flowRoundsDrawer.value, "drawer"); });
   on(els.flowAuto, "change", syncFlowCost);
   setFlowRounds(els.flowRounds ? els.flowRounds.value : 2, "wizard");
+  on(els.debateRounds, "change", function () { setDebateRounds(els.debateRounds.value); });
+  loadDebateRounds();
 
   // 大纲 / 稿纸切换
   on(els.docTabs, "click", function (e) {

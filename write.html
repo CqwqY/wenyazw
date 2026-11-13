@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261113N">
-<link rel="stylesheet" href="assets/css/write.css?v=20261113N">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261113N">
+<link rel="stylesheet" href="assets/css/style.css?v=20261113Q">
+<link rel="stylesheet" href="assets/css/write.css?v=20261113Q">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261113Q">
 </head>
 <body>
 
@@ -370,6 +370,21 @@
       <div class="drawer-body">
         <!-- 评卷：分数、汇总、按认可的问题重写整篇 -->
         <section class="drawer-pane" id="drawerPaneCritic">
+          <!-- 两评讨论：甲主评、乙复核，逐轮谈完再定稿；只有两边都认的条目算坐实 -->
+          <div class="debate-setup" id="debateSetup">
+            <div class="debate-row">
+              <label for="debateRounds">两评讨论</label>
+              <select class="input debate-rounds" id="debateRounds">
+                <option value="0">关闭，只评一次</option>
+                <option value="1" selected>1 轮</option>
+                <option value="2">2 轮</option>
+                <option value="3">3 轮</option>
+              </select>
+              <span class="debate-cost" id="debateCost"></span>
+            </div>
+            <p class="debate-tip">甲先评一遍，乙拿着甲的结论挑错，甲逐条表态（坚持或撤回）再改定稿。只有两边都认的条目算坐实，坐实的才交给重写。</p>
+          </div>
+          <div class="debate-log" id="debateLog" hidden></div>
           <div class="critic-dock" id="criticDock" hidden>
             <div class="critic-dock-head">
               <span class="critic-dock-title">AI 评卷</span>
@@ -482,8 +497,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261113N"></script>
-<script src="assets/js/write.js?v=20261113N"></script>
-<script src="assets/js/auth.js?v=20261113N"></script>
+<script src="assets/js/prompt.js?v=20261113Q"></script>
+<script src="assets/js/write.js?v=20261113Q"></script>
+<script src="assets/js/auth.js?v=20261113Q"></script>
 </body>
 </html>
