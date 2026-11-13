@@ -1768,38 +1768,48 @@ table.score-table .score-table-key {
 .paper-body .critic-mark {
   position: relative;
   cursor: pointer;
-  border-radius: 3px;
-  padding: 1px 2px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  /* 不能加 padding：稿纸是逐字方格，行内盒的 padding 会把后面每个字挤偏格子 */
+  padding: 0;
 }
 /* 评判句高亮：整句着色，精确到 AI 判的那一句；坏=暖红、好=青绿。
-   手机小字下也要一眼看得见，所以底色给足，再配清晰波浪下划线与句首小角标 */
-.paper-body .critic-mark.cm-bad {
-  background: rgba(192, 100, 47, .30);
-  text-decoration: underline wavy #b8541f;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 2px;
+   稿纸是逐字 .ch 方格（inline-block、竖向 top 对齐），行内父盒的底色只覆盖
+   字高中线一带，格子的上下根本刷不到，看着就像没有高亮。所以底色必须刷到
+   每个字格上，整格上色 + 格底一道色条，手机小字下一眼可见。 */
+.paper-body .critic-mark .ch {
+  border-radius: 2px;
 }
-.paper-body .critic-mark.cm-good {
-  background: rgba(47, 111, 78, .24);
-  text-decoration: underline wavy #2f6f4e;
-  text-underline-offset: 3px;
-  text-decoration-thickness: 2px;
+.paper-body .critic-mark.cm-bad .ch {
+  background: rgba(192, 100, 47, .28);
+  box-shadow: inset 0 -3px 0 rgba(184, 84, 31, .75);
+}
+.paper-body .critic-mark.cm-good .ch {
+  background: rgba(47, 111, 78, .22);
+  box-shadow: inset 0 -3px 0 rgba(47, 111, 78, .6);
+}
+.paper-body .critic-mark.cm-agreed .ch {
+  background: rgba(47, 111, 78, .34);
+  box-shadow: inset 0 -3px 0 rgba(47, 111, 78, .8);
+}
+.paper-body .critic-mark.cm-denied .ch {
+  background: rgba(124, 124, 124, .18);
+  box-shadow: inset 0 -3px 0 rgba(124, 124, 124, .45);
+  color: #7c7c7c;
 }
 /* 句首小角标：直接标第几号评判，点一下跳到右栏那条评语。
-   用上标内联（不绝对定位），避免在 overflow:hidden 的稿纸顶部被裁掉，移动端也稳 */
+   必须绝对定位——方格稿纸里行内元素占的每一像素都会把后面的字挤偏格子 */
 .paper-body .critic-mark::before {
   content: attr(data-critic-no);
-  display: inline-block;
-  vertical-align: super;
+  position: absolute;
+  left: 1px;
+  top: -5px;
+  z-index: 3;
   font-size: 9px;
   line-height: 1;
-  margin-right: 2px;
   padding: 1px 3px;
   border-radius: 6px 6px 6px 0;
   color: #fff;
   background: #c0642f;
+  pointer-events: none;
   font-family: var(--sans);
 }
 .paper-body .critic-mark.cm-good::before { background: #2f6f4e; }
