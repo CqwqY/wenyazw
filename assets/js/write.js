@@ -1401,18 +1401,55 @@
   }
 
   /* AI 评改的句子也要落回原文位置：用更淡的虚线和角标标在原句上，
-     与朱红批注符号互不冲突（同一处已被批注占用时，评改标记让位）。 */
+     与朱红批注符号互不冲突（同一处已被批注占用时，评改标记让位）。
+
+     AI 从原文摘句子时常会改标点/空格，或摘跨段长句，导致精确 indexOf 落空而整句标不出。
+     所以匹配分三级：整句精确 → 归一化（忽略空白与全角/半角标点）→ 归一化前 14 字兜底；
+     模糊兜底不再因"重复出现"放弃，宁可标第一处也要让学生看见，别整篇零高亮。 */
+  // 比对时一律去掉标点与空白，只比文字：AI 摘句改成空格/半角标点/漏标点都能对上
+  var CRITIC_PUNCT = /[，。、；：！？（）【】《》“”‘’「」『』—－…·,.;:!?()\[\]{}"'`~@#$%^&*_+=\/\\|<>-]/;
+  // 归一化并保留"归一化字符 → 原索引"的映射，便于匹配后换算回原文区间
+  function criticNormWithMap(str) {
+    var out = "", idxs = [];
+    for (var i = 0; i < str.length; i++) {
+      var ch = str.charAt(i);
+      if (ch === "\u3000" || /\s/.test(ch) || CRITIC_PUNCT.test(ch)) continue;
+      out += ch;
+      idxs.push(i);
+    }
+    return { text: out, idxs: idxs };
+  }
+
   function criticIntervalsIn(paraText) {
     var list = [];
+    var pNorm = null;
     criticItems.forEach(function (it) {
       var full = trim(it.sentence);
       if (!full) return;
+      var start = -1, end = -1;
+      // 1) 整句精确
       var a = paraText.indexOf(full);
-      var needle = full;
-      if (a < 0) { needle = full.slice(0, 12); a = paraText.indexOf(needle); }
-      if (a < 0) return;
-      if (paraText.indexOf(needle, a + needle.length) >= 0) return;
-      list.push({ start: a, end: a + needle.length, item: it });
+      if (a >= 0) { start = a; end = a + full.length; }
+      // 2) 归一化匹配（忽略空格与标点全角/半角差异）
+      if (start < 0) {
+        if (!pNorm) pNorm = criticNormWithMap(paraText);
+        var fNorm = criticNormWithMap(full);
+        if (fNorm.text) {
+          var at = pNorm.text.indexOf(fNorm.text);
+          if (at >= 0) { start = pNorm.idxs[at]; end = pNorm.idxs[at + fNorm.text.length - 1] + 1; }
+        }
+      }
+      // 3) 归一化前 14 字兜底（跨段长句也至少标出开头那一截）
+      if (start < 0) {
+        if (!pNorm) pNorm = criticNormWithMap(paraText);
+        var fHead = criticNormWithMap(full).text.slice(0, 14);
+        if (fHead) {
+          var at2 = pNorm.text.indexOf(fHead);
+          if (at2 >= 0) { start = pNorm.idxs[at2]; end = pNorm.idxs[at2 + fHead.length - 1] + 1; }
+        }
+      }
+      if (start < 0) return;
+      list.push({ start: start, end: end, item: it });
     });
     list.sort(function (x, y) { return x.start - y.start; });
     var out = [], lastEnd = -1;
