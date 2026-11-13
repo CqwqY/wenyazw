@@ -2229,3 +2229,203 @@ table.score-table .score-table-key {
   }
   .note-acts { opacity: 1; pointer-events: auto; }
 }
+
+/* ============ 右侧工作窗抽屉 ============
+   评卷 / 流程 / 评分标准都装在这里。fixed 浮层，不参与 studio 的 flex 布局，
+   稿纸的高度、格线宽度、旁批定位都不会因为打开工作窗而变。 */
+
+.drawer-handle {
+  position: fixed;
+  right: 0;
+  top: 42%;
+  z-index: 86;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 9px 15px;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 12px 0 0 12px;
+  background: var(--card);
+  color: var(--brand-deep, #245c40);
+  box-shadow: -4px 3px 14px rgba(60, 48, 33, .10);
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: opacity .2s ease, background .2s ease;
+}
+.drawer-handle:hover { background: var(--paper-2); }
+/* 打开后收掉拉手，别让它压在稿纸字上；收起用抽屉头部的按钮或 Esc */
+.drawer-handle.is-open { opacity: 0; pointer-events: none; }
+.drawer-handle-txt {
+  writing-mode: vertical-rl;
+  letter-spacing: .18em;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.drawer-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #a8322a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+.drawer-badge[hidden] { display: none; }
+
+.drawer-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  background: rgba(38, 32, 24, .28);
+}
+.drawer-mask[hidden] { display: none; }
+
+.work-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  width: min(408px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border-left: 1px solid var(--line);
+  box-shadow: -12px 0 34px rgba(60, 48, 33, .16);
+  animation: drawer-in .22s ease-out;
+}
+.work-drawer[hidden] { display: none; }
+@keyframes drawer-in {
+  from { transform: translateX(24px); opacity: .4; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.drawer-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+.drawer-tabs { flex: 1; min-width: 0; display: flex; gap: 4px; }
+.drawer-tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  padding: 7px 4px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.drawer-tab:hover { background: var(--paper-2); }
+.drawer-tab.active {
+  background: rgba(47, 111, 78, .10);
+  border-color: rgba(47, 111, 78, .28);
+  color: var(--brand-deep, #245c40);
+  font-weight: 600;
+}
+.drawer-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #a8322a;
+  vertical-align: 2px;
+}
+.drawer-dot[hidden] { display: none; }
+.drawer-close {
+  flex: none;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-mute);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.drawer-close:hover { color: var(--ink); border-color: var(--brand); }
+
+.drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.drawer-pane { padding: 12px; }
+.drawer-pane[hidden] { display: none; }
+.drawer-empty {
+  margin: 6px 2px 0;
+  padding: 14px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--ink-mute);
+}
+.drawer-empty[hidden] { display: none; }
+
+/* 抽屉里的两个坞：去掉「稿纸下方」时代的边距与高度上限，交给抽屉统一滚动 */
+.drawer-pane .critic-dock,
+.drawer-pane .flow-dock {
+  margin: 0 0 12px;
+  max-height: none;
+  border-radius: var(--radius-sm);
+  border-left: 0;
+}
+.drawer-pane .critic-dock-head,
+.drawer-pane .flow-dock-head { flex-wrap: wrap; }
+.drawer-pane .critic-stat,
+.drawer-pane .flow-stat { order: 3; flex: 1 1 100%; white-space: normal; }
+.drawer-pane .critic-score { padding: 10px 12px 12px; }
+.drawer-pane .cs-card { flex: 1 1 100%; min-width: 0; }
+.drawer-pane .flow-steps { max-height: 42vh; }
+.drawer-pane .critic-dock[hidden],
+.drawer-pane .flow-dock[hidden] { display: none; }
+
+/* 抽屉里的评分标准：单列，不再是把稿纸顶下去的大网格 */
+.drawer-pane .score-tables { grid-template-columns: 1fr; gap: 10px; }
+
+/* 流程设置：轮次下拉始终可改，运行中改也生效 */
+.flow-setup {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+.flow-setup .flow-row { margin-bottom: 6px; }
+.flow-setup-tip {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--ink-mute);
+}
+.flow-setup-acts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.flow-setup-acts .btn { font-size: 12.5px; padding: 6px 14px; }
+.flow-setup-acts .btn:disabled { opacity: .55; cursor: not-allowed; }
+.flow-setup-note { font-size: 11.5px; color: var(--ink-mute); }
+
+@media (max-width: 960px) {
+  .drawer-pane .flow-steps { max-height: 34vh; }
+}
+
+/* 桌面端不铺遮罩：抽屉浮在右侧，稿纸仍然能点、能选、能改 */
+@media (min-width: 761px) {
+  .drawer-mask { display: none !important; }
+}

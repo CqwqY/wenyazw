@@ -594,3 +594,36 @@
   .m-tabs { height: calc(48px + var(--m-safe)); --m-tabs: 48px; }
   .m-tab-ico { width: 18px; height: 18px; }
 }
+
+/* ============ 右侧工作窗抽屉（手机端） ============
+   手机上是近乎全屏的抽屉，盖住底部视图切换条；点遮罩或「收起」关闭。 */
+@media (max-width: 760px) {
+  .drawer-handle {
+    top: auto;
+    bottom: calc(var(--m-tabs) + var(--m-safe) + 22px);
+    z-index: 86;
+    padding: 10px 7px 11px;
+    border-radius: 10px 0 0 10px;
+  }
+  .drawer-handle-txt { font-size: 11.5px; letter-spacing: .12em; }
+
+  .drawer-mask { z-index: 88; background: rgba(38, 32, 24, .42); }
+
+  .work-drawer {
+    z-index: 92;
+    top: 0;
+    bottom: 0;
+    width: min(100vw, 430px);
+    border-left: 0;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .drawer-head { padding: 10px 10px; }
+  .drawer-tab { font-size: 12px; padding: 8px 3px; }
+  .drawer-close { padding: 7px 10px; }
+  .drawer-pane { padding: 10px; padding-bottom: calc(var(--m-tabs) + var(--m-safe) + 14px); }
+  .drawer-pane .flow-steps { max-height: none; overflow: visible; }
+  .drawer-pane .critic-score { padding: 8px 10px 10px; }
+  .flow-setup-acts .btn { min-height: 38px; }
+  .flow-rounds { font-size: 16px; padding: 8px 10px; }
+}

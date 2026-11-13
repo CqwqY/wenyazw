@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261114D">
-<link rel="stylesheet" href="assets/css/write.css?v=20261114D">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261114D">
+<link rel="stylesheet" href="assets/css/style.css?v=20261114E">
+<link rel="stylesheet" href="assets/css/write.css?v=20261114E">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261114E">
 </head>
 <body>
 
@@ -210,6 +210,8 @@
             <option value="1">1 轮</option>
             <option value="2" selected>2 轮</option>
             <option value="3">3 轮</option>
+            <option value="4">4 轮</option>
+            <option value="5">5 轮</option>
           </select>
           <span class="flow-cost" id="flowCostHint"></span>
         </div>
@@ -241,16 +243,13 @@
       </div>
     </div>
 
-    <!-- 评分标准区：展开是完整表格，收起只显示所选省份与总分 -->
+    <!-- 评分标准区：只留一行摘要，完整表格移到右侧工作窗抽屉，不再把稿纸往下顶 -->
     <section class="score-bar" id="scoreBar">
       <button class="score-toggle" id="scoreToggle" type="button" aria-expanded="false">
         <span class="score-title">评分标准区</span>
         <span class="score-chips" id="scoreChips"></span>
-        <span class="score-caret" id="scoreCaret">展开表格</span>
+        <span class="score-caret" id="scoreCaret">查看表格</span>
       </button>
-      <div class="score-body" id="scoreBody" hidden>
-        <div class="score-tables" id="scoreTables"></div>
-      </div>
     </section>
 
     <div class="studio-grid">
@@ -326,25 +325,6 @@
               <button type="button" id="lockApplyBtn">锁住这句</button>
             </div>
 
-            <!-- 稿纸下方的 AI 评卷坞：只放分数与汇总，逐句评语在右栏旁批 -->
-            <div class="critic-dock" id="criticDock" hidden>
-              <div class="critic-dock-head">
-                <span class="critic-dock-title">AI 评卷</span>
-                <span class="critic-stat" id="criticStat">按所选评分标准给分，并逐句判好坏与 AI 味。</span>
-                <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>把认可的问题交给 AI 改</button>
-                <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
-              </div>
-              <div class="critic-score" id="criticScore" hidden></div>
-            </div>
-            <!-- 流程作文进度坞：写作 / 评分 / 改稿 / 复评，分数不升自动回退 -->
-            <div class="flow-dock" id="flowDock" hidden>
-              <div class="flow-dock-head">
-                <span class="flow-dock-title">流程作文</span>
-                <span class="flow-stat" id="flowStat">准备中…</span>
-                <button class="flow-dock-btn" id="flowStopBtn" type="button">停止流程</button>
-              </div>
-              <div class="flow-steps" id="flowSteps"></div>
-            </div>
           </div>
         </div>
       </div>
@@ -367,6 +347,75 @@
         <span class="m-tab-badge" id="mBadgePaper" hidden></span>
       </button>
     </nav>
+
+    <!-- 右侧工作窗抽屉：评卷 / 流程 / 评分标准都是浮层，不占稿纸布局空间 -->
+    <button class="drawer-handle" id="drawerHandle" type="button" aria-controls="workDrawer" aria-expanded="false">
+      <span class="drawer-handle-txt">工作窗</span>
+      <span class="drawer-badge" id="drawerBadge" hidden></span>
+    </button>
+    <div class="drawer-mask" id="drawerMask" hidden></div>
+    <aside class="work-drawer" id="workDrawer" aria-label="工作窗" hidden>
+      <div class="drawer-head">
+        <div class="drawer-tabs" id="drawerTabs">
+          <button class="drawer-tab active" data-drawer="critic" type="button">AI 评卷<i class="drawer-dot" id="drawerDotCritic" hidden></i></button>
+          <button class="drawer-tab" data-drawer="flow" type="button">流程作文<i class="drawer-dot" id="drawerDotFlow" hidden></i></button>
+          <button class="drawer-tab" data-drawer="score" type="button">评分标准</button>
+        </div>
+        <button class="drawer-close" id="drawerClose" type="button" aria-label="收起工作窗">收起</button>
+      </div>
+
+      <div class="drawer-body">
+        <!-- 评卷：分数、汇总、把认可的问题交给 AI 改 -->
+        <section class="drawer-pane" id="drawerPaneCritic">
+          <div class="critic-dock" id="criticDock" hidden>
+            <div class="critic-dock-head">
+              <span class="critic-dock-title">AI 评卷</span>
+              <span class="critic-stat" id="criticStat">按所选评分标准给分，并逐句判好坏与 AI 味。</span>
+              <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>把认可的问题交给 AI 改</button>
+              <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
+            </div>
+            <div class="critic-score" id="criticScore" hidden></div>
+          </div>
+          <p class="drawer-empty" id="criticEmpty">还没有评改结果。点顶部「AI 评改」，分数与结论会出现在这里；逐句评语仍在稿纸右栏旁批。</p>
+        </section>
+
+        <!-- 流程作文：轮次随时可改（运行中改也生效），进度与停止都在这里 -->
+        <section class="drawer-pane" id="drawerPaneFlow" hidden>
+          <div class="flow-setup">
+            <div class="flow-row">
+              <label for="flowRoundsDrawer">循环轮次上限</label>
+              <select class="input flow-rounds" id="flowRoundsDrawer">
+                <option value="1">1 轮</option>
+                <option value="2" selected>2 轮</option>
+                <option value="3">3 轮</option>
+                <option value="4">4 轮</option>
+                <option value="5">5 轮</option>
+              </select>
+              <span class="flow-cost" id="flowCostDrawer"></span>
+            </div>
+            <p class="flow-setup-tip">运行中也能改：调大继续跑，调小下一步就收住。分数不升会自动回退到最高分版本。</p>
+            <div class="flow-setup-acts">
+              <button class="btn btn-primary" id="flowRerunBtn" type="button">按当前轮次重跑</button>
+              <span class="flow-setup-note" id="flowSetupNote">有正文时从评分开始，不会重写整篇。</span>
+            </div>
+          </div>
+          <div class="flow-dock" id="flowDock" hidden>
+            <div class="flow-dock-head">
+              <span class="flow-dock-title">流程进度</span>
+              <span class="flow-stat" id="flowStat">准备中…</span>
+              <button class="flow-dock-btn" id="flowStopBtn" type="button">停止流程</button>
+            </div>
+            <div class="flow-steps" id="flowSteps"></div>
+          </div>
+          <p class="drawer-empty" id="flowEmpty">还没跑过流程作文。设好轮次，点顶部「流程作文」或上面的「按当前轮次重跑」。</p>
+        </section>
+
+        <!-- 评分标准：完整表格，打开抽屉才渲染位置，不再挤压稿纸 -->
+        <section class="drawer-pane" id="drawerPaneScore" hidden>
+          <div class="score-tables" id="scoreTables"></div>
+        </section>
+      </div>
+    </aside>
 
   </section>
 
@@ -416,8 +465,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261114D"></script>
-<script src="assets/js/write.js?v=20261114D"></script>
-<script src="assets/js/auth.js?v=20261114D"></script>
+<script src="assets/js/prompt.js?v=20261114E"></script>
+<script src="assets/js/write.js?v=20261114E"></script>
+<script src="assets/js/auth.js?v=20261114E"></script>
 </body>
 </html>

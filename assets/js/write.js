@@ -88,13 +88,21 @@
     paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
     acceptAllBtn: $("acceptAllBtn"), ignoreAllBtn: $("ignoreAllBtn"),
 
-    scoreToggle: $("scoreToggle"), scoreBody: $("scoreBody"), scoreChips: $("scoreChips"),
+    scoreToggle: $("scoreToggle"), scoreChips: $("scoreChips"),
     scoreCaret: $("scoreCaret"), scoreTables: $("scoreTables"),
     criticBtn: $("criticBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
-    criticApplyBtn: $("criticApplyBtn"),
+    criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
     paperNotes: $("paperNotes"),
+
+    drawerHandle: $("drawerHandle"), drawerBadge: $("drawerBadge"),
+    drawerMask: $("drawerMask"), workDrawer: $("workDrawer"),
+    drawerTabs: $("drawerTabs"), drawerClose: $("drawerClose"),
+    drawerPanes: {
+      critic: $("drawerPaneCritic"), flow: $("drawerPaneFlow"), score: $("drawerPaneScore")
+    },
+    drawerDotCritic: $("drawerDotCritic"), drawerDotFlow: $("drawerDotFlow"),
 
     docTabs: $("docTabs"), docTabHint: $("docTabHint"),
     outlinePane: $("outlinePane"), paperPane: $("paperPane"),
@@ -105,13 +113,21 @@
     flowAuto: $("flowAuto"), flowRounds: $("flowRounds"), flowCostHint: $("flowCostHint"),
     flowBtn: $("flowBtn"), flowDock: $("flowDock"), flowStat: $("flowStat"),
     flowSteps: $("flowSteps"), flowStopBtn: $("flowStopBtn"),
+    flowRoundsDrawer: $("flowRoundsDrawer"), flowCostDrawer: $("flowCostDrawer"),
+    flowRerunBtn: $("flowRerunBtn"), flowSetupNote: $("flowSetupNote"),
+    flowEmpty: $("flowEmpty"),
     writeEssayBtn: $("writeEssayBtn")
   };
 
   /* 流程作文状态 */
   var flowActive = false;
   var flowAbort = false;
-  var flowRounds = 2;
+  var flowRounds = 2;                // 轮次单一真值：向导和抽屉共用，运行中改即时生效
+
+  /* 右侧工作窗抽屉状态：稿纸布局不受抽屉影响 */
+  var drawerOpen = false;
+  var drawerTab = "critic";
+  var drawerAutoSuppressed = false;   // 用户手动收起过之后不再自动弹出打扰
 
   /* 向导状态 */
   var selectedCat = "";
@@ -143,7 +159,6 @@
   var criticItems = [];          // AI 评改的逐句结果
   var criticScores = [];         // AI 评改给出的分数（每份评分标准一条）
   var criticSeq = 0;             // 评改条目自增 id（用于稿纸标记与卡片互跳）
-  var criticDockClosed = false;  // 用户手动收起稿纸下方的评改批注坞
 
   /* ---------------- 配置持久化 ---------------- */
 
@@ -267,7 +282,7 @@
   /* 站内模式下，凡是会扣分的按钮都挂一个角标（CSS 画，避免改 textContent 时被清掉） */
   var COST_BTN_KEYS = [
     "startBtn", "outlineAiBtn", "outlineRetryBtn", "writeEssayBtn",
-    "sendBtn", "criticBtn", "criticApplyBtn", "flowBtn", "testBtn"
+    "sendBtn", "criticBtn", "criticApplyBtn", "flowBtn", "flowRerunBtn", "testBtn"
   ];
   function syncCostBadges() {
     var site = els.preset.value === "site";
@@ -630,7 +645,93 @@
 
   buildStageCards();
 
-  /* 评分区：把所选省份的表格渲染到生成界面顶部 */
+  /* ---------------- 右侧工作窗抽屉 ----------------
+     评卷、流程进度、评分标准表格全部收进这里。抽屉是 fixed 浮层，
+     不参与 .doc-body 的 flex 布局，稿纸高度与格线始终不变；
+     桌面端贴右侧盖一层，手机端全屏，点遮罩或「收起」关闭。 */
+  function drawerTabName(name) {
+    return name === "flow" || name === "score" ? name : "critic";
+  }
+
+  function syncDrawerDots() {
+    var criticNew = !!(criticItems.length || criticScores.length);
+    var flowNew = !!(els.flowSteps && els.flowSteps.children.length);
+    if (els.drawerDotCritic) els.drawerDotCritic.hidden = !criticNew || (drawerOpen && drawerTab === "critic");
+    if (els.drawerDotFlow) els.drawerDotFlow.hidden = !flowNew || (drawerOpen && drawerTab === "flow") || flowActive;
+    // 拉手角标：有待处理的朱红批注、流程进行中，或没看过的评改结果
+    var n = pendingMarks().length;
+    var tip = flowActive ? "流程进行中" : "";
+    if (els.drawerBadge) {
+      var show = !drawerOpen && (n > 0 || (criticNew && drawerTab !== "critic") || flowActive);
+      els.drawerBadge.hidden = !show;
+      if (show) {
+        els.drawerBadge.textContent = flowActive ? "…" : (n ? String(n) : "·");
+        els.drawerBadge.title = tip || (n ? n + " 处批注待处理" : "有新的评改结果");
+      }
+    }
+  }
+
+  function setDrawerTab(name) {
+    drawerTab = drawerTabName(name);
+    Object.keys(els.drawerPanes).forEach(function (k) {
+      var p = els.drawerPanes[k];
+      if (p) p.hidden = k !== drawerTab;
+    });
+    if (els.drawerTabs) {
+      els.drawerTabs.querySelectorAll(".drawer-tab").forEach(function (b) {
+        var on = b.getAttribute("data-drawer") === drawerTab;
+        b.classList.toggle("active", on);
+        b.setAttribute("aria-selected", String(on));
+      });
+    }
+    if (drawerTab === "score") renderScoreTables();
+    syncScoreToggle();
+    syncDrawerDots();
+  }
+
+  // 抽屉 tab 与顶部评分摘要行状态保持一致
+  function syncScoreToggle() {
+    var scoreShown = drawerOpen && drawerTab === "score";
+    if (els.scoreToggle) els.scoreToggle.setAttribute("aria-expanded", String(scoreShown));
+    if (els.scoreCaret) els.scoreCaret.textContent = scoreShown ? "收起表格" : "查看表格";
+  }
+
+  function setDrawer(open, tab, auto) {
+    if (auto && drawerAutoSuppressed) return;
+    drawerOpen = !!open;
+    if (open && tab) setDrawerTab(tab);
+    if (els.workDrawer) els.workDrawer.hidden = !drawerOpen;
+    if (els.drawerMask) els.drawerMask.hidden = !drawerOpen;
+    if (els.drawerHandle) {
+      els.drawerHandle.classList.toggle("is-open", drawerOpen);
+      els.drawerHandle.setAttribute("aria-expanded", String(drawerOpen));
+    }
+    document.body.classList.toggle("drawer-open", drawerOpen);
+    syncScoreToggle();
+    syncDrawerDots();
+  }
+
+  function closeDrawer(manual) {
+    if (manual) drawerAutoSuppressed = true;
+    setDrawer(false);
+  }
+
+  // 评卷卡片与空态互斥；抽屉里不随「大纲/稿纸」切换消失
+  function syncCriticDock(force) {
+    var has = !!force || !!(criticItems.length || criticScores.length);
+    if (els.criticDock) els.criticDock.hidden = !has;
+    if (els.criticEmpty) els.criticEmpty.hidden = has;
+    syncDrawerDots();
+  }
+
+  function syncFlowDock(force) {
+    var has = !!force || !!(els.flowSteps && els.flowSteps.children.length) || flowActive;
+    if (els.flowDock) els.flowDock.hidden = !has;
+    if (els.flowEmpty) els.flowEmpty.hidden = has;
+    syncDrawerDots();
+  }
+
+  /* 评分区：把所选省份的表格渲染到生成界面顶部摘要 + 抽屉里的完整表格 */
   function renderScoreTables() {
     var list = activeProvinces.length ? activeProvinces : selectedProvinces;
     els.scoreChips.innerHTML = "";
@@ -715,10 +816,10 @@
   }
 
   function setScoreOpen(open) {
-    if (open) els.scoreBody.removeAttribute("hidden");
-    else els.scoreBody.setAttribute("hidden", "");
+    if (open) setDrawer(true, "score");
+    else if (drawerTab === "score") setDrawer(false);
     els.scoreToggle.setAttribute("aria-expanded", String(!!open));
-    els.scoreCaret.textContent = open ? "收起表格" : "展开表格";
+    els.scoreCaret.textContent = open ? "收起表格" : "查看表格";
   }
 
   /* ---------------- 向导：示例题目 ---------------- */
@@ -2478,9 +2579,8 @@
     var paper = name === "paper";
     els.outlinePane.hidden = paper;
     els.paperPane.hidden = !paper;
-    if (els.criticDock) {
-      els.criticDock.hidden = !paper || (!criticItems.length && !criticScores.length) || criticDockClosed;
-    }
+    // 评卷卡片已经在右侧抽屉里，切大纲不该把结果藏掉
+    syncCriticDock();
     els.docTabs.querySelectorAll(".doc-tab").forEach(function (b) {
       b.classList.toggle("active", b.getAttribute("data-pane") === name);
     });
@@ -3262,13 +3362,14 @@
     if (els.criticList) els.criticList.innerHTML = "";
     renderCriticScores();
     if (!criticItems.length && !criticScores.length) {
-      if (els.criticDock) els.criticDock.hidden = true;
+      syncCriticDock();
       syncCriticApply();
       renderAnnotated();
       return;
     }
-    criticDockClosed = false;
-    if (els.criticDock) els.criticDock.hidden = els.paperPane.hidden;
+    syncCriticDock();
+    // 出结果时自动拉出；流程进行中留在「流程作文」页，别抢当前 tab
+    if (!flowActive) setDrawer(true, "critic", true);
     var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
     var softCnt = criticItems.filter(function (x) { return x.soft; }).length;
     var aiCnt = criticItems.filter(function (x) { return x.ai; }).length;
@@ -3320,10 +3421,10 @@
     if (els.criticScore) { els.criticScore.innerHTML = ""; els.criticScore.hidden = true; }
     criticItems = [];
     criticScores = [];
-    criticDockClosed = false;
-    if (els.criticDock) els.criticDock.hidden = false;
+    setDrawer(true, "critic");       // 评改一开始就把抽屉拉出来，进度与结果都在里面
+    syncCriticDock(true);            // 正在打分也要看得见，别只留空态
     switchPane("paper");
-    if (els.criticDock) els.criticDock.hidden = false;
+    syncCriticDock(true);
     var bubble = addAssistantBubble("评改");
     bubble.textContent = "正在按评分标准打分，并逐句判好坏与 AI 味…";
 
@@ -3374,8 +3475,24 @@
      护栏：轮数上限 / 分数不升回滚 / 只认硬伤 / 锁句不动 / 随时停止 / 开跑前报积分预算。
      不做无脑循环：AI 改坏的情况由「保留最高分版本」兜住。 */
   function flowRoundLimit() {
-    var n = parseInt(els.flowRounds && els.flowRounds.value, 10);
-    return isNaN(n) ? 2 : Math.max(1, Math.min(3, n));
+    return Math.max(1, Math.min(5, flowRounds));
+  }
+
+  // 向导与抽屉里的轮次下拉共用同一个值；运行中改，下一步循环就按新上限判断
+  function setFlowRounds(n, from) {
+    var v = parseInt(n, 10);
+    if (isNaN(v)) v = 2;
+    v = Math.max(1, Math.min(5, v));
+    var changed = v !== flowRounds;
+    flowRounds = v;
+    if (from !== "wizard" && els.flowRounds) els.flowRounds.value = String(v);
+    if (from !== "drawer" && els.flowRoundsDrawer) els.flowRoundsDrawer.value = String(v);
+    syncFlowCost();
+    if (changed && flowActive) {
+      flowStep("轮次上限改为 " + v + " 轮（下一步生效）", "warn");
+      flowSetStat("轮次上限改为 " + v + " 轮 · 下一步按新上限判断");
+    }
+    return v;
   }
 
   // 预算：每轮 = 1 次评分 + 1 次批改，最后再 1 次复评；没稿子还要 1 次写作
@@ -3384,9 +3501,17 @@
   }
 
   function syncFlowCost() {
-    if (!els.flowCostHint) return;
-    els.flowCostHint.textContent = "约 " + flowBudget(true) + " 次 AI 调用（每次消耗 1 积分）" +
-      (els.flowAuto && els.flowAuto.checked ? "；从向导启动另含大纲、正文各 1 次" : "");
+    var txt = "约 " + flowBudget(true) + " 次 AI 调用（每次消耗 1 积分）";
+    if (els.flowCostHint) {
+      els.flowCostHint.textContent = txt +
+        (els.flowAuto && els.flowAuto.checked ? "；从向导启动另含大纲、正文各 1 次" : "");
+    }
+    if (els.flowCostDrawer) els.flowCostDrawer.textContent = txt;
+    if (els.flowSetupNote) {
+      els.flowSetupNote.textContent = flowActive
+        ? "运行中可随时改，调大继续跑、调小下一步收住。"
+        : (docBody.trim() ? "已有正文：从评分开始，不会重写整篇。" : "还没有正文：会先写一篇再迭代。");
+    }
   }
 
   function flowSetStat(text) {
@@ -3401,6 +3526,9 @@
     d.textContent = text;
     els.flowSteps.appendChild(d);
     els.flowSteps.scrollTop = els.flowSteps.scrollHeight;
+    if (els.flowEmpty) els.flowEmpty.hidden = true;
+    if (els.flowDock) els.flowDock.hidden = false;
+    syncDrawerDots();
   }
 
   function flowScoreLabel(scores) {
@@ -3492,20 +3620,22 @@
     if (!docBody.trim() && !outline.points.some(function (p) { return trim(p.text); })) {
       setPaperHint("还没有大纲和正文，先点「开始生成」。"); return;
     }
-    var rounds = flowRoundLimit();
     var budget = flowBudget(!!docBody.trim());
     if (!opts.confirmed && !confirm(
-      "流程作文：最多 " + rounds + " 轮「评分 → 只改硬伤 → 复评」，约 " + budget +
-      " 次 AI 调用，每次消耗 1 积分。\n分数不升会自动回退到最好的一版；中途可随时停止。继续？"
+      "流程作文：最多 " + flowRoundLimit() + " 轮「评分 → 只改硬伤 → 复评」，约 " + budget +
+      " 次 AI 调用，每次消耗 1 积分。\n轮次在右侧工作窗里可以随时改；分数不升会自动回退到最好的一版；中途可随时停止。继续？"
     )) return;
 
     flowActive = true;
     flowAbort = false;
-    if (els.flowDock) els.flowDock.hidden = false;
     if (els.flowSteps) els.flowSteps.innerHTML = "";
     if (els.flowBtn) els.flowBtn.disabled = true;
+    if (els.flowRerunBtn) els.flowRerunBtn.disabled = true;
     if (els.flowStopBtn) els.flowStopBtn.disabled = false;
+    setDrawer(true, "flow");         // 流程一开始就拉出抽屉，全程进度可见
+    syncFlowDock(true);
     if (isMobile()) setMView("paper");
+    syncFlowCost();
 
     var best = null;
     var finalLabel = "";
@@ -3516,13 +3646,14 @@
         if (flowAbort) { flowStep("已停止，保留当前稿纸", "warn"); return; }
         if (!docBody.trim()) throw new Error("正文没生成出来，流程停下。");
       }
-      flowStep("开始 · " + rounds + " 轮上限");
+      flowStep("开始 · 当前 " + flowRoundLimit() + " 轮上限");
       var first = await flowScoreOnce("初评");
       best = { title: docTitle, body: docBody, pct: first.pct, label: first.label };
       finalLabel = first.label;
 
-      for (var r = 1; r <= rounds && !flowAbort; r++) {
-        flowSetStat("第 " + r + " 轮 / 共 " + rounds + " 轮");
+      // 循环条件每轮重新读：抽屉里改了轮次，下一步立刻按新上限继续或收住
+      for (var r = 1; r <= flowRoundLimit() && !flowAbort; r++) {
+        flowSetStat("第 " + r + " 轮 / 上限 " + flowRoundLimit() + " 轮（可改）");
         var revised = await flowReviseOnce();
         if (!revised || flowAbort) break;
         var after = await flowScoreOnce("第 " + r + " 轮复评");
@@ -3558,7 +3689,10 @@
       flowActive = false;
       flowAbort = false;
       if (els.flowBtn) { els.flowBtn.disabled = false; els.flowBtn.textContent = "流程作文"; }
+      if (els.flowRerunBtn) els.flowRerunBtn.disabled = false;
       if (els.flowStopBtn) els.flowStopBtn.disabled = true;
+      syncFlowCost();
+      syncFlowDock();
       renderAnnotated();
     }
   }
@@ -3668,12 +3802,34 @@
   on(els.acceptAllBtn, "click", function () { applyAll("accept"); });
   on(els.ignoreAllBtn, "click", function () { applyAll("ignore"); });
 
-  // 评分区展开/收起
+  // 右侧工作窗抽屉：拉手 / 遮罩 / 关闭 / tab / Esc
+  on(els.drawerHandle, "click", function () {
+    if (drawerOpen) closeDrawer(true);
+    else setDrawer(true);
+  });
+  on(els.drawerMask, "click", function () { closeDrawer(true); });
+  on(els.drawerClose, "click", function () { closeDrawer(true); });
+  on(els.criticDockClose, "click", function () { closeDrawer(true); });
+  on(els.drawerTabs, "click", function (e) {
+    var b = e.target.closest(".drawer-tab");
+    if (!b) return;
+    setDrawerTab(b.getAttribute("data-drawer"));
+    if (!drawerOpen) setDrawer(true);
+  });
+  on(document, "keydown", function (e) {
+    if (e.key !== "Escape" || !drawerOpen) return;
+    var mask = document.getElementById("authMask");
+    if (mask && !mask.hasAttribute("hidden")) return;  // 登录弹窗优先
+    closeDrawer(true);
+  });
+
+  // 评分标准表格在抽屉里，摘要行只是开关
   on(els.scoreToggle, "click", function () {
-    setScoreOpen(els.scoreBody.hasAttribute("hidden"));
+    var open = !(drawerOpen && drawerTab === "score");
+    setScoreOpen(open);
   });
   on(els.criticBtn, "click", function () {
-    // 手机端评改结果排在稿纸上，先切到稿纸视图，否则跑完了看不见
+    // 手机端先切到稿纸视图，评改标记才落在可见的稿纸上
     if (isMobile()) setMView("paper");
     runCritic();
   });
@@ -3682,10 +3838,15 @@
     if (isMobile()) setMView("paper");
     runFlow();
   });
+  on(els.flowRerunBtn, "click", function () {
+    if (isMobile()) setMView("paper");
+    runFlow();
+  });
   on(els.flowStopBtn, "click", stopFlow);
-  on(els.flowRounds, "change", syncFlowCost);
+  on(els.flowRounds, "change", function () { setFlowRounds(els.flowRounds.value, "wizard"); });
+  on(els.flowRoundsDrawer, "change", function () { setFlowRounds(els.flowRoundsDrawer.value, "drawer"); });
   on(els.flowAuto, "change", syncFlowCost);
-  syncFlowCost();
+  setFlowRounds(els.flowRounds ? els.flowRounds.value : 2, "wizard");
 
   // 大纲 / 稿纸切换
   on(els.docTabs, "click", function (e) {
@@ -3731,11 +3892,6 @@
     if (!req) { setDocHint("先在上面的评改卡片里点「认可」，再一起交给 AI。"); return; }
     if (!docBody.trim()) { setDocHint("正文是空的，改不了。"); return; }
     sendRevision(req, { lockedList: true });
-  });
-
-  on(els.criticDockClose, "click", function () {
-    criticDockClosed = true;
-    if (els.criticDock) els.criticDock.hidden = true;
   });
 
   on(els.paperBody, "click", function () { clearActiveMarks(); hideInkDock(); });
@@ -3948,6 +4104,7 @@
 
   on(els.backBtn, "click", function () {
     if (controller) controller.abort();
+    setDrawer(false);               // 回工作台别把浮层带到向导页
     els.studio.setAttribute("hidden", "");
     els.wizard.removeAttribute("hidden");
     document.body.classList.remove("studio-mode");
