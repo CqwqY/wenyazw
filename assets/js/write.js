@@ -227,6 +227,197 @@
     resetVersions();
   }
 
+  /* ---------------- 写作会话持久化 ----------------
+     聊天上下文、AI 评改结果、旁批批注、锁定句、正文大纲、学段地区类别、流程步骤
+     全部按「这篇作文」存在本机，刷新或下次从控制台打开还能接着看。
+     登录过就按 essayId 存，没登录按本机 compositionId 存，换一篇互不串。 */
+
+  var SESSION_PREFIX = "wy.session.v1.";
+
+  function sessionKey() {
+    return SESSION_PREFIX + (currentEssayId ? ("e" + currentEssayId) : compId());
+  }
+
+  function chatSnapshot() {
+    var out = [];
+    if (!els.contextList) return out;
+    Array.prototype.forEach.call(els.contextList.children, function (b) {
+      if (!b.classList || !b.classList.contains("bubble")) return;
+      var lab = b.querySelector(".bubble-label"), tx = b.querySelector(".bubble-text");
+      out.push({
+        user: b.classList.contains("user"),
+        cls: b.className,
+        role: lab ? lab.textContent : "",
+        text: tx ? tx.textContent : ""
+      });
+    });
+    return out;
+  }
+
+  function flowSnapshot() {
+    var out = [];
+    if (!els.flowSteps) return out;
+    Array.prototype.forEach.call(els.flowSteps.children, function (n) {
+      out.push({ text: n.textContent || "", cls: n.className || "" });
+    });
+    return out;
+  }
+
+  function saveSessionNow() {
+    try {
+      var data = {
+        ts: Date.now(),
+        essayId: currentEssayId || 0,
+        title: docTitle || "",
+        body: docBody || "",
+        stage: stage,
+        outline: outlineStore(),
+        category: categoryStore(),
+        province: (activeProvinces.length ? activeProvinces : selectedProvinces).join("、"),
+        chat: chatSnapshot(),
+        flow: flowSnapshot(),
+        critic: {
+          items: criticItems,
+          scores: criticScores,
+          stat: els.criticStat ? els.criticStat.textContent : ""
+        },
+        notes: annotations,
+        annotSeq: annotSeq,
+        locks: lockedTexts,
+        mode: chatMode
+      };
+      localStorage.setItem(sessionKey(), JSON.stringify(data));
+    } catch (e) { /* 存不下（隐私模式/超配额）就算了，不影响写作 */ }
+  }
+
+  var sessionTimer = null;
+  function scheduleSessionSave() {
+    if (sessionTimer) clearTimeout(sessionTimer);
+    sessionTimer = setTimeout(function () { sessionTimer = null; saveSessionNow(); }, 600);
+  }
+
+  function readSession() {
+    try {
+      var raw = localStorage.getItem(sessionKey());
+      if (!raw) return null;
+      var d = JSON.parse(raw);
+      return d && typeof d === "object" ? d : null;
+    } catch (e) { return null; }
+  }
+
+  function paintChat(list) {
+    if (!els.contextList || !list || !list.length) return;
+    els.contextList.innerHTML = "";
+    if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
+    list.forEach(function (m) {
+      if (!m || !trim(m.text)) return;
+      var b = document.createElement("div");
+      b.className = m.cls || (m.user ? "bubble user" : "bubble ai role-ai");
+      var label = document.createElement("div");
+      label.className = "bubble-label";
+      label.textContent = m.role || (m.user ? "你" : "文芽");
+      var t = document.createElement("div");
+      t.className = "bubble-text";
+      t.textContent = m.text;
+      b.appendChild(label);
+      b.appendChild(t);
+      els.contextList.appendChild(b);
+    });
+    els.contextList.scrollTop = els.contextList.scrollHeight;
+  }
+
+  function paintFlow(list) {
+    if (!els.flowSteps || !list || !list.length || els.flowSteps.children.length) return;
+    list.forEach(function (s) {
+      if (!s || !s.text) return;
+      var n = document.createElement("div");
+      n.className = s.cls || "flow-step";
+      n.textContent = s.text;
+      els.flowSteps.appendChild(n);
+    });
+  }
+
+  /* 把存下来的会话铺回界面。正文/大纲只在当前为空时补，避免覆盖云端更新的稿子。 */
+  function restoreSession(d) {
+    if (!d) return false;
+    var touched = false;
+
+    if (!docBody.trim() && d.body) {
+      docTitle = d.title || "作文";
+      docBody = d.body;
+      currentComposition = d.title ? (d.title + "\n\n" + d.body) : d.body;
+      stage = d.stage === "draft" ? "draft" : "outline";
+      touched = true;
+    }
+    if (d.outline && !outlineHasContent()) {
+      try {
+        var ol = JSON.parse(d.outline) || {};
+        outline = {
+          title: ol.title || docTitle || "",
+          thesis: ol.thesis || "",
+          note: ol.note || "",
+          points: (ol.points || []).map(function (p) { return newPoint(p && p.label, p && p.text); })
+        };
+        touched = true;
+      } catch (e) { /* 坏数据跳过 */ }
+    }
+    if (d.category && !activeCat) {
+      var pc = parseCategoryStore(d.category);
+      activeCat = pc.cat || "";
+      activeGenre = pc.genre;
+      // 存的文体缺了或被脏字符吃掉：按大纲结构回推
+      if (!pc.hasGenre) {
+        var pcGuess = guessGenreFrom(String(d.outline || "") + "\n" + String(d.body || ""));
+        if (pcGuess) activeGenre = pcGuess;
+      }
+    }
+    if (d.province && !activeProvinces.length) activeProvinces = resumeProvinceList(d.province);
+
+    if (Array.isArray(d.notes) && d.notes.length && !annotations.length) {
+      annotations = d.notes;
+      annotSeq = d.annotSeq || annotations.length;
+    }
+    if (Array.isArray(d.locks) && d.locks.length && !lockedTexts.length) {
+      lockedTexts = d.locks;
+      try { localStorage.setItem(LOCK_STORE, JSON.stringify(lockedTexts)); } catch (e2) { /* ignore */ }
+    }
+    if (d.critic && Array.isArray(d.critic.items) && d.critic.items.length && !criticItems.length) {
+      criticItems = d.critic.items;
+      criticScores = Array.isArray(d.critic.scores) ? d.critic.scores : [];
+      criticSeq = criticItems.reduce(function (m, it) { return Math.max(m, it.id || 0); }, criticSeq);
+    }
+    if (Array.isArray(d.chat) && d.chat.length) paintChat(d.chat);
+    if (Array.isArray(d.flow) && d.flow.length) paintFlow(d.flow);
+    if (d.mode) setChatMode(d.mode);
+
+    if (criticItems.length) {
+      renderCritic();
+      if (d.critic && d.critic.stat && els.criticStat) els.criticStat.textContent = d.critic.stat;
+    } else if (touched && docBody.trim()) {
+      renderAnnotated();
+    }
+    syncDrawerDots();
+    return true;
+  }
+
+  // 页面打开时：没有 ?essay 也把上次的写作现场接回来（稿纸 + 对话 + 评改 + 旁批）
+  function trySessionRestore() {
+    if (els.studio.hasAttribute("hidden") === false) return false;   // 已经在写作台（resume 走过了）
+    var d = readSession();
+    if (!d) return false;
+    if (!d.body && !(d.chat && d.chat.length)) return false;
+    els.wizard.setAttribute("hidden", "");
+    els.studio.removeAttribute("hidden");
+    document.body.classList.add("studio-mode");
+    if (d.title) docTitle = d.title;
+    restoreSession(d);
+    renderOutline();
+    switchPane(stage === "draft" ? "paper" : "outline");
+    setPaperHint("已恢复上次的写作现场（对话、评改、旁批都在）");
+    setDocHint(stage === "draft" ? "正文已恢复 · 可继续改" : "大纲已恢复");
+    return true;
+  }
+
   /* ---------------- 历史版本：GitHub 式更改查看 ----------------
      每次生成 / 重写 / 恢复都 commitVersion 快照；版本按 compositionId 存 localStorage，刷新仍在。
      列表新→旧；点版本看它与上一版相比的改动（段落级 LCS 对齐，再做段落内字符级 LCS，inline 渲染）。 */
@@ -2424,6 +2615,7 @@
     b.appendChild(t);
     els.contextList.appendChild(b);
     els.contextList.scrollTop = els.contextList.scrollHeight;
+    scheduleSessionSave();
     return t;
   }
 
@@ -2442,6 +2634,7 @@
     els.contextList.appendChild(b);
     els.contextList.scrollTop = els.contextList.scrollHeight;
     noteChatReply();
+    scheduleSessionSave();
     return t;
   }
 
@@ -2494,21 +2687,62 @@
     return (outline.points || []).some(function (p) { return trim(p.text) || trim(p.label); });
   }
 
+  /* 后端老版本按 TCP 分块拼字符串，会把跨块的中文劈成 U+FFFD（如「议论文」→「议论\uFFFD\uFFFD\uFFFD」）。
+     前端能删的残字一律先删掉，认不出的文体再按枚举兜底，绝不能因为脏字符就掉回记叙文。 */
+  function stripBadChars(str) {
+    return String(str == null ? "" : str).replace(/\uFFFD+/g, "");
+  }
+
+  // 文体名容错：精确 → 包含 → 前两个字一致，任一条命中都算认出
+  function matchGenre(str) {
+    var raw = stripBadChars(str).trim();
+    if (!raw) return "";
+    var dict = window.WY_GENRE;
+    if (!dict) return "";
+    if (dict[raw]) return raw;
+    var keys = Object.keys(dict), hit = "";
+    keys.forEach(function (k) {
+      if (!hit && (raw.indexOf(k) >= 0 || k.indexOf(raw) >= 0)) hit = k;
+    });
+    if (hit) return hit;
+    keys.forEach(function (k) {
+      if (!hit && k.slice(0, 2) === raw.slice(0, 2)) hit = k;
+    });
+    return hit;
+  }
+
   // 类别与文体一起写进作文的 category 字段（形如「命题 · 议论文」），从控制台恢复时再拆开
   function categoryStore() {
-    var cat = activeCat || selectedCat || "";
-    var g = genreName();
+    var cat = stripBadChars(activeCat || selectedCat || "").trim();
+    var g = matchGenre(genreName()) || "记叙文";
     return (cat && g) ? (cat + " · " + g) : (cat || g || "");
   }
 
   function parseCategoryStore(str) {
-    var parts = String(str || "").split("·").map(function (x) { return trim(x); });
+    var s = stripBadChars(str);
+    var parts = s.split("·").map(function (x) { return trim(x); });
     var cat = (parts[0] || "").split("｜")[0].trim();
-    var g = parts[1] || "";
+    var g = matchGenre(parts[1] || "");
     return {
       cat: cat,
-      genre: (window.WY_GENRE && window.WY_GENRE[g]) ? g : "记叙文"
+      genre: g || "记叙文",
+      hasGenre: !!g          // 存的时候到底有没有文体这一半，没有就允许后面按大纲推断
     };
+  }
+
+  /* 老稿子的文体字段可能整段丢失（早期版本只存类别）。这时按大纲结构回推：
+     有「分论点 / 论点 / 论据 / 论证」这类骨架就按议论文，别一律当记叙文。 */
+  function guessGenreFrom(text) {
+    var s = stripBadChars(String(text || ""));
+    if (!s.trim()) return "";
+    var argWords = ["分论点", "中心论点", "论点", "论据", "论证", "引论", "让步", "辩证"];
+    var hits = 0;
+    argWords.forEach(function (w) { if (s.indexOf(w) >= 0) hits++; });
+    var storyWords = ["那天", "后来", "妈妈说", "我走进", "记得那", "忽然"];
+    var story = 0;
+    storyWords.forEach(function (w) { if (s.indexOf(w) >= 0) story++; });
+    if (hits >= 2 && hits > story) return "议论文";
+    return "";
   }
 
   function outlineStore() {    if (!outlineHasContent()) return "";
@@ -2536,6 +2770,7 @@
 
   var essaySaveTimer = null;
   function scheduleEssaySave() {
+    scheduleSessionSave();
     if (!authToken()) return;
     if (essaySaveTimer) clearTimeout(essaySaveTimer);
     essaySaveTimer = setTimeout(function () {
@@ -3397,6 +3632,12 @@
       points: pts.map(function (p) { return newPoint(p && p.label, p && p.text); })
     };
 
+    // 老稿子没存到文体（或存成了乱码）：按大纲骨架回推，别把议论文当记叙文
+    if (!parsedCat.hasGenre) {
+      var gGuess = guessGenreFrom(JSON.stringify(outline) + "\n" + docBody);
+      if (gGuess) activeGenre = gGuess;
+    }
+
     stage = docBody.trim() ? "draft" : "outline";
 
     annotations = []; annotSeq = 0; annotPanelEl = null;
@@ -4088,6 +4329,7 @@
   }
 
   function renderCritic() {
+    scheduleSessionSave();
     if (els.criticList) els.criticList.innerHTML = "";
     renderCriticScores();
     if (!criticItems.length && !criticScores.length) {
@@ -4264,6 +4506,7 @@
     d.textContent = text;
     els.flowSteps.appendChild(d);
     els.flowSteps.scrollTop = els.flowSteps.scrollHeight;
+    scheduleSessionSave();
     if (els.flowEmpty) els.flowEmpty.hidden = true;
     if (els.flowDock) els.flowDock.hidden = false;
     syncDrawerDots();

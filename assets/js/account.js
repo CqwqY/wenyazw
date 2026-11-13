@@ -71,7 +71,8 @@
     return j;
   }
 
-  function esc(s) { return String(s == null ? "" : s); }
+  // 顺手把 U+FFFD 残字（旧后端按分块拼字符串劈坏的汉字）剔掉，别把乱码摆到列表里
+  function esc(s) { return String(s == null ? "" : s).replace(/\uFFFD+/g, ""); }
 
   function fmtTime(s) {
     if (!s) return "";
