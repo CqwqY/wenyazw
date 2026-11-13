@@ -77,6 +77,7 @@
     wordNum: $("wordNum"), wordRange: $("wordRange"),
     wordMinus: $("wordMinus"), wordPlus: $("wordPlus"),
     scoringGrid: $("scoringGrid"), scoringTip: $("scoringTip"),
+    stageGrid: $("stageGrid"), stageTip: $("stageTip"),
     wizardStatus: $("wizardStatus"), startBtn: $("startBtn"),
 
     backBtn: $("backBtn"), studioMeta: $("studioMeta"),
@@ -120,6 +121,7 @@
   var activeGenre = "记叙文";     // 本次成稿的文体快照（记叙文/议论文/散文/小小说/随笔）
   var activeTopic = "";          // 本次成稿的题目原题快照
   var activeProvinces = [];      // 本次成稿所选评分标准快照（可多个）
+  var activeStage = "";          // 本次成稿学段快照
   var docTitle = "";             // 稿纸标题（纯文本）
   var docBody = "";              // 稿纸正文（纯文本，采纳批注时在这里替换）
   var annotations = [];          // 老师手批：待处理/已采纳/已忽略的批注
@@ -527,8 +529,8 @@
   function scoringBrief(prov) {
     var s = window.WY_SCORING[prov];
     if (!s) return "";
-    return "总分 " + s.total + " 分 · 维度 " + s.dims.map(function (d) { return d[0] + d[1]; }).join("/") +
-      " · 分 " + s.bands.length + " 档";
+    return "总分 " + s.total + " 分 · " + s.dims.map(function (d) { return d[0]; }).join("/") +
+      " · " + s.bands.length + " 档";
   }
 
   function buildScoringCards() {
@@ -583,11 +585,53 @@
   buildScoringCards();
   syncScoringTip();
 
+  /* ---------------- 学段选择（单选，决定字数/文体/立意尺度） ---------------- */
+
+  var STAGE_STORE = "wy.stage.v1";
+  var selectedStage = "初中";
+  try {
+    var savedStage = localStorage.getItem(STAGE_STORE);
+    if (savedStage && window.WY_STAGE && window.WY_STAGE[savedStage]) selectedStage = savedStage;
+  } catch (e) { /* 隐私模式读不了就算了 */ }
+
+  function buildStageCards() {
+    if (!window.WY_STAGE_LIST || !els.stageGrid) return;
+    els.stageGrid.innerHTML = "";
+    window.WY_STAGE_LIST.forEach(function (stg) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "stage-chip" + (stg === selectedStage ? " selected" : "");
+      btn.setAttribute("data-stage", stg);
+      btn.textContent = stg;
+      els.stageGrid.appendChild(btn);
+    });
+    if (els.stageTip) els.stageTip.textContent = window.WY_STAGE[selectedStage].words +
+      " 字左右 · " + (selectedStage === "小学" ? "记叙文为主" : selectedStage === "初中" ? "记叙文为主，可议" : "记叙、议论并行") +
+      "；学段要求会与评分标准一起注入 AI。";
+  }
+
+  on(els.stageGrid, "click", function (e) {
+    var chip = e.target.closest(".stage-chip");
+    if (!chip) return;
+    var stg = chip.getAttribute("data-stage");
+    if (!stg || !window.WY_STAGE[stg]) return;
+    selectedStage = stg;
+    try { localStorage.setItem(STAGE_STORE, stg); } catch (e2) { /* 存不了就仅本次生效 */ }
+    buildStageCards();
+  });
+
+  buildStageCards();
+
   /* 评分区：把所选省份的表格渲染到生成界面顶部 */
   function renderScoreTables() {
     var list = activeProvinces.length ? activeProvinces : selectedProvinces;
     els.scoreChips.innerHTML = "";
     els.scoreTables.innerHTML = "";
+    var gchip = document.createElement("span");
+    gchip.className = "score-chip";
+    gchip.textContent = "学段 " + stageNow();
+    els.scoreChips.appendChild(gchip);
+
     list.forEach(function (prov) {
       var s = window.WY_SCORING[prov];
       if (!s) return;
@@ -1859,8 +1903,12 @@
     return list && list.length ? list : ["全国卷（通用）"];
   }
 
+  function stageNow() { return activeStage || selectedStage || "初中"; }
+
   function scoringText() {
-    return (window.WY_SCORING_ALL ? window.WY_SCORING_ALL(provinceList()) : "") || "";
+    var s = (window.WY_SCORING_ALL ? window.WY_SCORING_ALL(provinceList()) : "") || "";
+    var g = window.WY_STAGE_RULE ? window.WY_STAGE_RULE(stageNow()) : "";
+    return (s + (g ? (s ? "\n\n" : "") + g : "")).trim();
   }
 
   /* 统一包裹：作文原文：{...} / 用户提问：{...}
@@ -2476,6 +2524,7 @@
     activeGenre = parsedCat.genre;
     activeTopic = data.title || "";
     activeProvinces = resumeProvinceList(data.province);
+    activeStage = "";   // 旧稿没有存学段，回退到当前所选学段
 
     var parts = splitStoredEssay(data.body || "");
     docTitle = (data.title || parts.title || "作文").trim();
@@ -2619,6 +2668,7 @@
     activeGenre = selectedGenre || "记叙文";
     activeTopic = els.topic.value.trim();
     activeProvinces = selectedProvinces.slice();
+    activeStage = selectedStage;
 
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
