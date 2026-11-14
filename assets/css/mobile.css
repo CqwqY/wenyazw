@@ -622,6 +622,7 @@
     transform: translateY(-6px);
   }
   .run-bar.on { transform: none; }
+  .run-bar.done { transform: none; }
   .run-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .run-sub { font-size: 11px; white-space: nowrap; }
 

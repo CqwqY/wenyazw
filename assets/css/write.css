@@ -3035,6 +3035,20 @@ body.run-on #studio.run-glow { outline: 2px solid rgba(47, 190, 120, .34); outli
 }
 .run-bar.on { opacity: 1; transform: translate(-50%, 0); }
 
+/* 跑完在状态条上停 1.8 秒的「完成」态：底色压绿、圆点停跳，
+   让人明确知道这一趟结束了，而不是悄悄消失 */
+.run-bar.done {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  background: rgba(21, 66, 45, .94);
+  box-shadow: 0 8px 26px rgba(20, 90, 58, .28), 0 0 0 1px rgba(92, 240, 166, .22) inset;
+}
+.run-bar.done .run-dot {
+  animation: none;
+  background: #7bf3ba;
+  box-shadow: 0 0 0 3px rgba(92, 240, 166, .20);
+}
+
 /* 一直有一圈淡绿描边，亮段沿边跑过去时更明显 */
 body.run-on .run-glow { outline: 1px solid rgba(47, 190, 120, .40); outline-offset: -1px; }
 

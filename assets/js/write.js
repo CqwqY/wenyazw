@@ -3371,6 +3371,11 @@
   var runTimer = null;
   var runChars = 0;
   var runLive = false;
+  var runDoneText = "";
+
+  /* 成功收尾时把「完成」摆到状态条上停一下，再让它淡出。
+     失败/中止不调这个，状态条照旧立刻收，不会误报完成。 */
+  function markRunDone(t) { runDoneText = t || "完成"; }
 
   function runNodes() {
     return { bar: els.runBar, text: els.runText, sub: els.runSub };
@@ -3403,6 +3408,7 @@
   /* 开始：拉出状态条，给正在看的两个面板套上流光边框 */
   function runBegin(label) {
     runLive = true;
+    runDoneText = "";
     runAt = Date.now();
     runChars = 0;
     var e = runNodes();
@@ -3441,14 +3447,30 @@
     runPaint();
   }
 
-  /* 结束：先撤流光，再把状态条淡出；出错、停止、正常结束都走这里 */
+  /* 结束：跑成功时先把「完成 + 用时」在状态条上停一会儿再淡出，
+     免得一跑完就无声消失，让人以为没跑；出错、停止照旧立即收。 */
   function runEnd() {
     runLive = false;
     if (runTimer) { clearInterval(runTimer); runTimer = null; }
     var e = runNodes();
+    var sec = ((Date.now() - runAt) / 1000).toFixed(1);
+    var done = runDoneText;
+    runDoneText = "";
     if (e.bar) {
-      e.bar.classList.remove("on");
-      setTimeout(function () { if (!runLive && e.bar) e.bar.hidden = true; }, 260);
+      if (done) {
+        if (e.text) e.text.textContent = done;
+        var secNum = Number(sec);
+        if (e.sub) e.sub.textContent = (runChars > 0 ? runChars + " 字 · " : "") +
+          (secNum < 1 ? "不到 1 秒" : sec + " 秒");
+        e.bar.classList.remove("on");
+        e.bar.classList.add("done");
+        setTimeout(function () {
+          if (!runLive && e.bar) { e.bar.hidden = true; e.bar.classList.remove("done"); }
+        }, 1800);
+      } else {
+        e.bar.classList.remove("on", "done");
+        setTimeout(function () { if (!runLive && e.bar) e.bar.hidden = true; }, 260);
+      }
     }
     document.body.classList.remove("run-on");
     document.querySelectorAll(".run-glow").forEach(function (n) { n.classList.remove("run-glow"); });
@@ -3737,6 +3759,7 @@
           updateOutput(false); cacheComposition();
         }
       }
+      markRunDone(streamIsEssay ? "写完一版" : "完成");
       return true;
 
     } catch (e) {
@@ -3927,6 +3950,7 @@
       var content = (msg && msg.content) || "";
       if (content) { runPhase("整理中"); runCount(content.length); }
       if (!content.trim()) throw new Error("接口没有返回内容，换一个模型或检查额度。");
+      markRunDone("完成");
       return content;
     } catch (e) {
       if (e && e.name === "AbortError") throw e;
@@ -5482,9 +5506,7 @@
     var req = criticReqText(act, revision, wantsEdit ? runningAsk : "");
     if (!req) { setDocHint("这轮没拼出修改要求，稿子不动"); return false; }
 
-    var scoreTxt = criticScores.map(function (sc) {
-      return sc.province + " " + sc.total + "/" + sc.full + (sc.band ? "（" + sc.band + "）" : "");
-    }).join(" · ");
+    var scoreTxt = scoreText();
     var scoreKeep = criticScoresSummary();
     var bubble = addAssistantBubble("改稿");
     bubble.textContent = big
@@ -5503,18 +5525,30 @@
       bubble.textContent = "改稿没成，讨论结论还留在稿纸上，可以自己点「按认可的 " + ready.length + " 条重写整篇」。";
       return false;
     }
+    // 改完必须出分：单独走一次评分链拿这一版的分，跟改前并排看
+    bubble.textContent = "改好了，正在给这一版打分…";
+    var afterScores = await scoreQuiet();
+    if (afterScores.length) {
+      criticScores = afterScores;
+      renderCriticScores();
+      syncCriticDock(true);
+    }
+    var afterTxt = afterScores.length ? scoreText() : "";
+    var scoreLine = afterTxt
+      ? (scoreTxt ? ("，改前 " + scoreTxt + " → 改后 " + afterTxt) : ("，改后得分 " + afterTxt))
+      : (scoreTxt ? ("，改前 " + scoreTxt + "（改后分没取到，可点「AI 评分」再算一次）") : "");
     bubble.textContent = (big ? "大改完了" : (ready.length
       ? ("已按 " + ready.length + " 条坐实问题改好一版")
       : "已按你的要求改好一版")) +
-      "（" + plainLen(docBody) + " 字）" + (scoreTxt ? "，改前 " + scoreTxt : "") +
+      "（" + plainLen(docBody) + " 字）" + scoreLine +
       "。「历史版本」里能逐段挑着留。";
     if (els.criticStat) {
       els.criticStat.textContent = (big ? "大改" : "小改") + "完成：" +
         (ready.length ? ready.length + " 条坐实问题已改" : "按你的要求改了") +
-        (scoreTxt ? "，改前 " + scoreTxt : "") +
-        "。改了什么去「历史版本」逐段看，可以只留想要的那几段。";
+        scoreLine + "。改了什么去「历史版本」逐段看，可以只留想要的那几段。";
     }
-    setDocHint((big ? "大改" : "讨论改写") + "已存成一版 · 去「历史版本」逐段取舍");
+    setDocHint((big ? "大改" : "讨论改写") + "已存成一版" + (afterTxt ? " · " + afterTxt : "") + " · 去「历史版本」逐段取舍");
+    markRunDone(big ? "大改完成" : "改稿完成");
     // 不硬切抽屉：讨论记录还留在评卷页，历史版本只点个红点提醒
     if (els.drawerDotHistory) els.drawerDotHistory.hidden = false;
     switchPane("paper");
@@ -5540,7 +5574,7 @@
       // 第 0 步：甲方评分（评分本身就是讨论的第一步，不再单列）
       var bA = addAssistantBubble(cmdMode ? "甲·改法" : "评卷甲");
       bA.textContent = cmdMode
-        ? ("先按你说的「" + runningAsk.slice(0, 20) + "」出一版改法清单，等乙来挑。")
+        ? ("先按你说的「" + runningAsk.slice(0, 20) + "」出一版改法清单，顺手把这一版的分打出来，等乙来挑。")
         : "先按评分标准打一遍分，逐句判好坏与 AI 味。";
       var rawA = await fetchAnnotation("criticA", criticVars());
       var review = parseCriticJSON(rawA);
@@ -5601,9 +5635,13 @@
       }
       discussNo++;
 
-      var scoreTxt = criticScores.map(function (s) {
-        return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
-      }).join("，");
+      // 这一轮只谈改法时，模型容易漏交 scores：缺了就单独补一次，分不能缺
+      if (!criticScores.length) {
+        var fillScores = await scoreQuiet();
+        if (fillScores.length) { criticScores = fillScores; renderCriticScores(); syncCriticDock(true); }
+      }
+
+      var scoreTxt = scoreText();
       var settledCnt = criticItems.filter(function (it) { return it.settled !== false; }).length;
       var act = lastRevision.action || "小改";
       // 他这一轮明说要改，就不能对外报「不改」：结论按最小改动落地
@@ -5635,6 +5673,7 @@
           " 结论是「" + act + "」" + (lastRevision.why ? "：" + lastRevision.why : "。") +
           (open ? " 另有 " + open + " 条没谈拢，已标灰不给改。" : "") +
           " 逐句评语在「旁批」页。");
+      markRunDone("讨论完成");
       await autoApplySettled(lastRevision);
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
@@ -5650,6 +5689,36 @@
       syncCriticApply();
       runRelease(runOwned);
     }
+  }
+
+  /* 分数文案：分省显示「总分/满分（档次）」 */
+  function scoreText(list) {
+    return (list || criticScores).map(function (s) {
+      return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
+    }).join("，");
+  }
+
+  /* 只取分数的一次静默调用：不清空现有条目、不动忙碌态、失败就当没取到。
+     一定会在 25 秒内返回，别让界面上那句「正在打分」挂住不动；
+     用在两个地方：讨论这一轮模型只给了改法没给分；改完稿要看新分。 */
+  async function scoreQuiet(opts) {
+    var limitMs = (opts && opts.timeout) || 25000;
+    var ac = new AbortController();
+    var timer = setTimeout(function () { try { ac.abort(); } catch (e) {} }, limitMs);
+    try {
+      var call = await buildCall("score", criticVars({}), false, 0.4, 256);
+      var res = await fetch(call.url, {
+        method: "POST", headers: call.headers, body: JSON.stringify(call.body), signal: ac.signal
+      });
+      if (!res.ok) return [];
+      var j = await res.json();
+      if (j.error) return [];
+      var msg = j.choices && j.choices[0] && j.choices[0].message;
+      var content = (msg && msg.content) || "";
+      if (!trim(content)) return [];
+      var obj = parseScoreJSON(content);
+      return obj.scores || [];
+    } catch (e) { return []; } finally { clearTimeout(timer); }
   }
 
   /* ---------------- 单独一步：AI 评分 ----------------
@@ -5715,6 +5784,7 @@
           "评分只给分与扣分项，不判好坏。" + (dedCnt ? "扣 " + dedPts + " 分，明细见下方分数卡。" : "") +
           "想看句子问题或要不要改，说一句话发起讨论。";
       }
+      markRunDone("评分完成");
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
