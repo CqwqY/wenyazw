@@ -605,3 +605,11 @@
   .flow-setup-acts .btn { min-height: 38px; }
   .flow-rounds { font-size: 16px; padding: 8px 10px; }
 }
+
+/* 窄屏：模型切换与勾选采纳都要点得到 */
+@media (max-width: 720px) {
+  .chat-model-name { max-width: 32vw; }
+  .model-menu { width: min(300px, calc(100vw - 36px)); }
+  .diff-foot .diff-apply { width: 100%; }
+  .diff-foot-stat { width: 100%; margin: 0 0 2px; }
+}

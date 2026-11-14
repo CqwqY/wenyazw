@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261113Q">
-<link rel="stylesheet" href="assets/css/write.css?v=20261113Q">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261113Q">
+<link rel="stylesheet" href="assets/css/style.css?v=20261113R">
+<link rel="stylesheet" href="assets/css/write.css?v=20261113R">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261113R">
 </head>
 <body>
 
@@ -269,6 +269,18 @@
             <textarea class="chat-input-area" id="chatInput" rows="2"
               placeholder="例：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的话"></textarea>
             <div class="chat-send-row">
+              <!-- 模型切换：跟对话框放一起，随手换一个模型试，不用回工作台翻配置 -->
+              <div class="chat-model-pick" id="modelPickWrap">
+                <button type="button" class="chat-model-btn" id="modelPill" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="chat-model-dot" aria-hidden="true"></span>
+                  <span class="chat-model-name" id="modelPillName">跟随自动</span>
+                  <span class="chat-model-caret" aria-hidden="true">▾</span>
+                </button>
+                <div class="model-menu" id="modelMenu" hidden>
+                  <div class="model-menu-head">选择模型<span class="model-menu-tip">只影响对话、评改与改稿</span></div>
+                  <div class="model-menu-list" id="modelMenuList" role="listbox"></div>
+                </div>
+              </div>
               <button class="btn-outline" id="stopBtn2" disabled>停止</button>
               <div class="spacer"></div>
               <button class="btn btn-primary" id="sendBtn">发送</button>
@@ -373,28 +385,25 @@
           <!-- 两评讨论：甲主评、乙复核，逐轮谈完再定稿；只有两边都认的条目算坐实 -->
           <div class="debate-setup" id="debateSetup">
             <div class="debate-row">
-              <label for="debateRounds">两评讨论</label>
-              <select class="input debate-rounds" id="debateRounds">
-                <option value="0">关闭，只评一次</option>
-                <option value="1" selected>1 轮</option>
-                <option value="2">2 轮</option>
-                <option value="3">3 轮</option>
-              </select>
+              <label for="debateRounds">讨论轮数</label>
+              <input class="input debate-rounds" id="debateRounds" type="number" min="0" max="9" step="1"
+                value="1" inputmode="numeric" spellcheck="false" aria-describedby="debateCost">
               <span class="debate-cost" id="debateCost"></span>
             </div>
-            <p class="debate-tip">甲先评一遍，乙拿着甲的结论挑错，甲逐条表态（坚持或撤回）再改定稿。只有两边都认的条目算坐实，坐实的才交给重写。</p>
+            <label class="debate-auto"><input type="checkbox" id="debateAutoApply" checked> 谈妥后直接改稿，并存成一个新版本</label>
+            <p class="debate-tip">填 0 只评不改；填几就谈几轮。甲先评一遍，乙拿着甲的结论挑错，甲逐条表态（坚持、撤回或折中），只有两边都认的条目算坐实，坐实的直接改。改完在「历史版本」里逐段挑着留。</p>
           </div>
           <div class="debate-log" id="debateLog" hidden></div>
           <div class="critic-dock" id="criticDock" hidden>
             <div class="critic-dock-head">
               <span class="critic-dock-title">AI 评卷</span>
-              <span class="critic-stat" id="criticStat">按所选评分标准给分，并逐句判好坏与 AI 味。</span>
+              <span class="critic-stat" id="criticStat">按所选评分标准给分、逐句判好坏，谈妥的问题直接改稿。</span>
               <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>按认可的问题重写整篇</button>
               <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
             </div>
             <div class="critic-score" id="criticScore" hidden></div>
           </div>
-          <p class="drawer-empty" id="criticEmpty">还没有评改结果。点顶部「AI 评改」，分数与结论会出现在这里；逐句评语在「旁批」页。</p>
+          <p class="drawer-empty" id="criticEmpty">还没有评改结果。点顶部「AI 评改」：甲先评、乙挑错、谈几轮就填几，谈妥的条目会自动改稿并存成一版；逐句评语在「旁批」页。</p>
         </section>
 
         <!-- 旁批：手机端不再挂在稿纸下方，统一收进抽屉；桌面端稿纸右栏仍是原来的对齐旁批 -->
@@ -443,7 +452,7 @@
         <!-- 历史版本：GitHub 式更改查看（绿增红删），每次生成/重写/恢复自动存一版 -->
         <section class="drawer-pane" id="drawerPaneHistory" hidden>
           <p class="drawer-empty" id="historyEmpty">还没有版本。每次生成、重写、恢复都会自动存一版，刷新也在。</p>
-          <p class="history-intro" id="historyIntro" hidden>点「查看与上一版的改动」看 GitHub 式对照（绿色为新增、红色为删除）；「恢复到此版」可随时退回。</p>
+          <p class="history-intro" id="historyIntro" hidden>点「查看与上一版的改动」看 GitHub 式对照（绿色为新增、红色为删除）。每块改动前有勾选框：取消勾选就保留上一版那段，点底部按钮只采纳勾上的部分，不必整版全盘接收；「恢复到此版」可随时退回。</p>
           <div class="history-list" id="historyList"></div>
         </section>
       </div>
@@ -497,8 +506,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261113Q"></script>
-<script src="assets/js/write.js?v=20261113Q"></script>
-<script src="assets/js/auth.js?v=20261113Q"></script>
+<script src="assets/js/prompt.js?v=20261113R"></script>
+<script src="assets/js/write.js?v=20261113R"></script>
+<script src="assets/js/auth.js?v=20261113R"></script>
 </body>
 </html>

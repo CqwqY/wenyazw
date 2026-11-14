@@ -95,7 +95,11 @@
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
     debateRounds: $("debateRounds"), debateCost: $("debateCost"),
+    debateAutoApply: $("debateAutoApply"),
     debateLog: $("debateLog"), debateSetup: $("debateSetup"),
+    modelPill: $("modelPill"), modelPillName: $("modelPillName"),
+    modelMenu: $("modelMenu"), modelMenuList: $("modelMenuList"),
+    modelPickWrap: $("modelPickWrap"),
     paperNotes: $("paperNotes"), undoRewriteBtn: $("undoRewriteBtn"), diffBtn: $("diffBtn"),
     drawerNoteList: $("drawerNoteList"), drawerNoteEmpty: $("drawerNoteEmpty"),
     drawerDotNotes: $("drawerDotNotes"),
@@ -622,6 +626,9 @@
     return hit / Math.max(a.length, b.length);
   }
 
+  /* 历史版本 diff：绿增红删照旧，但每个改动块前面多一个复选框，默认全勾。
+     点「只采纳勾选的」就按勾选拼出一版新稿：勾了的用新版的段落，没勾的保持上一版原样，
+     不必整版全盘接收。 */
   function renderHistoryDiff(prevV, curV) {
     if (!els.historyList) return;
     var box = document.createElement("div");
@@ -637,8 +644,12 @@
     var lDel = document.createElement("span");
     lDel.className = "lg-del";
     lDel.textContent = "红色 = 删除";
+    var lPick = document.createElement("span");
+    lPick.className = "lg-pick";
+    lPick.textContent = "勾选框 = 这段改不改";
     lg.appendChild(lAdd);
     lg.appendChild(lDel);
+    lg.appendChild(lPick);
     box.appendChild(h);
     box.appendChild(lg);
 
@@ -646,14 +657,48 @@
     var ops = diffParas(pa, pb);
     var body = document.createElement("div");
     body.className = "history-diff-body";
+    var units = [];          // 每一块改动：d=上一版的段，a=本版的段，on=是否采纳
+    var plan = [];           // 拼新稿的顺序：eq 段直接用上一版，unit 看勾没勾
 
-    function addPara(cls, txt) {
+    function addEq(txt) {
       var p = document.createElement("p");
-      p.className = cls;
+      p.className = "diff-eq";
       p.textContent = txt;
       body.appendChild(p);
     }
-    function addInline(aTxt, bTxt) {
+
+    function unitBox() {
+      var u = { d: [], a: [], on: true };
+      u.el = document.createElement("div");
+      u.el.className = "diff-unit";
+      var pick = document.createElement("label");
+      pick.className = "diff-pick";
+      pick.title = "取消勾选就保留上一版的这段";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = true;
+      cb.onchange = function () {
+        u.on = cb.checked;
+        u.el.classList.toggle("off", !cb.checked);
+        syncMergeBtn();
+      };
+      pick.appendChild(cb);
+      u.el.appendChild(pick);
+      u.body = document.createElement("div");
+      u.body.className = "diff-unit-body";
+      u.el.appendChild(u.body);
+      u.cb = cb;
+      return u;
+    }
+
+    function paraInto(host, cls, txt) {
+      var p = document.createElement("p");
+      p.className = cls;
+      p.textContent = txt;
+      host.appendChild(p);
+    }
+
+    function inlineInto(host, aTxt, bTxt) {
       var p = document.createElement("p");
       p.className = "diff-add";
       charDiff(aTxt, bTxt).forEach(function (c) {
@@ -665,14 +710,15 @@
           p.appendChild(sp);
         }
       });
-      body.appendChild(p);
+      host.appendChild(p);
     }
 
     var i = 0;
     while (i < ops.length) {
       var o = ops[i];
       if (o.t === "eq") {
-        addPara("diff-eq", pa[o.a]);
+        addEq(pa[o.a]);
+        plan.push({ t: "eq", i: o.a });
         i++;
         continue;
       }
@@ -680,22 +726,63 @@
       // 够像同一段改写的做逐字对照，不像的各出一行（红删、绿增）
       var dels = [], adds = [];
       while (i < ops.length && ops[i].t !== "eq") {
-        if (ops[i].t === "del") dels.push(pa[ops[i].a]);
-        else adds.push(pb[ops[i].b]);
+        if (ops[i].t === "del") dels.push(ops[i].a);
+        else adds.push(ops[i].b);
         i++;
       }
       var groupN = Math.max(dels.length, adds.length);
       for (var g = 0; g < groupN; g++) {
-        var aTxt = g < dels.length ? dels[g] : null;
-        var bTxt = g < adds.length ? adds[g] : null;
-        if (aTxt != null && bTxt != null && paraSimilarity(aTxt, bTxt) >= 0.55) addInline(aTxt, bTxt);
+        var aTxt = g < dels.length ? pa[dels[g]] : null;
+        var bTxt = g < adds.length ? pb[adds[g]] : null;
+        var u = unitBox();
+        if (aTxt != null) u.d.push(dels[g]);
+        if (bTxt != null) u.a.push(adds[g]);
+        if (aTxt != null && bTxt != null && paraSimilarity(aTxt, bTxt) >= 0.55) inlineInto(u.body, aTxt, bTxt);
         else {
-          if (aTxt != null) addPara("diff-del", aTxt);
-          if (bTxt != null) addPara("diff-add", bTxt);
+          if (aTxt != null) paraInto(u.body, "diff-del", aTxt);
+          if (bTxt != null) paraInto(u.body, "diff-add", bTxt);
         }
+        body.appendChild(u.el);
+        plan.push({ t: "unit", u: units.length });
+        units.push(u);
       }
     }
     box.appendChild(body);
+
+    // 底部：勾选统计 + 只采纳勾选的部分
+    var foot = document.createElement("div");
+    foot.className = "diff-foot";
+    var stat = document.createElement("span");
+    stat.className = "diff-foot-stat";
+    var applyBtn = document.createElement("button");
+    applyBtn.className = "btn btn-primary diff-apply";
+    applyBtn.type = "button";
+    var allBtn = document.createElement("button");
+    allBtn.className = "history-btn ghost";
+    allBtn.type = "button";
+    allBtn.textContent = "全选";
+    allBtn.onclick = function () {
+      var allOn = units.every(function (u) { return u.on; });
+      units.forEach(function (u) { u.on = !allOn; u.cb.checked = !allOn; u.el.classList.toggle("off", allOn); });
+      allBtn.textContent = allOn ? "全选" : "全不选";
+      syncMergeBtn();
+    };
+    function syncMergeBtn() {
+      var on = units.filter(function (u) { return u.on; }).length;
+      stat.textContent = units.length ? ("共 " + units.length + " 处改动，勾了 " + on + " 处") : "两版没有差别";
+      applyBtn.disabled = !units.length;
+      applyBtn.textContent = on === units.length
+        ? "整版采纳这一版"
+        : (on ? "只采纳勾选的 " + on + " 处" : "都没勾，等于不改");
+    }
+    applyBtn.onclick = function () {
+      applyPartialMerge(prevV, curV, units, plan, pa, pb);
+    };
+    foot.appendChild(stat);
+    foot.appendChild(allBtn);
+    foot.appendChild(applyBtn);
+    box.appendChild(foot);
+    syncMergeBtn();
 
     var back = document.createElement("button");
     back.className = "history-btn ghost";
@@ -707,6 +794,48 @@
     els.historyList.appendChild(box);
     if (els.historyEmpty) els.historyEmpty.hidden = true;
     if (els.historyIntro) els.historyIntro.hidden = true;
+  }
+
+  /* 按勾选拼出一版：勾了的段落用本版，没勾的保留上一版，然后存成一个新版本。
+     这样「AI 改坏了三段、有两段确实更好」时可以只留好的那两段。 */
+  function applyPartialMerge(prevV, curV, units, plan, pa, pb) {
+    pa = pa || splitParas(prevV.body);
+    pb = pb || splitParas(curV.body);
+    var out = [];
+    plan.forEach(function (p) {
+      if (p.t === "eq") { out.push(pa[p.i]); return; }
+      var u = units[p.u];
+      if (!u) return;
+      if (u.on) u.a.forEach(function (k) { out.push(pb[k]); });
+      else u.d.forEach(function (k) { out.push(pa[k]); });
+    });
+    var body = out.join("\n\n");
+    if (!body.trim()) { setDocHint("勾成这样正文就空了，至少留一段。"); return; }
+    var on = units.filter(function (u) { return u.on; }).length;
+    if (!units.length) return;
+
+    var snap = essaySnapshot();
+    undoStack.push(snap);
+    if (undoStack.length > 5) undoStack.shift();
+    syncUndoBtn();
+
+    docTitle = curV.title && trim(curV.title) ? curV.title : docTitle;
+    docBody = body;
+    currentComposition = (docTitle ? docTitle + "\n\n" : "") + docBody;
+    clearNotesAfterRewrite();        // 正文换了，旧批注与评改作废
+    renderAnnotated();
+    saveEssayToCloud();
+    scheduleEssaySave();
+
+    var label = (on === units.length)
+      ? ("采纳「" + (curV.label || "修改") + "」整版")
+      : ("部分采纳「" + (curV.label || "修改") + "」· " + on + "/" + units.length + " 处");
+    commitVersion(label, curV.score || "");
+    var msg = (on === units.length ? "已整版采纳" : "已采纳 " + on + " 处改动") +
+      "，存成一版新的历史记录；不满意可「恢复上一版」。";
+    setPaperHint(msg);
+    setDocHint(msg);
+    renderHistoryList();
   }
 
   function restoreVersion(id) {
@@ -735,6 +864,144 @@
     }
     setDrawer(true, "history");
     renderHistoryDiff(versions[versions.length - 2], versions[versions.length - 1]);
+  }
+
+  /* ---------------- 模型切换：就在对话框下面 ----------------
+     站内模式：服务器手里有一串备用模型，这里挑一个就让它先试这个；
+     自带接口：模型名本来写在配置里，这里只做展示，点开给个回去改的入口。 */
+
+  var MODEL_PICK = "wy.model.pick.v1";     // 选中的模型名，空 = 跟随自动
+  var MODEL_LIST = "wy.model.list.v1";     // 上次拿到的站内模型清单，离线也能列
+  var modelPick = "";
+  var modelList = [];
+
+  function loadModelPick() {
+    try { modelPick = localStorage.getItem(MODEL_PICK) || ""; } catch (e) { modelPick = ""; }
+    try {
+      var raw = localStorage.getItem(MODEL_LIST);
+      var a = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(a)) {
+        modelList = a.filter(function (x) { return typeof x === "string" && trim(x); });
+      }
+    } catch (e) { modelList = []; }
+  }
+
+  function saveModelPick(m) {
+    modelPick = m || "";
+    try { localStorage.setItem(MODEL_PICK, modelPick); } catch (e) { /* 隐私模式忽略 */ }
+    syncModelPill();
+  }
+
+  /* 真正写进请求体的模型名：站内选了空就交回 auto，由服务器按备用链挑 */
+  function pickedModel(c) {
+    c = c || currentConfig();
+    if (c.preset !== "site") return c.model;
+    return modelPick || "auto";
+  }
+
+  function modelLabel() {
+    var c = currentConfig();
+    if (c.preset !== "site") return c.model || "未填模型名";
+    return modelPick || "跟随自动";
+  }
+
+  function syncModelPill() {
+    if (!els.modelPillName) return;
+    els.modelPillName.textContent = modelLabel();
+    var site = currentConfig().preset === "site";
+    els.modelPill.title = site ? "切换站内模型" : "模型名写在接口配置里，点开可以改";
+  }
+
+  function modelItem(name, desc, val, cur) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "model-item" + (val === cur ? " on" : "");
+    b.setAttribute("role", "option");
+    b.setAttribute("aria-selected", String(val === cur));
+    var n = document.createElement("span");
+    n.className = "model-item-name";
+    n.textContent = name;
+    b.appendChild(n);
+    if (desc) {
+      var d = document.createElement("span");
+      d.className = "model-item-desc";
+      d.textContent = desc;
+      b.appendChild(d);
+    }
+    var ck = document.createElement("span");
+    ck.className = "model-item-check";
+    ck.textContent = val === cur ? "✓" : "";
+    b.appendChild(ck);
+    b.onclick = function () {
+      if (val === "__cfg__") { closeModelMenu(); setConfigOpen(true); return; }
+      saveModelPick(val);
+      closeModelMenu();
+      setDocHint(val ? ("模型已切到 " + val + "，下一次请求就用它") : "模型跟随服务器自动挑");
+    };
+    return b;
+  }
+
+  function renderModelMenu() {
+    if (!els.modelMenuList) return;
+    els.modelMenuList.innerHTML = "";
+    var c = currentConfig();
+    if (c.preset !== "site") {
+      els.modelMenuList.appendChild(modelItem(c.model || "（空）", "来自「接口配置」里的模型名", c.model, c.model));
+      els.modelMenuList.appendChild(modelItem("去接口配置改模型名", "自带 key 时模型由你来填", "__cfg__", "__cfg__"));
+      return;
+    }
+    els.modelMenuList.appendChild(modelItem("跟随自动", "服务器按备用链挑第一个能用的", "", modelPick));
+    modelList.forEach(function (m) {
+      els.modelMenuList.appendChild(modelItem(m, "", m, modelPick));
+    });
+    if (!modelList.length) {
+      var tip = document.createElement("p");
+      tip.className = "model-menu-empty";
+      tip.textContent = "没读到站内模型清单（没登录，或服务器还是旧版）。选「跟随自动」照样能用。";
+      els.modelMenuList.appendChild(tip);
+    }
+  }
+
+  async function loadModelList(force) {
+    if (currentConfig().preset !== "site") return modelList;
+    if (modelList.length && !force) return modelList;
+    var tok = authToken();
+    if (!tok) return modelList;
+    try {
+      var res = await fetch(siteBase() + "/models", { headers: { "Authorization": "Bearer " + tok } });
+      if (!res.ok) return modelList;
+      var j = await res.json();
+      var arr = Array.isArray(j.models) ? j.models : null;
+      if (arr && arr.length) {
+        modelList = arr.filter(function (x) { return typeof x === "string" && x; });
+        try { localStorage.setItem(MODEL_LIST, JSON.stringify(modelList)); } catch (e) { /* ignore */ }
+        if (modelPick && modelList.indexOf(modelPick) < 0) saveModelPick("");   // 旧选择已不在清单里
+      }
+    } catch (e) { /* 离线就用缓存清单 */ }
+    return modelList;
+  }
+
+  function openModelMenu() {
+    if (!els.modelMenu) return;
+    // 手机上工作窗几乎盖满屏，菜单在它下面会被压住：先收抽屉再看模型
+    if (isMobile() && drawerOpen) closeDrawer(true);
+    renderModelMenu();
+    els.modelMenu.removeAttribute("hidden");
+    if (els.modelPill) els.modelPill.setAttribute("aria-expanded", "true");
+    loadModelList(true).then(function () {
+      if (els.modelMenu && !els.modelMenu.hasAttribute("hidden")) renderModelMenu();
+    });
+  }
+
+  function closeModelMenu() {
+    if (!els.modelMenu) return;
+    els.modelMenu.setAttribute("hidden", "");
+    if (els.modelPill) els.modelPill.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleModelMenu() {
+    if (els.modelMenu && els.modelMenu.hasAttribute("hidden")) openModelMenu();
+    else closeModelMenu();
   }
 
   /* ---------------- 配置持久化 ---------------- */
@@ -817,6 +1084,7 @@
 
   var lastCustomCfg = null;
   function syncPresetUI() {
+    if (typeof syncModelPill === "function") setTimeout(syncModelPill, 0);
     var site = els.preset.value === "site";
     if (site) {
       if (!lastCustomCfg) {
@@ -866,8 +1134,11 @@
     var logged = !!(window.WY_AUTH && window.WY_AUTH.loggedIn && window.WY_AUTH.loggedIn());
     COST_BTN_KEYS.forEach(function (k) {
       var el = els[k];
-      if (el) el.classList.add("cost-btn");
+      if (!el) return;
+      el.classList.add("cost-btn");
+      if (!el.getAttribute("data-cost")) el.setAttribute("data-cost", "1");
     });
+    syncCriticCostBadge();
     if (document.body) document.body.classList.toggle("cost-on", site && logged);
   }
 
@@ -3181,6 +3452,42 @@
   }
 
   // 评改/讨论共用的上下文头：类别、文体、评分标准、写作规范
+  /* 评改、讨论要看的上下文：作者提过的要求、已经采纳的批注、锁句、上一版分数。
+     不是把整段对话搬过去，只取最近几条原话，免得提示词被撑爆、也免得模型被旧要求带偏。 */
+  function wrapTalkContext() {
+    var out = [];
+    var asks = [];
+    chatSnapshot().forEach(function (b) {
+      if (!b.user) return;
+      var t = trim(b.text).replace(/\s+/g, " ");
+      if (t) asks.push(t.slice(0, 180));
+    });
+    if (asks.length) {
+      var tail = asks.slice(-5);
+      out.push("【作者提过的修改要求（最近 " + tail.length + " 条，判断时顺着他要的方向，别反着改）】");
+      tail.forEach(function (t) { out.push("- " + t); });
+    }
+    var got = annotations.filter(function (m) { return m.state === "accepted"; });
+    if (got.length) {
+      out.push("【已经采纳进正文的批注（这些地方改过了，别再当老问题重提）】");
+      got.slice(-6).forEach(function (m) {
+        var txt = trim(m.note || m.text || "");
+        if (txt) out.push("- " + txt.slice(0, 120));
+      });
+    }
+    if (lockedTexts.length) {
+      out.push("【作者锁住的句子（一个字都不许动，也不许判它坏）】");
+      lockedTexts.slice(-8).forEach(function (t) { out.push("- " + trim(t)); });
+    }
+    if (criticScores.length) {
+      out.push("【上一版评分】" + criticScores.map(function (x) {
+        return x.province + " " + x.total + "/" + x.full + (x.band ? "（" + x.band + "）" : "") +
+          (x.why ? "，失分在：" + x.why : "");
+      }).join("；"));
+    }
+    return out.join("\n");
+  }
+
   function criticContextLines() {
     var lines = [];
     lines.push("【本次作文类别】" + activeCatName());
@@ -3189,6 +3496,8 @@
     if (st) lines.push(st);
     var wr = window.WY_WRITING_RULES;
     if (wr) lines.push("【评判尺度（写作规范，评判时以此为准，与上面给分规则并用）】\n" + wr);
+    var talk = wrapTalkContext();
+    if (talk) lines.push(talk);
     return lines;
   }
 
@@ -3219,7 +3528,7 @@
         method: "POST",
         headers: headers(c),
         body: JSON.stringify({
-          model: c.model,
+          model: pickedModel(c),
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userContent }
@@ -3442,7 +3751,7 @@
         method: "POST",
         headers: headers(c),
         body: JSON.stringify({
-          model: c.model,
+          model: pickedModel(c),
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userContent }
@@ -4133,6 +4442,8 @@
     if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇。"); return false; }
 
     var snap = essaySnapshot();
+    // 分数要在清批注之前抓下来：改完正文分数卡就作废了，但历史版本里得留着这次拿了几分
+    var verScore = opts.versionScore !== undefined ? opts.versionScore : criticScoresSummary();
     if (opts.silentBubble) {
       assistantReplyEl = null;
     } else {
@@ -4187,7 +4498,7 @@
     var done = "已从头重写整篇 · 字数 " + plain(docBody) + " · 可看「改动对照」或「恢复上一版」";
     setPaperHint(done);
     setDocHint(done);
-    commitVersion("重写");
+    commitVersion(opts.versionLabel || "重写", verScore);
     if (assistantReplyEl) {
       assistantReplyEl.textContent = "已重写一版完整新稿（" + plain(docBody) + " 字）。旧旁批已清空。";
     }
@@ -4498,28 +4809,37 @@
      一轮 = 乙挑错 + 甲逐条表态并交定稿。定稿里"甲坚持、乙仍反对"的条目算未坐实，
      未坐实的不许点认可，也就进不了重写。轮数可选 0（关闭）到 3。 */
 
-  var DEBATE_MAX = 3;
+  var DEBATE_MAX = 9;                       // 轮数不再固定几档，输入框里填多少谈多少
+  var DEBATE_AUTO_STORE = "wy.debate.auto.v1";
+  var debateAutoApply = true;               // 谈妥后是否直接改稿并落成新版本
 
   function debateCost() {
     return debateRounds > 0 ? (1 + debateRounds * 2) : 1;
   }
 
+  /* 评改按钮上的积分角标：轮数一改就变成真实的调用次数，别一直写死 1 */
+  function syncCriticCostBadge() {
+    if (els.criticBtn) els.criticBtn.setAttribute("data-cost", String(debateCost()));
+    if (els.criticApplyBtn) els.criticApplyBtn.setAttribute("data-cost", "1");
+  }
+
   function syncDebateCost() {
     if (els.debateCost) {
       els.debateCost.textContent = debateRounds > 0
-        ? ("共约 " + debateCost() + " 次调用，每次 1 积分")
-        : "单评一次，不讨论";
+        ? ("共约 " + debateCost() + " 次调用，每次 1 积分" + (debateAutoApply ? "；谈妥直接改稿" : "；只评不改"))
+        : (debateAutoApply ? "单评一次，评完直接改稿" : "单评一次，不讨论也不改");
     }
   }
 
   function setDebateRounds(n, silent) {
     var v = parseInt(n, 10);
-    if (isNaN(v)) v = 1;
+    if (isNaN(v)) v = debateRounds;         // 输入框清空时不乱跳，等它填回来
     v = Math.max(0, Math.min(DEBATE_MAX, v));
     debateRounds = v;
     try { localStorage.setItem(DEBATE_STORE, String(v)); } catch (e) { /* 隐私模式就算了 */ }
     if (els.debateRounds) els.debateRounds.value = String(v);
     syncDebateCost();
+    syncCriticCostBadge();
     // 初始化时不能顺手落盘：会话还没恢复就读出来再写回去，会把上次的正文冲掉
     if (!silent) scheduleSessionSave();
   }
@@ -4532,6 +4852,24 @@
     } catch (e) { /* ignore */ }
     if (isNaN(v)) v = 1;
     setDebateRounds(v, true);
+  }
+
+  function setDebateAuto(on, silent) {
+    debateAutoApply = !!on;
+    try { localStorage.setItem(DEBATE_AUTO_STORE, debateAutoApply ? "1" : "0"); } catch (e) { /* ignore */ }
+    if (els.debateAutoApply) els.debateAutoApply.checked = debateAutoApply;
+    syncDebateCost();
+    syncCriticCostBadge();
+    if (!silent) scheduleSessionSave();
+  }
+
+  function loadDebateAuto() {
+    var on = true;
+    try {
+      var raw = localStorage.getItem(DEBATE_AUTO_STORE);
+      if (raw === "0") on = false;
+    } catch (e) { /* ignore */ }
+    setDebateAuto(on, true);
   }
 
   function jsonObjectIn(raw, failMsg) {
@@ -4719,8 +5057,11 @@
 
     var head = document.createElement("div");
     head.className = "debate-head";
-    head.textContent = "两评讨论 " + debateLog.length + " 轮 · 坐实 " + settledCnt + " 条" +
-      (open ? " · 仍有分歧 " + open + " 条" : "");
+    // 已经按结论改过稿的话，条目会随正文一起清掉，这时只报轮数，别谎报「坐实 0 条」
+    head.textContent = "两评讨论 " + debateLog.length + " 轮" +
+      (criticItems.length
+        ? (" · 坐实 " + settledCnt + " 条" + (open ? " · 仍有分歧 " + open + " 条" : ""))
+        : " · 结论已用于改稿");
     host.appendChild(head);
 
     debateLog.forEach(function (r) {
@@ -4801,6 +5142,55 @@
     switchPane("paper");
   }
 
+  /* 谈妥就改：坐实的条目直接交给整篇重写，改完落成一个带分数的历史版本。
+     开关关掉时不自动动手，只把可改的条目勾好，等用户自己点。 */
+  async function autoApplySettled() {
+    var ready = criticItems.filter(function (it) {
+      return it.verdict === "坏" && it.settled !== false && !it.soft;
+    });
+    if (!ready.length) {
+      setDocHint(debateAutoApply ? "这轮没有坐实的问题，稿子不动" : "这轮没有可改的条目");
+      return false;
+    }
+    if (!debateAutoApply) {
+      ready.forEach(function (it) { it.agreed = "yes"; });
+      renderCritic();
+      setDocHint("已把 " + ready.length + " 条坐实问题勾好，点「按认可的 " + ready.length + " 条重写整篇」就改");
+      return false;
+    }
+    ready.forEach(function (it) { it.agreed = "yes"; });
+    var req = criticReqText();
+    if (!req) return false;
+
+    var scoreTxt = criticScores.map(function (sc) {
+      return sc.province + " " + sc.total + "/" + sc.full + (sc.band ? "（" + sc.band + "）" : "");
+    }).join(" · ");
+    var scoreKeep = criticScoresSummary();
+    var bubble = addAssistantBubble("改稿");
+    bubble.textContent = "坐实 " + ready.length + " 条，按它们从头改一版完整新稿…";
+
+    var ok = await rewriteEssay(req, {
+      silentBubble: true,
+      versionLabel: "评改改写 · " + ready.length + " 条",
+      versionScore: scoreKeep
+    });
+    if (!ok) {
+      bubble.textContent = "改稿没成，评改结果还留在稿纸上，可以自己点「按认可的 " + ready.length + " 条重写整篇」。";
+      return false;
+    }
+    bubble.textContent = "已按 " + ready.length + " 条坐实问题改好一版（" + plainLen(docBody) + " 字）" +
+      (scoreTxt ? "，改前 " + scoreTxt : "") + "。「历史版本」里能逐段挑着留。";
+    if (els.criticStat) {
+      els.criticStat.textContent = "评改并改稿完成：坐实 " + ready.length + " 条已改" +
+        (scoreTxt ? "，改前 " + scoreTxt : "") + "。改了什么去「历史版本」逐段看，可以只留想要的那几段。";
+    }
+    setDocHint("评改改写已存成一版 · 去「历史版本」逐段取舍");
+    // 不硬切抽屉：讨论记录还留在评卷页，历史版本只点个红点提醒
+    if (els.drawerDotHistory) els.drawerDotHistory.hidden = false;
+    switchPane("paper");
+    return true;
+  }
+
   async function runCriticDebate() {
     var sysA = window.WY_CRITIC || "";
     var gr = genreRule();
@@ -4856,7 +5246,8 @@
       out.textContent = "两评定稿：" + (review.overall || "") +
         (scoreTxt ? " 得分 " + scoreTxt + "。" : "") +
         "坐实 " + settledCnt + " 条" + (open ? "，还有 " + open + " 条两评没谈拢，已标灰不给改。" : "。") +
-        "逐句评语在「旁批」页，认可的条目会交给整篇重写。";
+        "逐句评语在「旁批」页。";
+      await autoApplySettled();
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
@@ -4933,6 +5324,7 @@
         (scoreTxt ? "得分 " + scoreTxt + "；" : "") +
         "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），逐句评语在工作窗「旁批」页，点卡片跳到原句。";
       setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评改 " + criticItems.length + " 条在「旁批」页");
+      await autoApplySettled();
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
@@ -5306,7 +5698,30 @@
   on(els.flowAuto, "change", syncFlowCost);
   setFlowRounds(els.flowRounds ? els.flowRounds.value : 2, "wizard");
   on(els.debateRounds, "change", function () { setDebateRounds(els.debateRounds.value); });
+  on(els.debateRounds, "blur", function () { setDebateRounds(els.debateRounds.value); });
+  on(els.debateAutoApply, "change", function () { setDebateAuto(els.debateAutoApply.checked); });
   loadDebateRounds();
+  loadDebateAuto();
+
+  // 对话框下方的模型切换
+  on(els.modelPill, "click", function (e) {
+    e.stopPropagation();
+    toggleModelMenu();
+  });
+  document.addEventListener("click", function (e) {
+    if (!els.modelMenu || els.modelMenu.hasAttribute("hidden")) return;
+    if (els.modelPickWrap && els.modelPickWrap.contains(e.target)) return;
+    closeModelMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeModelMenu();
+  });
+  loadModelPick();
+  syncModelPill();
+  // 登录状态变了，站内模型清单也要跟着能拿到
+  if (window.WY_AUTH && window.WY_AUTH.onChange) {
+    try { window.WY_AUTH.onChange(function () { syncModelPill(); }); } catch (e) { /* 老版本没有这个钩子 */ }
+  }
 
   // 大纲 / 稿纸切换
   on(els.docTabs, "click", function (e) {
