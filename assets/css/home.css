@@ -124,3 +124,183 @@ body.home {
   .home-br { display: none; }
   .home-points { grid-template-columns: 1fr; gap: 12px; margin-top: 36px; }
 }
+
+/* ============ 登录后：三视图应用壳 ============ */
+
+body.app-on .site-header,
+body.app-on .home-main,
+body.app-on .site-footer { display: none; }
+
+.app-shell { display: flex; min-height: 100vh; background: var(--paper-2); }
+.app-shell[hidden] { display: none; }
+
+.app-side {
+  width: 224px;
+  flex: 0 0 224px;
+  background: var(--card);
+  border-right: 1px solid var(--line);
+  padding: 26px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.app-side-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  padding: 0 10px;
+}
+.app-side-nav { display: flex; flex-direction: column; gap: 6px; }
+.side-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 14.5px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+}
+.side-item svg,
+.app-tab svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+.side-item:hover { background: var(--paper-2); }
+.side-item.active { background: var(--brand-soft); color: var(--brand-deep); font-weight: 600; }
+.app-side-foot { margin-top: auto; font-size: 11.5px; color: var(--ink-mute); padding: 0 10px; line-height: 1.6; }
+
+.app-main { flex: 1 1 auto; min-width: 0; padding: 30px 34px 48px; }
+.app-view { max-width: 940px; margin: 0 auto; }
+.app-view[hidden] { display: none; }
+.view-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.view-head h1 { font-family: var(--serif); font-size: 25px; color: var(--ink); margin: 0 0 6px; }
+.view-head p { font-size: 13.5px; color: var(--ink-mute); margin: 0; line-height: 1.7; }
+.app-msg { font-size: 13px; color: var(--ink-soft); min-height: 20px; margin: 0 0 10px; line-height: 1.6; }
+.app-msg.error { color: #a8322a; }
+.app-msg.ok { color: var(--brand-deep); }
+
+.essay-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.essay-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--ink-mute);
+  font-size: 13.5px;
+  background: var(--card);
+}
+.essay-card h3 { margin: 0; }
+.essay-card .excerpt { margin: 0; }
+.essay-card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.essay-card-actions .btn-outline,
+.essay-card-actions .btn { font-size: 12.5px; padding: 6px 12px; }
+
+.create-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.create-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  color: var(--ink);
+  text-decoration: none;
+  display: block;
+}
+.create-ai:hover { border-color: var(--brand); }
+.create-no { display: block; font-family: var(--serif); font-size: 12px; letter-spacing: .12em; color: var(--brand); margin-bottom: 10px; }
+.create-card h2 { font-family: var(--serif); font-size: 19px; margin: 0 0 8px; }
+.create-card > p { font-size: 13.5px; color: var(--ink-mute); line-height: 1.75; margin: 0 0 16px; }
+.create-go { display: inline-block; font-size: 13px; color: var(--brand-deep); font-weight: 600; }
+
+.import-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin: 0 0 16px; }
+.import-tab {
+  border: 0;
+  background: transparent;
+  color: var(--ink-mute);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  padding: 8px 14px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.import-tab.active { color: var(--brand-deep); border-bottom-color: var(--brand); font-weight: 600; }
+.import-pane[hidden] { display: none; }
+.import-pane .field { margin-bottom: 12px; }
+.import-pane .field label { display: block; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 6px; }
+.import-body { width: 100%; resize: vertical; line-height: 1.8; font-size: 14px; }
+.import-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.import-count { font-size: 12px; color: var(--ink-mute); }
+.photo-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.photo-pick { display: inline-flex; align-items: center; cursor: pointer; font-size: 12.5px; padding: 6px 12px; }
+.photo-preview { margin: 0 0 12px; }
+.photo-preview img { max-width: 100%; max-height: 220px; border: 1px solid var(--line); border-radius: 10px; display: block; }
+.ocr-status { font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin: 0 0 12px; }
+
+.account-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; max-width: 640px; }
+.account-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+.account-row:last-child { border-bottom: 0; }
+.account-label { color: var(--ink-mute); font-size: 12.5px; min-width: 72px; }
+.account-sep { color: var(--ink-mute); }
+.account-tip { color: var(--ink-mute); font-size: 12px; }
+.account-links { gap: 10px; }
+.account-links .btn-outline { text-decoration: none; font-size: 12.5px; padding: 6px 12px; }
+
+.app-tabs { display: none; }
+
+@media (max-width: 720px) {
+  .app-side { display: none; }
+  .app-main { padding: 20px 14px 88px; }
+  .view-head h1 { font-size: 21px; }
+  .essay-list, .create-grid { grid-template-columns: 1fr; }
+  .app-tabs {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    background: var(--card);
+    border-top: 1px solid var(--line);
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  }
+  .app-tab {
+    flex: 1;
+    border: 0;
+    background: transparent;
+    color: var(--ink-mute);
+    font-family: var(--sans);
+    font-size: 11.5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 2px;
+    cursor: pointer;
+  }
+  .app-tab.active { color: var(--brand-deep); font-weight: 600; }
+}

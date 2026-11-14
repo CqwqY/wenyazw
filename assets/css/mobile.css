@@ -349,6 +349,8 @@
   .chat-send-row { margin-top: 8px; }
   .chat-send-row .btn { min-width: 96px; }
   .chat-mode { flex-wrap: wrap; gap: 6px; }
+  .chat-quick { gap: 6px; margin-bottom: 6px; }
+  .quick-tip { flex-basis: 100%; font-size: 11px; }
 
   .doc-wrap { height: 100%; gap: 8px; }
   /* 底部已经有「大纲 / 稿纸」切换，这一排旧 tab 在手机上是重复的 */

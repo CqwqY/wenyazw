@@ -83,6 +83,7 @@
     backBtn: $("backBtn"), studioMeta: $("studioMeta"),
     contextList: $("contextList"), contextEmpty: $("contextEmpty"),
     chatInput: $("chatInput"), sendBtn: $("sendBtn"), stopBtn2: $("stopBtn2"),
+    polishAllBtn: $("polishAllBtn"),
     chatMode: $("chatMode"), chatModeHint: $("chatModeHint"),
     paperTitle: $("paperTitle"), paperBody: $("paperBody"),
     paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
@@ -3641,6 +3642,7 @@
       asks: asks,
       askNow: trim(runningAsk || ""),
       askEdit: askWantsEdit(runningAsk),
+      fullReview: askWantsFullReview(runningAsk),
       adopted: adopted,
       lastScores: (criticScores || []).map(function (x) {
         return { province: x.province || "", total: x.total, full: x.full, band: x.band || "", why: x.why || "" };
@@ -4529,6 +4531,14 @@
     return /改|重写|换成|换掉|换个|替换|删掉|删去|去掉|加一句|加一段|加上|补一句|补上|补一段|扩写|展开|写细|写具体|缩短|压一压|压缩|收一收|润色|调整|挪|合并|拆分|分开|重排|精简|增一句|减一句/.test(s);
   }
 
+  /* 通篇点评后再改：作者明说要看全文缺点，就不该塞进「只办这一条命令」的窄模式。
+     这类话走普通评改（甲通篇判卷 → 乙复核 → 定幅度 → 按坐实条目改），但仍强制要改。 */
+  function askWantsFullReview(req) {
+    var s = String(req || "").replace(/\s/g, "");
+    if (!s) return false;
+    return /(全文|全篇|通篇|整篇|从头到尾|整篇文章|所有问题).{0,10}(点评|评改|批改|评|缺点|问题|毛病|不足|分析|润色|改|重写)|(点评|评改|批改|分析|指出|列出|说说).{0,10}(全文|全篇|通篇|整篇)/.test(s);
+  }
+
   /* 只讲不改：得把「别的别动」「其余别改」这类限定范围先剔掉，
      否则「把开头改细，别的别动」会被当成「整篇别动」，直接掉进讲评。 */
   function wantsExplainOnly(req) {
@@ -4630,21 +4640,25 @@
     // 分数要在清批注之前抓下来：改完正文分数卡就作废了，但历史版本里得留着这次拿了几分
     var verScore = opts.versionScore !== undefined ? opts.versionScore : criticScoresSummary();
     // 聊天里下的是一条命令时，按小手术报进度，别再对外说「从头重写整篇」
-    var smallOp = (opts.small !== undefined) ? !!opts.small : askWantsEdit(runningAsk);
-    var waitTxt = smallOp ? "按你说的改那一处，其余保持原样…" : "正在从头重写整篇…";
+    var polish = !!opts.polish;
+    var smallOp = (opts.small !== undefined) ? !!opts.small
+      : (askWantsEdit(runningAsk) && !askWantsFullReview(runningAsk));
+    var waitTxt = polish ? "通篇润色中 · 题材与结构保持原样…"
+      : (smallOp ? "按你说的改那一处，其余保持原样…" : "正在从头重写整篇…");
     if (opts.silentBubble) {
       assistantReplyEl = null;
     } else {
-      addUserBubble(summarizeAsk(req));
+      addUserBubble(opts.bubbleLabel || summarizeAsk(req));
       els.chatInput.value = "";
       assistantReplyEl = addAssistantBubble("批改老师");
       if (assistantReplyEl) assistantReplyEl.textContent = waitTxt;
     }
     setPaperHint(waitTxt);
-    setDocHint(smallOp ? "小范围改稿 · 只动你点到的地方" : "整篇重写中 · 改好会整张稿纸一起换");
+    setDocHint(polish ? "通篇润色 · 只把句子改直，不换题材结构"
+      : (smallOp ? "小范围改稿 · 只动你点到的地方" : "整篇重写中 · 改好会整张稿纸一起换"));
     switchPane("paper");
 
-    var ok = await runStream("rewrite", criticVars({ req: req, smallEdit: smallOp }), { mode: "essay" });
+    var ok = await runStream("rewrite", criticVars({ req: req, smallEdit: smallOp, polish: polish }), { mode: "essay" });
     var plain = function (t) { return String(t || "").replace(/\s/g, "").length; };
     // 大改允许重搭结构，字数掉得多一点不拦；小改还是按住 0.6 的线
     var minRatio = typeof opts.minRatio === "number" ? opts.minRatio : 0.6;
@@ -5520,7 +5534,7 @@
 
     var ok = await rewriteEssay(req, {
       silentBubble: true,
-      small: !big && wantsEdit,
+      small: !big && wantsEdit && !askWantsFullReview(runningAsk),
       versionLabel: big ? "讨论改写 · 大改" : (ready.length ? ("讨论改写 · " + ready.length + " 条") : "讨论改写 · 按作者要求"),
       versionScore: scoreKeep,
       minRatio: big ? 0.45 : 0.6
@@ -5566,12 +5580,15 @@
     lastRevision = null;
     // 关掉上限时给一个兜底值，靠「乙无异议」和「原地打转」两个出口收工
     var cap = debateNoLimit ? Math.max(1, DEBATE_HARD_MAX) : Math.max(1, debateRounds);
-    var cmdMode = askWantsEdit(runningAsk);
+    var cmdMode = askWantsEdit(runningAsk) && !askWantsFullReview(runningAsk);
+    var fullReview = askWantsFullReview(runningAsk);
     setDocHint(cmdMode
       ? "按你说的办：甲先出改法，乙挑方案，两边谈拢了再动稿"
-      : (debateNoLimit
-        ? "讨论开始：不限轮数，甲先评分、乙复核，谈不动就收工"
-        : ("讨论开始：最多 " + debateCost() + " 次调用，甲先评分，乙复核，谈不动就提前收")));
+      : (fullReview
+        ? "按你说的办：先把全文缺点评清楚，再照这些缺点改一版"
+        : (debateNoLimit
+          ? "讨论开始：不限轮数，甲先评分、乙复核，谈不动就收工"
+          : ("讨论开始：最多 " + debateCost() + " 次调用，甲先评分，乙复核，谈不动就提前收"))));
     var runOwned = runOwn(cmdMode ? "讨论中 · 甲出改法" : "讨论中 · 甲评分");
 
     try {
@@ -6155,6 +6172,14 @@
 
   on(els.startBtn, "click", startWriting);
   on(els.sendBtn, "click", handleSend);
+  on(els.polishAllBtn, "click", function () {
+    if (els.sendBtn.disabled) { setPaperHint("还有任务在跑，等它结束再润色。"); return; }
+    if (!docBody.trim()) { setPaperHint("还没有正文，先写一篇或录入一篇再润色。"); return; }
+    var req = "润色全文：通篇把绕的句子改直、把空泛的话换成具体动作或物件，掐掉套话与多余抒情。" +
+      "题目、题材、人称、主要人物、器物、事情经过、段落顺序、开头与结尾的写法全部沿用原文，一个结构都不许动；" +
+      "不许加形容词、比喻、金句、伏笔、排比，不许把朴素的人话改漂亮。";
+    rewriteEssay(req, { polish: true, small: false, bubbleLabel: "润色全文" });
+  });
   on(els.testBtn, "click", testConnection);
   on(els.copyBtn, "click", copyText);
   on(els.downloadBtn, "click", downloadText);

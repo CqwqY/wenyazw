@@ -120,18 +120,21 @@
     var out = document.createElement("button");
     out.className = "btn btn-ghost";
     out.textContent = "退出";
-    out.addEventListener("click", function () {
-      var t = token();
-      clearSession();
-      if (t) {
-        fetch(endpoint() + "/api/auth/logout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t }
-        }).catch(function () { /* 登出失败也不影响本地清理 */ });
-      }
-    });
+    out.addEventListener("click", logout);
     els.area.appendChild(out);
     notify(username);
+  }
+
+  /* 退出登录：顶部按钮与主页「账户设置」视图共用同一个入口 */
+  function logout() {
+    var t = token();
+    clearSession();
+    if (t) {
+      fetch(endpoint() + "/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t }
+      }).catch(function () { /* 登出失败也不影响本地清理 */ });
+    }
   }
 
   function stopCountdown() {
@@ -307,6 +310,7 @@
     },
     open: openModal,          // 打开登录/注册弹窗：WY_AUTH.open("login")
     close: closeModal,
+    logout: logout,
     onChange: function (fn) { if (typeof fn === "function") listeners.push(fn); }
   };
 })();

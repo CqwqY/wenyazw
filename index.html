@@ -14,10 +14,10 @@
 <meta name="description" content="文芽作文：先拟可改的大纲，确认后再写正文，写完用红笔逐条批改。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261114B">
-<link rel="stylesheet" href="assets/css/write.css?v=20261114B">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261114B">
-<link rel="stylesheet" href="assets/css/home.css?v=20261114B">
+<link rel="stylesheet" href="assets/css/style.css?v=20261116G">
+<link rel="stylesheet" href="assets/css/write.css?v=20261116G">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261116G">
+<link rel="stylesheet" href="assets/css/home.css?v=20261116G">
 </head>
 <body class="home">
 
@@ -31,7 +31,8 @@
   </div>
 </header>
 
-<main class="home-main">
+<!-- 未登录：介绍页 -->
+<main class="home-main" id="guestView">
   <div class="wrap home-inner">
 
     <img class="home-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="64" height="64">
@@ -68,7 +69,7 @@
   </div>
 </main>
 
-<footer class="site-footer">
+<footer class="site-footer" id="guestFooter">
   <div class="wrap">
     <div class="copyright">
       <span>文芽作文 · 保留所有权利</span>
@@ -76,6 +77,165 @@
     </div>
   </div>
 </footer>
+
+<!-- 登录后：三视图应用壳 -->
+<div class="app-shell" id="appShell" hidden>
+
+  <aside class="app-side">
+    <div class="app-side-brand">
+      <img src="assets/img/wenya-icon.svg" alt="" width="26" height="26">
+      <span>文芽作文</span>
+    </div>
+    <nav class="app-side-nav" aria-label="主导航">
+      <button type="button" class="side-item active" data-view="essays">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>
+        <span>我的作文</span>
+      </button>
+      <button type="button" class="side-item" data-view="create">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span>创建作文</span>
+      </button>
+      <button type="button" class="side-item" data-view="account">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
+        <span>账户设置</span>
+      </button>
+    </nav>
+    <div class="app-side-foot">作文只存在你的账号下</div>
+  </aside>
+
+  <div class="app-main">
+
+    <!-- 视图一：我的作文 -->
+    <section class="app-view" id="viewEssays">
+      <div class="view-head">
+        <div>
+          <h1>我的作文</h1>
+          <p>生成或录入的作文都在这里，点「继续修改」回到工作台。</p>
+        </div>
+        <button class="btn-outline" id="refreshEssays" type="button">刷新列表</button>
+      </div>
+      <div class="app-msg" id="essayMsg"></div>
+      <div class="essay-list" id="essayList"></div>
+    </section>
+
+    <!-- 视图二：创建作文 -->
+    <section class="app-view" id="viewCreate" hidden>
+      <div class="view-head">
+        <div>
+          <h1>创建作文</h1>
+          <p>从零写一篇，或者把已经写好的作文录进来再批。</p>
+        </div>
+      </div>
+
+      <div class="create-grid">
+        <a class="create-card create-ai" href="write.html">
+          <span class="create-no">01</span>
+          <h2>AI 生成作文</h2>
+          <p>选类别、文体和题目，先拟大纲再写正文，写完逐句评改。</p>
+          <span class="create-go">进入工作台</span>
+        </a>
+
+        <div class="create-card create-import">
+          <span class="create-no">02</span>
+          <h2>录入已有作文</h2>
+          <p>把纸上的、手机里的作文录进来，之后一样能润色和评改。</p>
+
+          <div class="import-tabs" id="importTabs">
+            <button type="button" class="import-tab active" data-import="type">输入录入</button>
+            <button type="button" class="import-tab" data-import="photo">拍摄录入</button>
+          </div>
+
+          <div class="import-pane" id="importType">
+            <div class="field">
+              <label for="importTitle">标题</label>
+              <input class="input" id="importTitle" type="text" maxlength="120" placeholder="例：那一刻，我长大了">
+            </div>
+            <div class="field">
+              <label for="importBody">正文</label>
+              <textarea class="input import-body" id="importBody" rows="10" placeholder="把作文正文粘贴或敲进来，段落之间空一行"></textarea>
+            </div>
+            <div class="import-actions">
+              <span class="import-count" id="importCount">0 字</span>
+              <button class="btn btn-primary" id="importSave" type="button">保存到我的作文</button>
+            </div>
+          </div>
+
+          <div class="import-pane" id="importPhoto" hidden>
+            <div class="photo-actions">
+              <button type="button" class="btn-outline photo-pick" id="photoCaptureBtn">拍照录入</button>
+              <input type="file" id="photoCapture" accept="image/*" capture="environment" hidden>
+              <button type="button" class="btn-outline photo-pick" id="photoPickBtn">从相册选图</button>
+              <input type="file" id="photoPick" accept="image/*" hidden>
+            </div>
+            <div class="photo-preview" id="photoPreview" hidden></div>
+            <div class="ocr-status" id="ocrStatus">选一张作文照片，会自动识别成文字；识别结果可以自己改。</div>
+            <div class="field">
+              <label for="photoTitle">标题</label>
+              <input class="input" id="photoTitle" type="text" maxlength="120" placeholder="识别后会自动取首行做标题，可改">
+            </div>
+            <div class="field">
+              <label for="photoText">识别结果（请校对）</label>
+              <textarea class="input import-body" id="photoText" rows="10" placeholder="识别出的文字会出现在这里，改完再保存"></textarea>
+            </div>
+            <div class="import-actions">
+              <span class="import-count" id="photoCount">0 字</span>
+              <button class="btn btn-primary" id="photoSave" type="button">保存到我的作文</button>
+            </div>
+          </div>
+
+          <div class="app-msg" id="importMsg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图三：账户设置 -->
+    <section class="app-view" id="viewAccount" hidden>
+      <div class="view-head">
+        <div>
+          <h1>账户设置</h1>
+          <p>账号、积分与登录管理。</p>
+        </div>
+      </div>
+      <div class="account-card">
+        <div class="account-row">
+          <span class="account-label">当前账号</span>
+          <strong id="appEmail">—</strong>
+          <span class="account-sep">·</span>
+          <span id="appUser"></span>
+        </div>
+        <div class="account-row">
+          <span class="account-label">剩余积分</span>
+          <strong id="appCredits">—</strong>
+          <span class="account-tip">站内模型每次 AI 操作消耗 1 积分，失败自动退回</span>
+        </div>
+        <div class="account-row account-links">
+          <a class="btn-outline" href="credits.html">积分与兑换</a>
+          <a class="btn-outline" href="account.html">旧版控制台</a>
+        </div>
+        <div class="account-row account-links">
+          <button class="btn-outline" id="appLogout" type="button">退出登录</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- 手机版：底部三视图 -->
+  <nav class="app-tabs" aria-label="切换视图">
+    <button type="button" class="app-tab active" data-view="essays">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>
+      <span>我的作文</span>
+    </button>
+    <button type="button" class="app-tab" data-view="create">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>创建作文</span>
+    </button>
+    <button type="button" class="app-tab" data-view="account">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
+      <span>账户设置</span>
+    </button>
+  </nav>
+</div>
 
 <!-- 登录 / 注册弹窗（auth.js 依赖这些 id） -->
 <div class="modal-mask" id="authMask" hidden>
@@ -112,7 +272,7 @@
   </div>
 </div>
 
-<script src="assets/js/auth.js?v=20261114B"></script>
-<script src="assets/js/home.js?v=20261114B"></script>
+<script src="assets/js/auth.js?v=20261116G"></script>
+<script src="assets/js/home.js?v=20261116G"></script>
 </body>
 </html>
