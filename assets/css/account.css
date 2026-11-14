@@ -2,7 +2,7 @@
 
 .account-console {
   font-size: 13px;
-  color: var(--brand-deep, #245c40);
+  color: var(--brand-deep, #123f2c);
   text-decoration: none;
   padding: 5px 10px;
   border: 1px solid var(--line);
@@ -37,7 +37,7 @@
 .account-sep { color: var(--ink-mute); }
 .account-msg { font-size: 13px; line-height: 1.6; min-height: 20px; color: var(--ink-soft); }
 .account-msg.error { color: #b23b30; }
-.account-msg.ok { color: var(--brand-deep, #245c40); }
+.account-msg.ok { color: var(--brand-deep, #123f2c); }
 
 .essay-list {
   display: grid;
@@ -111,8 +111,8 @@
   color: var(--ink-soft);
   white-space: pre-wrap;
   word-break: break-word;
-  background: #f7faf7;
-  border: 1px solid #cfe0d3;
+  background: #f1f8f3;
+  border: 1px solid #cfe6d7;
   border-radius: 8px;
   padding: 12px 14px;
   max-height: 30vh;
@@ -154,7 +154,7 @@
   font-size: 20px;
   font-weight: 600;
   line-height: 1;
-  color: #2f6f4e;
+  color: #1d7048;
   font-variant-numeric: tabular-nums;
 }
 

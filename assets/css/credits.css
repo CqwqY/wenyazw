@@ -34,7 +34,7 @@
   font-size: 44px;
   font-weight: 600;
   line-height: 1;
-  color: #2f6f4e;
+  color: #1d7048;
   font-variant-numeric: tabular-nums;
 }
 
@@ -112,7 +112,7 @@
   color: var(--ink-mute);
 }
 
-.credit-msg.ok { color: #2f6f4e; }
+.credit-msg.ok { color: #1d7048; }
 .credit-msg.error { color: #a8322a; }
 .credit-msg.warn { color: #8a5a12; }
 
@@ -172,7 +172,7 @@
 
 .credit-delta svg { flex: none; opacity: .9; }
 
-.credit-delta.plus { color: #2f6f4e; }
+.credit-delta.plus { color: #1d7048; }
 .credit-delta.minus { color: #a8322a; }
 
 .credit-empty {

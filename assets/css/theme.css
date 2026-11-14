@@ -1,0 +1,593 @@
+/* 文芽作文 - 森绿主题重制层
+   设计依据（已在实现前核对）：
+   1. 60-30-10 角色分配，而不是数像素：森绿为主（大面积画布 + 顶栏 / 侧栏 / 页脚 +
+      主按钮），原米白背景降为辅色（纸面、卡片、输入区），暖陶土与朱红只做点睛与语义色。
+   2. Material 3 的「颜色角色」做法：同一个绿做 50~950 色阶，组件只引用角色变量
+      （primary / on-primary / primary-container / surface / outline），不直接写死十六进制。
+   3. WCAG 2.1 AA：白字压 #1d7048 为 6.06:1，浅绿字压 #123f2c 为 11.07:1，
+      正文 #17261d 压米白为 14.87:1，次级字 #5e7165 压浅绿为 4.58:1，
+      输入框边框 #6e9a7c 压米白为 3.14:1；错误 / 批改红与金色积分属于语义色，
+      不参与三色比例，且始终配文字或图标，不靠颜色单独表意。
+   4. 写作类产品的「暖纸 + 深林绿」编辑美学：标题用衬线、正文稿纸保留米白，
+      减少长时间阅读的疲劳；绿色只承担结构与行动，不压到正文上。
+
+   本层必须最后加载。它只改视觉，不动 DOM、不改尺寸与交互逻辑。 */
+
+/* ============ 基础层 ============ */
+
+:root {
+  color-scheme: light;
+  --theme-ease: cubic-bezier(.22, .68, 0, 1);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--canvas);
+  background-image: radial-gradient(1200px 620px at 50% -18%, rgba(255, 255, 255, .65), transparent 72%);
+  color: var(--ink);
+}
+
+::selection { background: var(--g-300); color: var(--g-950); }
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--g-600);
+  outline-offset: 2px;
+}
+
+* { scrollbar-color: var(--g-300) var(--g-50); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--g-50); }
+::-webkit-scrollbar-thumb { background: var(--g-300); border: 2px solid var(--g-50); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--g-400); }
+
+h1, h2, h3, h4 { color: var(--g-900); }
+
+/* ============ 全站框架：顶栏 / 导航 / 页脚 ============ */
+
+.site-header {
+  background: linear-gradient(100deg, var(--g-900) 0%, var(--g-800) 62%, var(--g-700) 100%);
+  border-bottom: 1px solid rgba(242, 249, 243, .14);
+  color: var(--on-green);
+  box-shadow: 0 6px 20px -16px rgba(9, 38, 26, .9);
+}
+
+.site-header .brand,
+.site-header .brand:hover { color: var(--on-green); }
+
+.site-header .brand-mark,
+.app-side-brand img {
+  padding: 2px;
+  background: var(--on-green);
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(9, 38, 26, .28);
+}
+
+.nav a { color: var(--on-green-mute); }
+.nav a:hover { background: rgba(242, 249, 243, .12); color: var(--on-green); }
+.nav a.active { background: rgba(207, 230, 215, .18); color: var(--on-green); }
+.nav-toggle { background: rgba(242, 249, 243, .1); border-color: rgba(242, 249, 243, .28); color: var(--on-green); }
+
+.site-header .btn-ghost,
+.site-header .btn.btn-ghost {
+  background: rgba(242, 249, 243, .08);
+  border-color: rgba(242, 249, 243, .38);
+  color: var(--on-green);
+}
+.site-header .btn-ghost:hover { background: rgba(242, 249, 243, .18); border-color: var(--on-green); }
+
+.site-header .account-console {
+  color: var(--on-green-mute);
+  border-color: rgba(242, 249, 243, .32);
+}
+.site-header .account-console:hover { color: var(--on-green); border-color: var(--g-200); background: rgba(242, 249, 243, .12); }
+
+.site-header .account-name { color: var(--on-green); }
+
+.site-header .account-credits,
+.site-header a.account-credits {
+  background: rgba(207, 230, 215, .17);
+  border: 1px solid rgba(207, 230, 215, .32);
+  color: var(--on-green);
+}
+.site-header a.account-credits:hover { background: rgba(207, 230, 215, .28); }
+
+.site-footer {
+  margin-top: 0;
+  background: linear-gradient(160deg, var(--g-900), var(--g-950));
+  border-top: 1px solid rgba(242, 249, 243, .14);
+  color: var(--on-green-mute);
+}
+.site-footer .footer-grid h4 { color: var(--on-green); }
+.site-footer .footer-grid p,
+.site-footer .footer-links { color: var(--on-green-mute); }
+.site-footer .footer-links a:hover { color: var(--g-200); }
+.site-footer .copyright { border-top-color: rgba(242, 249, 243, .14); color: var(--on-green-mute); }
+
+/* ============ 按钮 / 表单 / 通用组件 ============ */
+
+.btn,
+.btn-outline,
+.btn-mini,
+.chip,
+.cat-card,
+.genre-card,
+.scoring-card,
+.side-item,
+.app-tab,
+.m-tab,
+.import-tab,
+.auth-tab,
+.auth-subtab,
+.doc-tab,
+.drawer-tab,
+.quick-btn { transition: background .16s var(--theme-ease), color .16s var(--theme-ease), border-color .16s var(--theme-ease), box-shadow .18s var(--theme-ease), transform .16s var(--theme-ease); }
+
+.btn-primary {
+  background: var(--g-600);
+  border-color: var(--g-600);
+  color: #fff;
+  box-shadow: var(--shadow-green);
+}
+.btn-primary:hover { background: var(--g-700); border-color: var(--g-700); box-shadow: 0 12px 26px -12px rgba(18, 63, 44, .65); }
+.btn-primary:active { transform: translateY(1px); }
+.btn:disabled, .btn-outline:disabled { opacity: .48; filter: saturate(.55); }
+
+.btn-ghost,
+.btn-outline,
+.btn-mini {
+  background: var(--card);
+  border-color: var(--line-strong);
+  color: var(--g-800);
+}
+.btn-ghost:hover,
+.btn-outline:hover,
+.btn-mini:hover { background: var(--g-100); border-color: var(--g-600); color: var(--g-800); }
+
+.btn-mini.primary { background: var(--g-600); border-color: var(--g-600); color: #fff; }
+
+.input,
+.textarea,
+.select,
+.chat-input-area,
+.import-body {
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+}
+.input:focus,
+.textarea:focus,
+.select:focus,
+.chat-input-area:focus {
+  border-color: var(--g-600);
+  box-shadow: var(--ring);
+  outline: none;
+}
+.input::placeholder, .textarea::placeholder, .chat-input-area::placeholder { color: var(--ink-mute); opacity: 1; }
+.input[readonly], .input:disabled { background: var(--paper-2); color: var(--ink-mute); }
+input[type="range"], input[type="checkbox"] { accent-color: var(--g-600); }
+
+.eyebrow { background: var(--g-100); color: var(--g-800); }
+.link-more { color: var(--g-600); }
+.link-more:hover { border-color: var(--g-600); }
+.chip { background: var(--card); border-color: var(--line-strong); color: var(--ink-soft); }
+.chip:hover { border-color: var(--g-400); color: var(--g-800); }
+.chip.active { background: var(--g-600); border-color: var(--g-600); color: #fff; }
+.tag { background: var(--paper-2); color: var(--ink-soft); }
+.tag-brand { background: var(--g-100); color: var(--g-800); }
+.tag-accent { background: var(--accent-soft); color: var(--accent); }
+
+.card,
+.hero-card,
+.essay-card,
+.create-card,
+.account-card,
+.config-panel,
+.wizard-body,
+.chat-panel,
+.score-bar,
+.credit-panel,
+.work-drawer,
+.modal-card { background: var(--card); border-color: var(--line); }
+
+.card:hover,
+.essay-card:hover { border-color: var(--g-300); box-shadow: var(--shadow-lg); }
+
+.card-icon { background: var(--g-100); color: var(--g-800); }
+
+.note { background: var(--g-100); border-left-color: var(--g-600); color: var(--g-900); }
+.prose { color: var(--ink); }
+.prose h2 { border-left-color: var(--g-600); }
+
+/* ============ 未登录首页：深绿主视觉 + 米白纸卡 ============ */
+
+body.home { background-color: var(--canvas); }
+
+.home-main {
+  background:
+    radial-gradient(900px 460px at 82% -12%, rgba(88, 169, 123, .26), transparent 70%),
+    radial-gradient(720px 420px at 10% 4%, rgba(42, 138, 91, .20), transparent 68%),
+    repeating-linear-gradient(0deg, rgba(242, 249, 243, .035) 0 1px, transparent 1px 36px),
+    repeating-linear-gradient(90deg, rgba(242, 249, 243, .035) 0 1px, transparent 1px 36px),
+    linear-gradient(158deg, var(--g-900) 0%, var(--g-950) 100%);
+  border-bottom: 1px solid rgba(242, 249, 243, .12);
+  padding-bottom: 64px;
+}
+
+.home-title { color: var(--on-green); text-shadow: 0 2px 20px rgba(9, 38, 26, .35); }
+.home-lead, .home-note { color: var(--on-green-mute); }
+
+.home-mark {
+  padding: 3px;
+  background: var(--on-green);
+  border-radius: 22px;
+  box-shadow: 0 0 0 7px rgba(242, 249, 243, .12), 0 18px 40px -18px rgba(9, 38, 26, .9);
+}
+
+.home-actions .btn-primary {
+  background: var(--g-200);
+  border-color: var(--g-200);
+  color: var(--g-900);
+  box-shadow: 0 14px 30px -14px rgba(9, 38, 26, .9);
+  font-weight: 600;
+}
+.home-actions .btn-primary:hover { background: #fff; border-color: #fff; }
+.home-link { color: var(--g-200); }
+.home-link:hover { color: #fff; border-bottom-color: rgba(255, 255, 255, .55); }
+
+.home-point {
+  background: var(--card);
+  border: 1px solid rgba(242, 249, 243, .22);
+  box-shadow: inset 0 3px 0 var(--g-400), 0 18px 36px -24px rgba(9, 38, 26, .8);
+}
+.home-point-no { color: var(--g-600); }
+.home-point h3 { color: var(--g-900); }
+.home-point p { color: var(--ink-soft); }
+
+/* ============ 登录后：三视图应用壳 ============ */
+
+.app-shell { background: var(--canvas); }
+
+.app-side {
+  background: linear-gradient(175deg, var(--g-900) 0%, var(--g-950) 100%);
+  border-right: 1px solid rgba(242, 249, 243, .12);
+  box-shadow: 8px 0 28px -24px rgba(9, 38, 26, .9);
+}
+.app-side-brand { color: var(--on-green); }
+
+.side-item { position: relative; color: var(--on-green-mute); }
+.side-item:hover { background: rgba(242, 249, 243, .09); color: var(--on-green); }
+.side-item.active { background: rgba(207, 230, 215, .17); color: var(--on-green); }
+.side-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 9px; bottom: 9px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--g-300);
+}
+.app-side-foot { color: var(--on-green-mute); }
+
+.app-main { background: transparent; }
+.view-head h1 { color: var(--g-900); }
+.view-head p { color: var(--ink-soft); }
+.app-msg { color: var(--ink-soft); }
+.app-msg.error { color: var(--danger); }
+.app-msg.ok { color: var(--g-700); }
+
+.essay-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.essay-card:hover { border-color: var(--g-400); transform: translateY(-2px); }
+.essay-card h3 { color: var(--g-900); }
+.essay-empty { background: var(--g-50); border-color: var(--line-strong); color: var(--ink-soft); }
+
+.create-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.create-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--g-600), var(--g-400));
+}
+.create-card:hover { border-color: var(--g-300); box-shadow: var(--shadow-lg); }
+/* 两张卡内容量差很多，等高只会让左卡拖出一片空白；保持自然高度、顶部对齐 */
+.create-ai {
+  display: flex;
+  flex-direction: column;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(29, 112, 72, .045) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(29, 112, 72, .045) 0 1px, transparent 1px 28px);
+}
+.create-ai::after {
+  content: "文";
+  position: absolute;
+  right: 20px;
+  bottom: 8px;
+  font-family: var(--serif);
+  font-size: 78px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(29, 112, 72, .08);
+  pointer-events: none;
+}
+.create-no { color: var(--g-600); }
+.create-card h2 { color: var(--g-900); }
+.create-go { color: var(--g-700); }
+.create-ai .create-go {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 2px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--g-600);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.create-ai .create-go::after { content: "→"; margin-left: 8px; font-size: 14px; }
+.create-ai:hover .create-go { background: var(--g-700); }
+
+.param-box { background: var(--g-50); border: 1px solid var(--line); }
+.param-head { color: var(--g-900); }
+.import-tabs { border-bottom-color: var(--line); }
+.import-tab { color: var(--ink-mute); }
+.import-tab.active { color: var(--g-800); border-bottom-color: var(--g-600); }
+
+.account-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 3px 0 var(--g-600), var(--shadow);
+}
+.account-row { border-bottom-color: var(--line); }
+.account-label, .account-sep, .account-tip { color: var(--ink-mute); }
+
+.app-tabs {
+  background: linear-gradient(100deg, var(--g-900), var(--g-800));
+  border-top: 1px solid rgba(242, 249, 243, .14);
+}
+.app-tab { color: var(--on-green-mute); }
+.app-tab.active { color: var(--g-200); }
+
+/* ============ 弹窗：米白纸面 + 深绿抬头 ============ */
+
+.modal-mask { background: rgba(9, 38, 26, .58); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.modal-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 28px 70px -24px rgba(9, 38, 26, .65);
+}
+.modal-head {
+  margin: -20px -22px 18px;
+  padding: 15px 22px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(100deg, var(--g-900), var(--g-700));
+  border-bottom: 1px solid rgba(242, 249, 243, .12);
+}
+.modal-head h2 { color: var(--on-green); font-size: 17px; }
+.modal-close { color: var(--on-green-mute); }
+.modal-close:hover { color: #fff; }
+.auth-tabs { border-bottom-color: var(--line); }
+.auth-tab, .auth-subtab { color: var(--ink-mute); }
+.auth-tab.active, .auth-subtab.active { color: var(--g-800); border-color: var(--g-600); }
+.auth-hint, .auth-foot { color: var(--ink-mute); }
+.auth-msg.ok { color: var(--g-700); }
+.auth-msg.error { color: var(--danger); }
+
+/* ============ 写作工作台 ============ */
+
+.tool-head h1 { color: var(--g-900); }
+.tool-head p { color: var(--ink-soft); }
+.badge-new { background: var(--accent-soft); color: var(--accent); border: 1px solid rgba(184, 87, 42, .22); }
+
+.config-panel,
+.wizard-body,
+.chat-panel,
+.score-bar {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.config-note { background: var(--g-50); color: var(--ink-soft); }
+.config-note strong { color: var(--g-900); }
+.credit-line { background: var(--g-100); border-color: var(--g-300); color: var(--g-800); }
+.site-note { border-left-color: var(--g-400); color: var(--ink-mute); }
+.site-note code { background: var(--g-100); color: var(--g-800); }
+
+.wizard-steps li {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+.wizard-steps li .dot { background: var(--g-100); color: var(--g-800); }
+.wizard-steps li.done { color: var(--g-700); border-color: var(--g-300); }
+.wizard-steps li.done .dot,
+.wizard-steps li.active .dot { background: var(--g-600); color: #fff; }
+.wizard-steps li.active { color: var(--g-900); border-color: var(--g-600); box-shadow: var(--ring); }
+
+.wstep { border-bottom-color: var(--line); }
+.wstep-no { background: var(--g-600); color: #fff; }
+.wstep-head h2 { color: var(--g-900); }
+.wstep-opt, .wstep-tip { color: var(--ink-mute); background: transparent; }
+.wstep-tip { background: none; }
+.wstep-tip strong { color: var(--ink-soft); }
+
+.cat-card,
+.genre-card,
+.scoring-card {
+  background: var(--paper);
+  border-color: var(--line);
+}
+.cat-card:hover,
+.genre-card:hover,
+.scoring-card:hover { border-color: var(--g-400); box-shadow: var(--shadow); }
+.cat-card.selected,
+.genre-card.selected,
+.scoring-card.selected {
+  background: var(--g-50);
+  border-color: var(--g-600);
+  box-shadow: var(--ring), var(--shadow);
+}
+.ex-chip { border-color: var(--line-strong); color: var(--ink-soft); }
+.ex-chip:hover { border-color: var(--g-600); color: var(--g-800); }
+.roller-btn { background: var(--card); border-color: var(--line-strong); color: var(--g-800); }
+.roller-btn:hover { background: var(--g-100); }
+.roller-num { color: var(--g-900); }
+.chat-box { background: var(--paper); border-color: var(--line-strong); }
+.chat-hint, .examples-hint { color: var(--ink-mute); }
+
+#studio {
+  background:
+    radial-gradient(900px 380px at 88% -10%, rgba(88, 169, 123, .16), transparent 72%),
+    linear-gradient(180deg, var(--canvas-2), var(--canvas));
+}
+
+/* 工作台藏起了全站顶栏，这里补一条深绿工具条，主色才不会在写作页消失。
+   负 margin 抵消 #studio 的 18px 内边距，让色带通栏。 */
+.studio-top {
+  margin: 0 -18px;
+  padding: 12px 18px;
+  background: linear-gradient(100deg, var(--g-900) 0%, var(--g-800) 100%);
+  border-bottom: 1px solid rgba(242, 249, 243, .14);
+  box-shadow: 0 8px 22px -18px rgba(9, 38, 26, .95);
+}
+.studio-top .studio-meta,
+.studio-top .paper-stat { color: var(--on-green-mute); }
+.studio-top .btn-outline {
+  background: rgba(242, 249, 243, .1);
+  border-color: rgba(242, 249, 243, .36);
+  color: var(--on-green);
+}
+.studio-top .btn-outline:hover {
+  background: rgba(242, 249, 243, .2);
+  border-color: var(--on-green);
+  color: #fff;
+}
+
+.chat-list { background: var(--g-50); }
+.chat-foot { background: var(--g-100); border-top-color: var(--line); }
+.bubble.user .bubble-text { background: var(--g-100); color: var(--g-900); border: 1px solid var(--g-200); }
+.bubble.ai .bubble-text { background: var(--card); border-color: var(--line); color: var(--ink); }
+.bubble-label { color: var(--ink-mute); }
+
+/* 作文纸是「辅色」的主场：米白纸面保持不变，只把外框与书脊换成绿 */
+.paper {
+  background: #fffdf8;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+}
+.paper::before { background: linear-gradient(var(--g-600), var(--g-300)); }
+.paper-title { color: var(--g-900); }
+
+.gate-bar { background: var(--accent-soft); border-bottom: 1px solid rgba(184, 87, 42, .22); }
+.drawer-handle { background: var(--card); border-color: var(--line-strong); color: var(--g-800); }
+.drawer-handle:hover { background: var(--g-100); }
+.work-drawer { background: var(--paper); border-color: var(--line-strong); }
+.drawer-head { background: var(--g-100); border-bottom-color: var(--line); }
+.drawer-tab.active { background: var(--g-100); border-color: var(--g-300); color: var(--g-800); }
+.doc-tab.active, .chat-mode-btn.active { color: #fff; }
+.quick-btn { color: var(--g-800); border-color: var(--g-300); }
+.quick-btn:hover { background: var(--g-100); }
+.critic-dock-send { box-shadow: var(--shadow-green); }
+
+/* ============ 账户 / 积分页 ============ */
+
+.account-console { color: var(--g-800); border-color: var(--line-strong); }
+.account-console:hover { border-color: var(--g-600); background: var(--g-100); }
+.account-card > p, .account-msg { color: var(--ink-soft); }
+.account-msg.ok { color: var(--g-700); }
+.view-body { background: var(--paper); color: var(--ink); border-color: var(--line-strong); }
+.view-outline { background: var(--g-50); border-color: var(--g-200); color: var(--ink-soft); }
+.credit-entry { background: var(--g-50); border-color: var(--line); }
+.credit-entry-num { color: var(--g-700); }
+
+.credit-hero {
+  background:
+    radial-gradient(520px 240px at 88% -20%, rgba(88, 169, 123, .30), transparent 70%),
+    linear-gradient(110deg, var(--g-900), var(--g-700));
+  border: 1px solid rgba(242, 249, 243, .14);
+  box-shadow: var(--shadow-green);
+}
+.credit-hero-label, .credit-hero-unit, .credit-hero-tip { color: var(--on-green-mute); }
+.credit-hero-num #creditBalance { color: var(--on-green); }
+.credit-hero .btn-primary {
+  background: var(--g-200);
+  border-color: var(--g-200);
+  color: var(--g-900);
+}
+.credit-hero .btn-primary:hover { background: #fff; border-color: #fff; }
+.credit-panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 3px 0 var(--g-400);
+}
+.credit-title { color: var(--g-900); }
+.credit-desc, .credit-rules, .credit-row, .credit-foot, .credit-empty { color: var(--ink-soft); }
+.credit-msg.ok { color: var(--g-700); }
+.credit-msg.error, .credit-empty.error { color: var(--danger); }
+.credit-delta.plus { color: var(--g-700); }
+.credit-delta.minus { color: var(--danger); }
+
+/* ============ 手机端：深绿顶栏与底部导航，浅绿画布不变 ============ */
+
+@media (max-width: 760px) {
+  .home-main { padding-bottom: 44px; }
+  .home-points { gap: 12px; }
+
+  .wizard-steps {
+    background: rgba(232, 243, 234, .96);
+    border-bottom-color: var(--line);
+  }
+  .wizard-actions {
+    background: rgba(241, 248, 243, .97);
+    border-top-color: var(--line);
+  }
+  .studio-top {
+    margin: 0;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 8px;
+    background: linear-gradient(100deg, var(--g-900), var(--g-800));
+    border-bottom-color: rgba(242, 249, 243, .14);
+  }
+
+  /* 手机端三视图没有全站顶栏，用视图标题区补一条深绿 AppBar */
+  .app-main { padding-top: 0; }
+  .app-view > .view-head {
+    margin: 0 -14px 20px;
+    padding: calc(16px + env(safe-area-inset-top, 0px)) 14px 18px;
+    background: linear-gradient(100deg, var(--g-900), var(--g-700));
+    border-bottom: 1px solid rgba(242, 249, 243, .14);
+    box-shadow: 0 8px 22px -18px rgba(9, 38, 26, .95);
+  }
+  .app-view > .view-head h1 { color: var(--on-green); }
+  .app-view > .view-head p { color: var(--on-green-mute); }
+  .app-view > .view-head .btn-outline {
+    background: rgba(242, 249, 243, .1);
+    border-color: rgba(242, 249, 243, .36);
+    color: var(--on-green);
+  }
+
+  .m-tabs {
+    background: linear-gradient(100deg, var(--g-900), var(--g-800));
+    border-top: 1px solid rgba(242, 249, 243, .14);
+  }
+  .m-tab { color: var(--on-green-mute); }
+  .m-tab.active { color: var(--g-200); }
+  .app-tabs { box-shadow: 0 -8px 24px -18px rgba(9, 38, 26, .9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
