@@ -3540,48 +3540,14 @@
     if (leftover.trim()) readDataLine(leftover, onDelta);
   }
 
-  // 本次作文的类别规则（完整文本），同时拼进 system 和 user，避免模型忽略
-  function categoryRule() {
-    var cat = activeCat || selectedCat;
-    var cfg = window.WY_CATEGORY && window.WY_CATEGORY[cat];
-    return cfg ? cfg.rule : "";
-  }
 
   function activeCatName() { return activeCat || selectedCat; }
 
-  // 不同文体的大纲骨架不一样：议论文要论点分论点，小小说要伏笔反转，不能都按「开头—转折—结尾」排
-  function genreOutlineNote() {
-    var g = genreName();
-    if (g === "议论文") {
-      return "【大纲形态】议论文按「引论—分论点—让步—结论」组织，每条 label 用「引论」「分论点一」「让步」「结论」这类字样；每条 text 写清这一段用哪个具体论据、论证到哪一步，不写场景、不写动作、不写抒情。段落数 4～5 段即可。";
-    }
-    if (g === "小小说") {
-      return "【大纲形态】小小说按「场景—冲突—伏笔—反转—收束」组织，每条 text 写清发生什么动作或哪句对话推动，伏笔要指名是哪个物件或哪句话，不写抒情与心理。";
-    }
-    if (g === "散文") {
-      return "【大纲形态】散文的大纲围绕那件作为线索的实物或地点走，每条 text 写清这一段写它的哪种状态、牵出谁或哪件旧事，允许跳跃但要写清由头。";
-    }
-    if (g === "随笔") {
-      return "【大纲形态】随笔从一件具体小事起头，中段可以岔开去谈旧事或见闻，最后回到起头的那件事；每条 text 写清这一段的见闻与由此生出的那一两句议论。";
-    }
-    return "【大纲形态】记叙文按事情的时间顺序走，每条 text 写清谁、在哪、做什么、出现什么器物，两三句写实，不写心情。";
-  }
 
 
-  // 本次作文的文体规则（完整文本）。类别管标题怎么处理，文体管全篇怎么组织。
-  function genreRule() {
-    var g = activeGenre || selectedGenre;
-    var cfg = window.WY_GENRE && window.WY_GENRE[g];
-    return cfg ? cfg.rule : "";
-  }
 
   function genreName() { return activeGenre || selectedGenre || "记叙文"; }
 
-  // 文体一行提示，放进 user 里再点一次，防止模型只记住骨架忘了文体
-  function genreLine() {
-    return "【本次作文文体】" + genreName() + "。全篇必须按系统提示里的「本次文体」规则组织，"
-      + "该条款与通用铁律冲突时以文体规则为准。";
-  }
 
   // 把「广东」这类短名对到评分表真实 key（如「广东（中考）」）：
   // 否则取不到该省标准，会错回退成「全国卷（通用）」60 分制
@@ -3610,218 +3576,104 @@
 
   function stageNow() { return activeStage || selectedStage || "初中"; }
 
-  function scoringText() {
-    var s = (window.WY_SCORING_ALL ? window.WY_SCORING_ALL(provinceList()) : "") || "";
-    var g = window.WY_STAGE_RULE ? window.WY_STAGE_RULE(stageNow()) : "";
-    return (s + (g ? (s ? "\n\n" : "") + g : "")).trim();
+  /* ---------------- 提示词由服务端装配 ----------------
+     前端只发「任务名 + 变量」：类别、文体、评分标准、锁句、历史要求这些是数据，
+     真正拼成提示词的模板与规则正文留在服务器，浏览器里拿不到。 */
+  function taskVars(extra) {
+    var v = {
+      cat: activeCatName(),
+      genre: genreName(),
+      prov: provinceList(),
+      stage: stageNow(),
+      topic: trim(activeTopic || (els.topic && els.topic.value)),
+      extra: els.extra ? trim(els.extra.value) : "",
+      words: parseInt(wordCount, 10) || 600,
+      outline: {
+        title: outline.title || "",
+        thesis: outline.thesis || "",
+        points: (outline.points || []).map(function (p) { return { label: p.label || "", text: p.text || "" }; }),
+        note: outline.note || ""
+      }
+    };
+    if (extra) for (var k in extra) if (Object.prototype.hasOwnProperty.call(extra, k)) v[k] = extra[k];
+    return v;
   }
 
-  /* 统一包裹：作文原文：{...} / 用户提问：{...}
-     花括号是为了让模型明确知道边界在哪，不会把提问当成正文的一部分。 */
-  function wrapEssay() {
-    return "作文原文：{\n" + (currentComposition || docBody || "（还没有正文）") + "\n}";
-  }
-
-  /* 学生锁住的句子：既不许改，也不许批注，评改时连"坏"都不许判 */
-  function wrapLocked() {
-    if (!lockedTexts.length) return "";
-    return "【已锁住，绝对不许改动、不许批注】{\n" +
-      lockedTexts.map(function (t, i) { return (i + 1) + ". " + t; }).join("\n") +
-      "\n}\n（这几句是学生自己认定要留的：anchor 不许取它们、不许跨越它们出批注、也不许判它们坏。" +
-      "要出批注只能指向这几句以外的原文；如果这一轮的要求正好落在锁住的句子上，reply 里说明一句，不要动手。）";
-  }
-
-  function wrapAsk(req) {
-    return "用户提问：{\n" + req + "\n}\n" +
-      "（以上是学生这次的原话，是他这一轮唯一要做的事。逐条照办，一条不许漏；" +
-      "他没有提到的地方不要改，可以提意见，不要顺手改、不要自己想当然加一份方案、不要换成你认为更好的写法。）";
-  }
-
-  function outlineJSON() {
-    return JSON.stringify({
-      title: outline.title || "",
-      thesis: outline.thesis || "",
-      points: (outline.points || []).map(function (p) { return { label: p.label || "", text: p.text || "" }; }),
-      note: outline.note || ""
-    }, null, 2);
-  }
-
-  function wrapOutline() {
-    return "当前大纲：{\n" + outlineJSON() + "\n}";
-  }
-
-  function composeOutlineUser(isEdit, req) {
-    var lines = [];
-    lines.push("【本次作文类别】" + activeCatName());
-    lines.push(genreLine());
-    var rule = categoryRule();
-    if (rule) lines.push(rule);
-    lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
-    if (els.extra.value.trim()) {
-      lines.push("【额外要求（用户原话，硬指令）】{\n" + els.extra.value.trim() + "\n}\n" +
-        "（这几条是他明确要的，逐条照办；他没提的不要自己加，不要扩大成别的写法。）");
-    }
-    lines.push(genreOutlineNote());
-    lines.push("【目标字数（含标点）】约 " + wordCount + " 字。大纲的段落数量要与这个字数匹配，不要按 300 字写大纲却要求写 1200 字。");
-    var st = scoringText();
-    if (st) lines.push(st);
-    if (isEdit) {
-      lines.push(wrapOutline());
-      lines.push(wrapAsk(req));
-      lines.push("\n按系统提示输出修改后的完整大纲 JSON。");
-    } else {
-      lines.push("\n现在只输出大纲 JSON，不要写正文。");
-    }
-    return lines.join("\n\n");
-  }
-
-  function composeWriteUser() {
-    var lines = [];
-    lines.push("【本次作文类别】" + activeCatName());
-    lines.push(genreLine());
-    var rule = categoryRule();
-    if (rule) lines.push(rule);
-    lines.push("【题目 / 题材（用户原话，按上面的类别规则处理）】\n" + (activeTopic || els.topic.value.trim()));
-    if (els.extra.value.trim()) {
-      lines.push("【额外要求（用户原话，硬指令）】{\n" + els.extra.value.trim() + "\n}\n" +
-        "（这几条是他明确要的，逐条照办；他没提的不要自己加，不要扩大成别的写法。）");
-    }
-    lines.push("【目标字数（含标点）】约 " + wordCount + " 字，正文尽量逼近，宁可少写不可硬凑。");
-    var st = scoringText();
-    if (st) lines.push(st);
-    lines.push("【本次大纲（已由用户确认，必须照着写）】\n" + outlineJSON());
-    lines.push("\n这是首次生成，请按系统提示的 JSON 格式输出：一个 {title, body} 对象，title 是标题、body 是完整正文（段落间用空行隔开）。不要写「回应」部分，不要写任何 JSON 之外的文字。正文必须落实上面大纲里每一段的人物、器物、动作，不得另起炉灶。严格按系统提示的写作铁律、本类别的标题与扣题规则、以及上述评分标准执行。");
-    return lines.join("\n");
-  }
-
-  function composeReviseUser(req) {
-    var lines = [];
-    lines.push("【本次作文类别】" + activeCatName());
-    lines.push(genreLine());
-    var rule = categoryRule();
-    if (rule) lines.push(rule + "\n- 批注同样受本类别的标题规则约束：命题不得改题；半命题不得更换已补好的词；自拟不得换成口号式标题。anchor 不要取标题。");
-    var st = scoringText();
-    if (st) lines.push(st);
-    lines.push(wrapEssay());
-    lines.push(wrapLocked());
-    lines.push(wrapAsk(req));
-    lines.push("按系统提示输出批注 JSON：只标出该改的几处，不要输出修改后的完整作文。anchor 必须逐字取自上面「作文原文」的正文，且在正文里唯一，不要取标题。");
-    lines.push("注意：学生上文的要求是硬指令，按他的原话逐条照办（改哪句、改成什么、删还是加），不要用写作铁律当理由拒绝、也不许只做一半或换成你自己更喜欢的写法。");
-    return lines.join("\n\n");
-  }
-
-  /* 整篇重写：锁句的要求跟「只出手批」不同 —— 不是不许碰，而是必须逐字原样留在新稿里 */
-  function wrapLockedRewrite() {
-    if (!lockedTexts.length) return "";
-    return "【已锁住的句子：必须逐字原样保留在新稿里】{\n" +
-      lockedTexts.map(function (t, i) { return (i + 1) + ". " + t; }).join("\n") +
-      "\n}\n（这几句是学生自己认定要留的：一个字不许改、不许删、不许拆开、不许换成同义说法。" +
-      "重写其它段落时要算好上下文，别让它们接不上前后文。）";
-  }
-
-  function composeRewriteUser(req) {
-    var lines = [];
-    lines.push("【本次作文类别】" + activeCatName());
-    lines.push(genreLine());
-    var rule = categoryRule();
-    if (rule) lines.push(rule);
-    var st = scoringText();
-    if (st) lines.push(st);
-    lines.push("【本次大纲（段落任务必须照着写）】\n" + outlineJSON());
-    lines.push(wrapEssay());
-    lines.push(wrapLockedRewrite());
-    lines.push("学生本轮的修改要求：{\n" + req + "\n}\n" +
-      "（这是本轮唯一要解决的问题，逐条照办，一条不许漏；要求没提到的段落尽量沿用原文写住的句子，不要顺手润色一遍。）");
-    lines.push("请从头重写一版完整作文，按系统提示的 JSON 格式输出：一个 {\"title\":\"...\", \"body\":\"...\"} 对象，title 是标题、body 是完整正文（段落间用空行隔开）。不要输出批注 JSON、修改清单、说明文字或 Markdown，不要写任何 JSON 之外的文字。");
-    return lines.join("\n\n");
-  }
-
-  function composeExplainUser(req) {
-    var lines = [];
-    lines.push("【本次作文类别】" + activeCatName());
-    lines.push(genreLine());
-    var st = scoringText();
-    if (st) lines.push(st);
-    var wr = window.WY_WRITING_RULES;
-    if (wr) lines.push("【讲评尺度（写作规范，讲评时以此为准）】\n" + wr);
-    lines.push(wrapEssay());
-    lines.push(wrapAsk(req));
-    lines.push("学生这次只想弄明白问题，不想动稿。按系统提示只做讲评：不要改作文，不要给替换句，不要输出批注 JSON。");
-    return lines.join("\n\n");
-  }
-
-  // 评改/讨论共用的上下文头：类别、文体、评分标准、写作规范
-  /* 评改、讨论要看的上下文：作者提过的要求、已经采纳的批注、锁句、上一版分数。
-     不是把整段对话搬过去，只取最近几条原话，免得提示词被撑爆、也免得模型被旧要求带偏。 */
-  function wrapTalkContext() {
-    var out = [];
+  /* 评改/讨论要带上的上下文：作者原话、已采纳的批注、锁句、上一版分数 */
+  function criticVars(extra) {
     var asks = [];
     chatSnapshot().forEach(function (b) {
       if (!b.user) return;
       var t = trim(b.text).replace(/\s+/g, " ");
       if (t) asks.push(t.slice(0, 180));
     });
-    if (asks.length) {
-      var tail = asks.slice(-5);
-      out.push("【作者提过的修改要求（最近 " + tail.length + " 条，判断时顺着他要的方向，别反着改）】");
-      tail.forEach(function (t) { out.push("- " + t); });
-    }
-    var got = annotations.filter(function (m) { return m.state === "accepted"; });
-    if (got.length) {
-      out.push("【已经采纳进正文的批注（这些地方改过了，别再当老问题重提）】");
-      got.slice(-6).forEach(function (m) {
-        var txt = trim(m.note || m.text || "");
-        if (txt) out.push("- " + txt.slice(0, 120));
-      });
-    }
-    if (lockedTexts.length) {
-      out.push("【作者锁住的句子（一个字都不许动，也不许判它坏）】");
-      lockedTexts.slice(-8).forEach(function (t) { out.push("- " + trim(t)); });
-    }
-    if (criticScores.length) {
-      out.push("【上一版评分】" + criticScores.map(function (x) {
-        return x.province + " " + x.total + "/" + x.full + (x.band ? "（" + x.band + "）" : "") +
-          (x.why ? "，失分在：" + x.why : "");
-      }).join("；"));
-    }
-    return out.join("\n");
+    var adopted = [];
+    annotations.forEach(function (m) {
+      if (m.state !== "accepted") return;
+      var t = trim(m.note || m.text || "");
+      if (t) adopted.push(t.slice(0, 120));
+    });
+    var v = taskVars({
+      essay: currentComposition || docBody || "",
+      locked: lockedTexts.slice(),
+      asks: asks,
+      adopted: adopted,
+      lastScores: (criticScores || []).map(function (x) {
+        return { province: x.province || "", total: x.total, full: x.full, band: x.band || "", why: x.why || "" };
+      })
+    });
+    if (extra) for (var k2 in extra) if (Object.prototype.hasOwnProperty.call(extra, k2)) v[k2] = extra[k2];
+    return v;
   }
 
-  function criticContextLines() {
-    var lines = [];
-    lines.push("【本次作文类别】" + activeCatName());
-    lines.push(genreLine());
-    var st = scoringText();
-    if (st) lines.push(st);
-    var wr = window.WY_WRITING_RULES;
-    if (wr) lines.push("【评判尺度（写作规范，评判时以此为准，与上面给分规则并用）】\n" + wr);
-    var talk = wrapTalkContext();
-    if (talk) lines.push(talk);
-    return lines;
+  var TASK_PURPOSE = {
+    essay: "生成作文", rewrite: "改稿", outline: "拟大纲", outlineEdit: "改大纲",
+    explain: "讲评", criticA: "讨论·主评", criticB: "讨论·复核", criticAReply: "讨论·定稿", score: "AI 评分"
+  };
+
+  /* 自填接口：先向本站取回这一次要发的两条消息（模板不下发），再直连用户自己的接口 */
+  async function renderMessages(task, vars) {
+    var res = await fetch(siteBase() + "/render", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken() },
+      body: JSON.stringify({ task: task, vars: vars })
+    });
+    var raw = await res.text();
+    if (res.status === 401) throw new Error("自填接口要先登录一次（免费注册）才能取这次的提示词。");
+    if (!res.ok) throw new Error(friendlyError(res, raw));
+    var j = JSON.parse(raw);
+    if (!j || !j.ok || !Array.isArray(j.messages)) throw new Error("没能取到这次的提示词，稍后再试。");
+    return j.messages;
   }
 
-  function composeCriticUser() {
-    var lines = criticContextLines();
-    lines.push(wrapEssay());
-    lines.push(wrapLocked());
-    lines.push("用户提问：{\n按上面的尺度逐句判好坏与 AI 味。只判确实有硬伤的，挑不出就不要凑数，也不许把学生的朴素写法当成缺点。\n}");
-    return lines.join("\n\n");
+  /* 一次请求的完整描述：站内模式只发任务名+变量，自填模式发渲染好的消息 */
+  async function buildCall(task, vars, stream, tempDefault, minTokens) {
+    var c = currentConfig();
+    var t = parseFloat(c.temp);
+    var temp = isNaN(t) ? tempDefault : Math.min(2, Math.max(0, t));
+    var mt = parseInt(c.maxTokens, 10);
+    var floor = minTokens || 64;
+    var maxTokens = isNaN(mt) ? 2400 : Math.min(16000, Math.max(floor, mt));
+    if (isSiteMode(c)) {
+      return {
+        url: siteBase() + "/task",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + authToken() },
+        body: {
+          task: task, vars: vars, model: pickedModel(c), stream: !!stream,
+          temperature: temp, max_tokens: maxTokens,
+          purpose: TASK_PURPOSE[task] || "AI 操作"
+        }
+      };
+    }
+    var messages = await renderMessages(task, vars);
+    return {
+      url: endpoint(c),
+      headers: headers(c),
+      body: { model: c.model, messages: messages, stream: !!stream, temperature: temp, max_tokens: maxTokens }
+    };
   }
 
-  /* 只评分那一步的用户消息：给标准 + 正文，要的是分数和扣分项，不要逐句批注。
-     刻意不带写作规范与讨论上下文（那些是判句子好坏用的），免得模型顺手就开始挑句子。 */
-  function composeScoreUser() {
-    var lines = [];
-    lines.push("【本次作文类别】" + activeCatName());
-    lines.push(genreLine());
-    var st = scoringText();
-    if (st) lines.push(st);
-    lines.push(wrapEssay());
-    lines.push("用户提问：{\n只按上面的评分标准给分，并逐项说清分扣在哪几处。不要挑句子，不要判句子好坏，不要提 AI 味，不要给改写建议。\n}");
-    return lines.join("\n\n");
-  }
-
-  async function runStream(systemPrompt, userContent, opts) {
+  async function runStream(task, vars, opts) {
     opts = opts || {};
     streamIsEssay = (opts.mode === "essay");
     var c = currentConfig();
@@ -3840,19 +3692,11 @@
     }
 
     try {
-      var res = await fetch(endpoint(c), {
+      var call = await buildCall(task, vars, true, 1, 64);
+      var res = await fetch(call.url, {
         method: "POST",
-        headers: headers(c),
-        body: JSON.stringify({
-          model: pickedModel(c),
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent }
-          ],
-          stream: true,
-          temperature: (function () { var t = parseFloat(c.temp); return isNaN(t) ? 1 : Math.min(2, Math.max(0, t)); })(),
-          max_tokens: (function () { var m = parseInt(c.maxTokens, 10); return isNaN(m) ? 2400 : Math.min(16000, Math.max(64, m)); })()
-        }),
+        headers: call.headers,
+        body: JSON.stringify(call.body),
         signal: controller.signal
       });
 
@@ -4060,25 +3904,17 @@
     return out;
   }
 
-  async function fetchAnnotation(systemPrompt, userContent) {
+  async function fetchAnnotation(task, vars) {
     var c = currentConfig();
     controller = new AbortController();
     setBusy(true);
     var runOwned = runOwn("连接中");
     try {
-      var res = await fetch(endpoint(c), {
+      var call = await buildCall(task, vars, false, 0.7, 256);
+      var res = await fetch(call.url, {
         method: "POST",
-        headers: headers(c),
-        body: JSON.stringify({
-          model: pickedModel(c),
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userContent }
-          ],
-          stream: false,
-          temperature: (function () { var t = parseFloat(c.temp); return isNaN(t) ? 0.7 : Math.min(2, Math.max(0, t)); })(),
-          max_tokens: (function () { var m = parseInt(c.maxTokens, 10); return isNaN(m) ? 2400 : Math.min(16000, Math.max(256, m)); })()
-        }),
+        headers: call.headers,
+        body: JSON.stringify(call.body),
         signal: controller.signal
       });
       if (!res.ok) throw new Error(friendlyError(res, await res.text()));
@@ -4559,12 +4395,7 @@
     assistantReplyEl = hint;
     setPaperHint("正在拟大纲…");
 
-    var sys = window.WY_OUTLINE;
-    var gr = genreRule();
-    if (gr) sys += "\n\n" + gr;
-    var rule = categoryRule();
-    if (rule) sys += "\n\n" + rule;
-    var ok = await runStream(sys, composeOutlineUser(false), {
+    var ok = await runStream("outline", taskVars({ edit: false }), {
       onProgress: function (t) {
         if (assistantReplyEl) assistantReplyEl.textContent = "正在拟大纲…已写 " + t.length + " 字";
       }
@@ -4621,16 +4452,8 @@
     setDocHint("正文生成中…");
     setPaperHint("正在生成…");
 
-    var sys = window.WY_PROMPT;
-    var gr = genreRule();
-    if (gr) sys += "\n\n" + gr;
-    var rule = categoryRule();
-    if (rule) sys += "\n\n" + rule;
-    var st = scoringText();
-    if (st) sys += "\n\n" + st;
-
     var wasDraft = (stage === "draft");
-    var ok = await runStream(sys, composeWriteUser(), { mode: "essay" });
+    var ok = await runStream("essay", taskVars(), { mode: "essay" });
     if (ok && docBody.trim()) {
       stage = "draft";
       updateWriteBtn();
@@ -4704,14 +4527,8 @@
     assistantReplyEl.textContent = "正在改大纲…";
     setDocHint("正在改大纲…");
 
-    var sys = window.WY_OUTLINE_EDIT;
-    var gr = genreRule();
-    if (gr) sys += "\n\n" + gr;
-    var rule = categoryRule();
-    if (rule) sys += "\n\n" + rule;
-
     try {
-      var res = await fetchAnnotation(sys, composeOutlineUser(true, req));
+      var res = await fetchAnnotation("outlineEdit", taskVars({ edit: true, req: req }));
       var obj = parseOutlineAny(res);
       setOutline(obj);
       assistantReplyEl.textContent = outline.note ? ("大纲已更新。" + outline.note) : "大纲已更新，可继续改或在右侧直接编辑。";
@@ -4741,13 +4558,7 @@
     setDocHint("讲评中：不会改动正文");
     assistantReplyEl = null;
 
-    var sys = window.WY_EXPLAIN;
-    var gr = genreRule();
-    if (gr) sys += "\n\n" + gr;
-    var rule = categoryRule();
-    if (rule) sys += "\n\n" + rule;
-
-    var ok = await runStream(sys, composeExplainUser(req), {
+    var ok = await runStream("explain", criticVars({ req: req }), {
       onProgress: function (t) { bubble.textContent = t; }
     });
     if (ok) {
@@ -4791,15 +4602,7 @@
     setDocHint("整篇重写中 · 改好会整张稿纸一起换");
     switchPane("paper");
 
-    var sys = window.WY_REWRITE || window.WY_PROMPT;
-    var gr = genreRule();
-    if (gr) sys += "\n\n" + gr;
-    var rule = categoryRule();
-    if (rule) sys += "\n\n" + rule;
-    var st = scoringText();
-    if (st) sys += "\n\n" + st;
-
-    var ok = await runStream(sys, composeRewriteUser(req), { mode: "essay" });
+    var ok = await runStream("rewrite", criticVars({ req: req }), { mode: "essay" });
     var plain = function (t) { return String(t || "").replace(/\s/g, "").length; };
     // 大改允许重搭结构，字数掉得多一点不拦；小改还是按住 0.6 的线
     var minRatio = typeof opts.minRatio === "number" ? opts.minRatio : 0.6;
@@ -5473,28 +5276,7 @@
     return out.join("\n");
   }
 
-  function composeDebateBUser(review, round) {
-    var lines = criticContextLines();
-    lines.push(wrapEssay());
-    lines.push(wrapLocked());
-    lines.push("【甲方（主评）这一版的评审】\n" + JSON.stringify(slimReview(review)));
-    var hist = debateHistoryText();
-    if (hist) lines.push("【前几轮已经谈过的】\n" + hist + "\n已经谈拢的不要再提一遍，除非甲方这版又改回去了。");
-    lines.push("用户提问：{\n第 " + round + " 轮复核。逐条看上面这版评审：判错、漏判、分数与档次表对不上，都指出来，每条写清依据。指不出依据的不要提；挑不出就交空数组。\n}");
-    return lines.join("\n\n");
-  }
 
-  function composeDebateAUser(review, bObj, round) {
-    var lines = criticContextLines();
-    lines.push(wrapEssay());
-    lines.push(wrapLocked());
-    lines.push("【你上一版的评审】\n" + JSON.stringify(slimReview(review)));
-    lines.push("【乙方这一轮的质疑】\n" + JSON.stringify(bObj));
-    var hist = debateHistoryText();
-    if (hist) lines.push("【前几轮已经谈过的】\n" + hist);
-    lines.push("用户提问：{\n第 " + round + " 轮。对乙方的每一条质疑表态（坚持或撤回或折中），然后交出一版定稿 JSON：replies 加 overall 加 scores 加 items。items 是完整清单，不是差异。\n}");
-    return lines.join("\n\n");
-  }
 
   // 乙这一轮的质疑指纹：同一批句子 + 同一类问题就算「同一批」，用来判断是不是谈不动了
   function debateSignature(b) {
@@ -5707,11 +5489,6 @@
   /* 一次讨论：甲评分 → 乙复核 → 甲表态定稿（连同改稿幅度） → 按幅度改或不改。
      轮数是上限，不是任务：乙这轮挑不出东西就提前收，不用把上限填满。 */
   async function runCriticDebate() {
-    var sysA = window.WY_CRITIC || "";
-    var gr = genreRule();
-    if (gr) sysA += "\n\n" + gr;
-    var sysB = (window.WY_CRITIC_B || "") + (gr ? "\n\n" + gr : "");
-    var sysReplyA = sysA + (window.WY_CRITIC_A_REPLY || "");
     debateLog = [];
     lastRevision = null;
     // 关掉上限时给一个兜底值，靠「乙无异议」和「原地打转」两个出口收工
@@ -5725,7 +5502,7 @@
       // 第 0 步：甲方评分（评分本身就是讨论的第一步，不再单列）
       var bA = addAssistantBubble("评卷甲");
       bA.textContent = "先按评分标准打一遍分，逐句判好坏与 AI 味。";
-      var rawA = await fetchAnnotation(sysA, composeCriticUser());
+      var rawA = await fetchAnnotation("criticA", criticVars());
       var review = parseCriticJSON(rawA);
       showCriticReview(review);
       bA.textContent = "初评：" + (review.overall || "已出第一版") + "。等乙方复核。";
@@ -5737,7 +5514,7 @@
         els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：复核方正在挑错…";
         var bB = addAssistantBubble("评卷乙");
         bB.textContent = "正在复核第 " + r + " 轮…";
-        var bObj = parseDebateB(await fetchAnnotation(sysB, composeDebateBUser(review, r)));
+        var bObj = parseDebateB(await fetchAnnotation("criticB", criticVars({ review: slimReview(review), round: r, hist: debateHistoryText() })));
         bB.textContent = debateBText(bObj);
 
         // 乙挑不出东西：这版就定了，不再多花一次调用硬走流程
@@ -5760,7 +5537,7 @@
         els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：主评正在逐条回应…";
         var bR = addAssistantBubble("评卷甲");
         bR.textContent = "正在逐条回应乙方的质疑…";
-        var aObj = parseDebateA(await fetchAnnotation(sysReplyA, composeDebateAUser(review, bObj, r)));
+        var aObj = parseDebateA(await fetchAnnotation("criticAReply", criticVars({ review: slimReview(review), b: bObj, round: r, hist: debateHistoryText() })));
         bR.textContent = debateAText(aObj.replies) +
           (aObj.revision && aObj.revision.action ? " 幅度：" + aObj.revision.action + "。" : "");
 
@@ -5851,10 +5628,7 @@
     var runOwnedOne = runOwn("评分中");
 
     try {
-      var sysScore = window.WY_SCORE || window.WY_CRITIC;
-      var grC = genreRule();
-      if (grC) sysScore += "\n\n" + grC;
-      var raw = await fetchAnnotation(sysScore, composeScoreUser());
+      var raw = await fetchAnnotation("score", criticVars({}));
       var obj = parseScoreJSON(raw);
       // 评分这一步不产逐句批注：哪怕模型自己塞了 items，也一律不往稿纸上标
       criticItems = [];
@@ -6031,10 +5805,7 @@
 
   async function flowScoreOnce(tag) {
     flowSetStat(tag + "：正在按评分标准打分…");
-    var sys = window.WY_CRITIC;
-    var gr = genreRule();
-    if (gr) sys += "\n\n" + gr;
-    var raw = await fetchAnnotation(sys, composeCriticUser());
+    var raw = await fetchAnnotation("criticA", criticVars());
     var obj = parseCriticJSON(raw);
     criticItems = obj.items.filter(function (it) { return !isLocked(it.sentence); });
     criticScores = obj.scores || [];
