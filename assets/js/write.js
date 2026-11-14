@@ -123,7 +123,7 @@
     outlineAddBtn: $("outlineAddBtn"), outlineAiBtn: $("outlineAiBtn"),
     outlineRetryBtn: $("outlineRetryBtn"),
     flowAuto: $("flowAuto"), flowRounds: $("flowRounds"), flowCostHint: $("flowCostHint"),
-    flowBtn: $("flowBtn"), flowDock: $("flowDock"), flowStat: $("flowStat"),
+    scoreBtn: $("scoreBtn"), flowDock: $("flowDock"), flowStat: $("flowStat"),
     flowSteps: $("flowSteps"), flowStopBtn: $("flowStopBtn"),
     flowRoundsDrawer: $("flowRoundsDrawer"), flowCostDrawer: $("flowCostDrawer"),
     flowRerunBtn: $("flowRerunBtn"), flowSetupNote: $("flowSetupNote"),
@@ -1324,7 +1324,7 @@
   /* 站内模式下，凡是会扣分的按钮都挂一个角标（CSS 画，避免改 textContent 时被清掉） */
   var COST_BTN_KEYS = [
     "startBtn", "outlineAiBtn", "outlineRetryBtn", "writeEssayBtn",
-    "sendBtn", "criticApplyBtn", "flowBtn", "flowRerunBtn", "testBtn"
+    "sendBtn", "scoreBtn", "criticApplyBtn", "flowRerunBtn", "testBtn"
   ];
   function syncCostBadges() {
     var site = els.preset.value === "site";
@@ -1345,13 +1345,19 @@
     return msg + "（这次的 1 积分已自动退回）";
   }
 
+  var creditsSyncing = false;
   function syncCreditsUI() {
     if (els.preset.value !== "site") return;
     if (!(window.WY_AUTH && window.WY_AUTH.refreshCredits)) return;
+    // 拉回来的积分会写进 WY_AUTH 并广播 onChange，而 onChange 里又调了这里；
+    // 不加锁就是自己触发自己，一路无限拉 /api/credits，把主线程和服务器都拖死。
+    if (creditsSyncing) return;
+    creditsSyncing = true;
     window.WY_AUTH.refreshCredits().then(function (n) {
+      creditsSyncing = false;
       refreshCreditLine();
       if (n === 0) setWizardStatus("积分用完了：去控制台看明细，或切到自填接口继续写。", "error");
-    });
+    }, function () { creditsSyncing = false; });
   }
 
   function refreshCreditLine() {
@@ -5238,6 +5244,7 @@
   /* 评改按钮上的积分角标：轮数一改就变成真实的调用次数，别一直写死 1。
      关掉上限后只给「起步价」，实际按谈的轮数算。 */
   function syncCriticCostBadge() {
+    if (els.scoreBtn) els.scoreBtn.setAttribute("data-cost", "1");
     if (els.criticApplyBtn) els.criticApplyBtn.setAttribute("data-cost", "1");
   }
 
@@ -5865,7 +5872,7 @@
 
       if (!criticScores.length) {
         els.criticStat.textContent = "这次没拿到分数，可再点一次。";
-        bubble.textContent = "这次没有结果，再试一次。";
+        bubble.textContent = "这次没有结果，再点一次「AI 评分」试试。";
         return;
       }
       var dedTxt = dedCnt ? ("扣分项 " + dedCnt + " 处、共扣 " + dedPts + " 分，明细在「旁批」页的分数卡里") : "没列出扣分项（分数按档次直接给）";
@@ -6083,7 +6090,6 @@
     flowActive = true;
     flowAbort = false;
     if (els.flowSteps) els.flowSteps.innerHTML = "";
-    if (els.flowBtn) els.flowBtn.disabled = true;
     if (els.flowRerunBtn) els.flowRerunBtn.disabled = true;
     if (els.flowStopBtn) els.flowStopBtn.disabled = false;
     setDrawer(true, "flow");         // 流程一开始就拉出抽屉，全程进度可见
@@ -6143,7 +6149,6 @@
     } finally {
       flowActive = false;
       flowAbort = false;
-      if (els.flowBtn) { els.flowBtn.disabled = false; els.flowBtn.textContent = "流程作文"; }
       if (els.flowRerunBtn) els.flowRerunBtn.disabled = false;
       if (els.flowStopBtn) els.flowStopBtn.disabled = true;
       syncFlowCost();
@@ -6280,9 +6285,10 @@
     var open = !(drawerOpen && drawerTab === "score");
     setScoreOpen(open);
   });
-  on(els.flowBtn, "click", function () {
+  // 评分是单独一步：只按标准给分并列扣分项，不判句子好坏、不动稿也不谈
+  on(els.scoreBtn, "click", function () {
     if (isMobile()) setMView("paper");
-    runFlow();
+    runScore();
   });
   on(els.flowRerunBtn, "click", function () {
     if (isMobile()) setMView("paper");
