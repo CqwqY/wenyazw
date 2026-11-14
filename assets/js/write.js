@@ -5631,7 +5631,7 @@
       if (!lastRevision) {
         // 乙一轮就没异议、或模型没给幅度：按有没有坐实硬伤自己判
         var anyBad = criticItems.filter(function (it) { return it.verdict === "坏" && it.settled !== false && !it.soft; }).length;
-        lastRevision = { action: anyBad ? "小改" : "不改", why: anyBad ? "" : "两评都挑不出必须改的硬伤。", scope: "" };
+        lastRevision = { action: anyBad ? "小改" : "不改", why: anyBad ? "" : "两评都没挑出必须改的硬伤，这一版先不动；分数卡里标了还差在哪一行，想往上走就勾那一条。", scope: "" };
       }
       discussNo++;
 
