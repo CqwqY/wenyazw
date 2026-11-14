@@ -51,3 +51,6 @@ server/
 __cdp.js
 __mock_srv.py
 check-icon*.png
+
+# Windows 设备名误创建的残留文件（删不掉，别提交）
+nul
