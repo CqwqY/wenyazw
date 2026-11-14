@@ -285,7 +285,6 @@ body.app-on .site-footer { display: none; }
   border-radius: 18px;
   padding: 22px 24px;
   margin-bottom: 16px;
-  max-width: 640px;
 }
 .account-hero-label { display: block; font-size: 12.5px; color: var(--on-green-mute); margin-bottom: 8px; }
 .account-hero-num { display: flex; align-items: baseline; gap: 10px; color: var(--on-green); font-family: var(--serif); }
@@ -294,13 +293,13 @@ body.app-on .site-footer { display: none; }
 .account-hero-unit { font-size: 15px; color: var(--on-green-mute); }
 .account-hero-tip { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--on-green-mute); }
 
-.account-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; max-width: 640px; }
+.account-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
 .account-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink); }
 .account-row:last-child { border-bottom: 0; }
 .account-label { color: var(--ink-mute); font-size: 12.5px; min-width: 72px; }
 .account-sep { color: var(--ink-mute); }
 .account-tip { color: var(--ink-mute); font-size: 12px; }
-.account-links { gap: 10px; }
+.account-links { gap: 10px; justify-content: flex-end; }
 .account-links .btn-outline { text-decoration: none; font-size: 12.5px; padding: 6px 12px; }
 
 .app-tabs { display: none; }
