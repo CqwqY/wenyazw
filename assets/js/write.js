@@ -94,7 +94,7 @@
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
-    debateRounds: $("debateRounds"), debateCost: $("debateCost"),
+    debateRounds: $("debateRounds"), debateCost: $("debateCost"), debateNoLimit: $("debateNoLimit"),
     debateAutoApply: $("debateAutoApply"),
     debateLog: $("debateLog"), debateSetup: $("debateSetup"),
     modelPill: $("modelPill"), modelPillName: $("modelPillName"),
@@ -426,8 +426,13 @@
       lockedTexts = d.locks;
       try { localStorage.setItem(LOCK_STORE, JSON.stringify(lockedTexts)); } catch (e2) { /* ignore */ }
     }
-    if (d.critic && Array.isArray(d.critic.items) && d.critic.items.length && !criticItems.length) {
-      criticItems = d.critic.items;
+    // 只评分的结果没有逐句条目，但分数（含扣分项）必须能接回来，否则刷一下就没了
+    var hasCritic = !!(d.critic && ((Array.isArray(d.critic.items) && d.critic.items.length) ||
+      (Array.isArray(d.critic.scores) && d.critic.scores.length)));
+    if (hasCritic && !criticItems.length && !criticScores.length) {
+      criticItems = (Array.isArray(d.critic.items) ? d.critic.items : []).filter(function (it) {
+        return it && it.sentence;
+      });
       criticScores = Array.isArray(d.critic.scores) ? d.critic.scores : [];
       criticSeq = criticItems.reduce(function (m, it) { return Math.max(m, it.id || 0); }, criticSeq);
       if (d.critic.debate) {
@@ -439,7 +444,7 @@
     if (Array.isArray(d.flow) && d.flow.length) paintFlow(d.flow);
     if (d.mode) setChatMode(d.mode);
 
-    if (criticItems.length) {
+    if (criticItems.length || criticScores.length) {
       renderCritic();
       if (d.critic && d.critic.stat && els.criticStat) els.criticStat.textContent = d.critic.stat;
     } else if (touched && docBody.trim()) {
@@ -480,8 +485,13 @@
 
     if (Array.isArray(d.chat) && d.chat.length) paintChat(d.chat);
 
-    if (d.critic && Array.isArray(d.critic.items) && d.critic.items.length && !criticItems.length) {
-      criticItems = d.critic.items;
+    // 只评分的结果没有逐句条目，但分数（含扣分项）必须能接回来，否则刷一下就没了
+    var hasCritic = !!(d.critic && ((Array.isArray(d.critic.items) && d.critic.items.length) ||
+      (Array.isArray(d.critic.scores) && d.critic.scores.length)));
+    if (hasCritic && !criticItems.length && !criticScores.length) {
+      criticItems = (Array.isArray(d.critic.items) ? d.critic.items : []).filter(function (it) {
+        return it && it.sentence;
+      });
       criticScores = Array.isArray(d.critic.scores) ? d.critic.scores : [];
       criticSeq = criticItems.reduce(function (m, it) { return Math.max(m, it.id || 0); }, criticSeq);
       if (els.criticStat && d.critic.stat) els.criticStat.textContent = d.critic.stat;
@@ -3791,6 +3801,19 @@
     return lines.join("\n\n");
   }
 
+  /* 只评分那一步的用户消息：给标准 + 正文，要的是分数和扣分项，不要逐句批注。
+     刻意不带写作规范与讨论上下文（那些是判句子好坏用的），免得模型顺手就开始挑句子。 */
+  function composeScoreUser() {
+    var lines = [];
+    lines.push("【本次作文类别】" + activeCatName());
+    lines.push(genreLine());
+    var st = scoringText();
+    if (st) lines.push(st);
+    lines.push(wrapEssay());
+    lines.push("用户提问：{\n只按上面的评分标准给分，并逐项说清分扣在哪几处。不要挑句子，不要判句子好坏，不要提 AI 味，不要给改写建议。\n}");
+    return lines.join("\n\n");
+  }
+
   async function runStream(systemPrompt, userContent, opts) {
     opts = opts || {};
     streamIsEssay = (opts.mode === "essay");
@@ -4873,7 +4896,8 @@
         full: full,
         band: bandOf(std, total) || trim(r.band),   // 档次必须真的含这个分数，算得出来就以算的为准
         dims: dims,
-        why: trim(r.why)
+        why: trim(r.why),
+        deductions: normalizeDeductions(r.deductions)   // 只评分这一步的扣分项，没给就是空
       });
     });
     return out;
@@ -4901,6 +4925,20 @@
     return "";
   }
 
+  /* 扣分项：只评分这一步的产物。不谈句子好坏，只说按哪条标准扣了几分、扣在哪。 */
+  function normalizeDeductions(raw) {
+    var arr = Array.isArray(raw) ? raw : [];
+    return arr.slice(0, 8).map(function (d) {
+      var pts = Math.round(Math.abs(Number(d && d.points)));
+      return {
+        dim: trim(d && d.dim),
+        points: isNaN(pts) ? 0 : pts,
+        basis: trim(d && d.basis),
+        note: trim(d && d.note)
+      };
+    }).filter(function (d) { return d.dim || d.note || d.basis; });
+  }
+
   function parseCriticJSON(raw) {
     var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
     var a = s.indexOf("{"), b = s.lastIndexOf("}");
@@ -4909,6 +4947,21 @@
     try { obj = JSON.parse(s.slice(a, b + 1)); }
     catch (e) { throw new Error("评改 JSON 解析失败，可重试。"); }
     return criticFromObject(obj);
+  }
+
+  /* 只评分那一步的解析：只要 overall + scores（含 deductions），完全不碰 items，
+     所以哪怕模型手贱塞了逐句评语也不会被标到稿纸上。 */
+  function parseScoreJSON(raw) {
+    var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a < 0 || b <= a) throw new Error("评分没有返回 JSON，换个模型再试。");
+    var obj;
+    try { obj = JSON.parse(s.slice(a, b + 1)); }
+    catch (e) { throw new Error("评分 JSON 解析失败，可重试。"); }
+    return {
+      overall: trim(obj.overall),
+      scores: normalizeScores(obj.scores)
+    };
   }
 
   // 把评审 JSON 对象归一成内部结构；单评与讨论定稿共用，避免两套字段口径
@@ -5051,6 +5104,39 @@
         card.appendChild(why);
       }
 
+      // 扣分项：分数的依据，只说扣哪、扣几分、扣在什么地方，不评句子好坏
+      if (s.deductions && s.deductions.length) {
+        var box = document.createElement("div");
+        box.className = "cs-deds";
+        var head = document.createElement("div");
+        head.className = "cs-ded-head";
+        var totalPts = 0;
+        s.deductions.forEach(function (d) { totalPts += (d.points || 0); });
+        head.textContent = "扣分项 " + s.deductions.length + " 处 · 共扣 " + totalPts + " 分";
+        box.appendChild(head);
+        s.deductions.forEach(function (d) {
+          var row = document.createElement("div");
+          row.className = "cs-ded";
+          var pt = document.createElement("span");
+          pt.className = "cs-ded-pt";
+          pt.textContent = "-" + (d.points || 0);
+          row.appendChild(pt);
+          var tx = document.createElement("span");
+          tx.className = "cs-ded-tx";
+          var main = d.note || d.basis || d.dim || "";
+          tx.textContent = (d.dim ? d.dim + "：" : "") + main;
+          row.appendChild(tx);
+          if (d.basis && d.basis !== main) {
+            var bs = document.createElement("span");
+            bs.className = "cs-ded-bs";
+            bs.textContent = "依据 " + d.basis;
+            row.appendChild(bs);
+          }
+          box.appendChild(row);
+        });
+        card.appendChild(box);
+      }
+
       els.criticScore.appendChild(card);
     });
   }
@@ -5129,21 +5215,31 @@
      轮数只是「最多谈几轮」，乙挑不出东西就当轮收工，不必硬凑到上限。
      改不改、改多大由甲在定稿里自己定，不由程序卡死条数。 */
 
-  var DEBATE_MAX = 12;                      // 上限放宽，谈得动就谈，谈不动提前收
+  var DEBATE_MAX = 12;                      // 默认上限：填到 12 也就 25 次调用，够谈
+  var DEBATE_HARD_MAX = 60;                 // 关掉上限后的兜底，防止模型互相死磕
   var DEBATE_AUTO_STORE = "wy.debate.auto.v1";
+  var DEBATE_NOLIMIT_STORE = "wy.debate.nolimit.v1";
+  var debateNoLimit = false;                // 关掉轮数上限：谈得动就一直谈，谈不动自己收
   var debateAutoApply = true;               // 总开关：允许 AI 讨论完自己决定要不要动稿
   var runningAsk = "";                      // 这一轮触发的作者原话，拼进三条提示词
   var lastRevision = null;                  // 甲定稿时给的改稿幅度 {action, why, scope}
   var discussNo = 0;                        // 这篇作文谈过几次
+
+  function debateCap() {
+    return debateNoLimit ? DEBATE_HARD_MAX : DEBATE_MAX;
+  }
 
   function debateCost() {
     // 每轮最多 2 次；乙当轮挑不出东西就少一次
     return debateRounds > 0 ? (1 + debateRounds * 2) : 1;
   }
 
-  /* 评改按钮上的积分角标：轮数一改就变成真实的调用次数，别一直写死 1 */
+  /* 评改按钮上的积分角标：轮数一改就变成真实的调用次数，别一直写死 1。
+     关掉上限后只给「起步价」，实际按谈的轮数算。 */
   function syncCriticCostBadge() {
-    if (els.criticBtn) els.criticBtn.setAttribute("data-cost", String(debateCost()));
+    if (els.criticBtn) {
+      els.criticBtn.setAttribute("data-cost", (debateNoLimit ? "≥" : "") + String(debateCost()));
+    }
     if (els.scoreBtn) els.scoreBtn.setAttribute("data-cost", "1");
     if (els.criticApplyBtn) els.criticApplyBtn.setAttribute("data-cost", "1");
   }
@@ -5151,6 +5247,10 @@
   function syncDebateCost() {
     if (!els.debateCost) return;
     var auto = debateAutoApply ? "，改不改由 AI 定" : "，只讨论不动稿";
+    if (debateNoLimit) {
+      els.debateCost.textContent = "不限轮数：谈得动就一直谈，乙挑不出或原地打转就收工；按实际轮数扣积分" + auto;
+      return;
+    }
     els.debateCost.textContent = debateRounds > 0
       ? ("最多 " + debateCost() + " 次调用，每次 1 积分" + auto + "；乙挑不出就提前收")
       : "单评一次，只给分不改稿（要改就填 1 以上）";
@@ -5159,10 +5259,15 @@
   function setDebateRounds(n, silent) {
     var v = parseInt(n, 10);
     if (isNaN(v)) v = debateRounds;         // 输入框清空时不乱跳，等它填回来
-    v = Math.max(0, Math.min(DEBATE_MAX, v));
+    v = Math.max(0, Math.min(debateCap(), v));
     debateRounds = v;
     try { localStorage.setItem(DEBATE_STORE, String(v)); } catch (e) { /* 隐私模式就算了 */ }
-    if (els.debateRounds) els.debateRounds.value = String(v);
+    if (els.debateRounds) {
+      els.debateRounds.value = String(v);
+      // 关掉上限时输入框也跟着放开，别再被 max 卡住
+      if (debateNoLimit) els.debateRounds.removeAttribute("max");
+      else els.debateRounds.setAttribute("max", String(DEBATE_MAX));
+    }
     syncDebateCost();
     syncCriticCostBadge();
     // 初始化时不能顺手落盘：会话还没恢复就读出来再写回去，会把上次的正文冲掉
@@ -5177,6 +5282,36 @@
     } catch (e) { /* ignore */ }
     if (isNaN(v)) v = 1;
     setDebateRounds(v, true);
+  }
+
+  /* 关闭轮数上限：上限只是「最多谈几轮」，关掉之后就一路谈到两边谈不动 */
+  function setDebateNoLimit(on, silent) {
+    debateNoLimit = !!on;
+    try { localStorage.setItem(DEBATE_NOLIMIT_STORE, debateNoLimit ? "1" : "0"); } catch (e) { /* ignore */ }
+    if (els.debateNoLimit) {
+      els.debateNoLimit.setAttribute("aria-pressed", debateNoLimit ? "true" : "false");
+      els.debateNoLimit.classList.toggle("on", debateNoLimit);
+      els.debateNoLimit.textContent = debateNoLimit ? "不限轮数 · 已开" : "不限轮数";
+    }
+    if (els.debateRounds) {
+      if (debateNoLimit) els.debateRounds.removeAttribute("max");
+      else els.debateRounds.setAttribute("max", String(DEBATE_MAX));
+    }
+    // 本来是「0＝关闭讨论」，开了不限轮数就得至少谈一轮，否则开关等于没开
+    if (debateNoLimit && debateRounds < 1) {
+      debateRounds = 1;
+      try { localStorage.setItem(DEBATE_STORE, "1"); } catch (e) { /* ignore */ }
+      if (els.debateRounds) els.debateRounds.value = "1";
+    }
+    syncDebateCost();
+    syncCriticCostBadge();
+    if (!silent) scheduleSessionSave();
+  }
+
+  function loadDebateNoLimit() {
+    var on = false;
+    try { on = localStorage.getItem(DEBATE_NOLIMIT_STORE) === "1"; } catch (e) { /* ignore */ }
+    setDebateNoLimit(on, true);
   }
 
   function setDebateAuto(on, silent) {
@@ -5355,6 +5490,17 @@
     if (hist) lines.push("【前几轮已经谈过的】\n" + hist);
     lines.push("用户提问：{\n第 " + round + " 轮。对乙方的每一条质疑表态（坚持或撤回或折中），然后交出一版定稿 JSON：replies 加 overall 加 scores 加 items。items 是完整清单，不是差异。\n}");
     return lines.join("\n\n");
+  }
+
+  // 乙这一轮的质疑指纹：同一批句子 + 同一类问题就算「同一批」，用来判断是不是谈不动了
+  function debateSignature(b) {
+    var ds = ((b && b.disputes) || []).map(function (d) {
+      return (criticNormWithMap(d && d.sentence).text || "").slice(0, 16) + "|" + trim(d && d.kind);
+    });
+    var ms = ((b && b.missed) || []).map(function (m) {
+      return (criticNormWithMap(m && m.sentence).text || "").slice(0, 16);
+    });
+    return ds.concat(ms).sort().join("#");
   }
 
   function debateBText(b) {
@@ -5564,8 +5710,11 @@
     var sysReplyA = sysA + (window.WY_CRITIC_A_REPLY || "");
     debateLog = [];
     lastRevision = null;
-    var cap = Math.max(1, debateRounds);
-    setDocHint("讨论开始：最多 " + debateCost() + " 次调用，甲先评分，乙复核，谈不动就提前收");
+    // 关掉上限时给一个兜底值，靠「乙无异议」和「原地打转」两个出口收工
+    var cap = debateNoLimit ? Math.max(1, DEBATE_HARD_MAX) : Math.max(1, debateRounds);
+    setDocHint(debateNoLimit
+      ? "讨论开始：不限轮数，甲先评分、乙复核，谈不动就收工"
+      : ("讨论开始：最多 " + debateCost() + " 次调用，甲先评分，乙复核，谈不动就提前收"));
     var runOwned = runOwn("讨论中 · 甲评分");
 
     try {
@@ -5577,7 +5726,8 @@
       showCriticReview(review);
       bA.textContent = "初评：" + (review.overall || "已出第一版") + "。等乙方复核。";
 
-      // 逐轮：乙挑错 → 甲表态并改定稿；乙无异议就停
+      // 逐轮：乙挑错 → 甲表态并改定稿；乙无异议或原地打转就停
+      var lastSig = "";
       for (var r = 1; r <= cap; r++) {
         runPhase("第 " + r + "/" + cap + " 轮 · 乙复核");
         els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：复核方正在挑错…";
@@ -5592,6 +5742,15 @@
           bB.textContent += "（无异议，讨论到此收工）";
           break;
         }
+
+        // 原地打转：乙连着两轮提同一批质疑，多谈也是白烧积分，收工
+        var sig = debateSignature(bObj);
+        if (r > 1 && sig && sig === lastSig) {
+          debateLog.push({ round: r, b: bObj, replies: [] });
+          bB.textContent += "（和上一轮的质疑一样，谈不动了，收工）";
+          break;
+        }
+        lastSig = sig;
 
         runPhase("第 " + r + "/" + cap + " 轮 · 甲回应");
         els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：主评正在逐条回应…";
@@ -5656,8 +5815,8 @@
   }
 
   /* ---------------- 单独一步：AI 评分 ----------------
-     只做「打分 + 逐句判好坏」，不谈、不改。顶栏「AI 评分」直接走这里；
-     讨论里的甲初评也复用同一个提示词，但那是讨论的第一步，不从这里进。 */
+     只给分 + 列扣分项，不谈好坏、不挑句子、不给改写建议，稿子一个字不动。
+     用的是单独的 WY_SCORE 提示词；讨论里的甲初评仍走 WY_CRITIC，那边才判句子。 */
   async function scoreOnce(opts) {
     opts = opts || {};
     var fromChat = !!opts.fromChat;
@@ -5680,50 +5839,46 @@
     if (els.criticScore) { els.criticScore.innerHTML = ""; els.criticScore.hidden = true; }
     criticItems = [];
     criticScores = [];
-    els.criticStat.textContent = "正在按评分标准打分，逐句判好坏与 AI 味…";
+    els.criticStat.textContent = "正在按评分标准打分，逐项列扣分…";
     syncCriticDock(true);
     switchPane("paper");
     var bubble = addAssistantBubble("评分");
-    bubble.textContent = "正在按评分标准打分，并逐句判好坏与 AI 味…";
+    bubble.textContent = "正在按评分标准给分，并把扣分项逐条列出来…";
     var runOwnedOne = runOwn("评分中");
 
     try {
-      var sysCritic = window.WY_CRITIC;
+      var sysScore = window.WY_SCORE || window.WY_CRITIC;
       var grC = genreRule();
-      if (grC) sysCritic += "\n\n" + grC;
-      var raw = await fetchAnnotation(sysCritic, composeCriticUser());
-      var obj = parseCriticJSON(raw);
-      criticItems = obj.items.filter(function (it) {
-        // 锁住的句子连"坏"都不许判，模型真判了也直接丢掉
-        return !isLocked(it.sentence);
-      });
+      if (grC) sysScore += "\n\n" + grC;
+      var raw = await fetchAnnotation(sysScore, composeScoreUser());
+      var obj = parseScoreJSON(raw);
+      // 评分这一步不产逐句批注：哪怕模型自己塞了 items，也一律不往稿纸上标
+      criticItems = [];
       criticScores = obj.scores || [];
-      renderCritic();      // 内部会重渲染稿纸，评改句标在原句上、评语排进右栏旁批
+      renderCritic();      // 只刷分数卡与坞里汇总，稿纸保持干净
       switchPane("paper");
 
       var scoreTxt = criticScores.map(function (s) {
         return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
       }).join("，");
+      var dedCnt = 0, dedPts = 0;
+      criticScores.forEach(function (s) {
+        (s.deductions || []).forEach(function (d) { dedCnt += 1; dedPts += (d.points || 0); });
+      });
 
-      if (!criticItems.length && !criticScores.length) {
-        els.criticStat.textContent = "这次没拿到分数也没挑出句子，可再点一次。";
+      if (!criticScores.length) {
+        els.criticStat.textContent = "这次没拿到分数，可再点一次。";
         bubble.textContent = "这次没有结果，再点一次「AI 评分」试试。";
         return;
       }
-      if (!criticItems.length) {
-        els.criticStat.textContent = scoreTxt + " ｜ 没挑出可定位的句子";
-        bubble.textContent = (obj.overall ? obj.overall + " " : "") + "得分：" + scoreTxt + "。稿子一个字没动。";
-        setDocHint((scoreTxt ? scoreTxt + " · " : "") + "只评分，未改稿");
-        return;
-      }
-      var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
+      var dedTxt = dedCnt ? ("扣分项 " + dedCnt + " 处、共扣 " + dedPts + " 分，明细在「旁批」页的分数卡里") : "没列出扣分项（分数按档次直接给）";
       bubble.textContent = (obj.overall ? obj.overall + " " : "") +
-        (scoreTxt ? "得分 " + scoreTxt + "；" : "") +
-        "评分完成：" + criticItems.length + " 句（坏 " + bad + " 句），逐句评语在工作窗「旁批」页。稿子没动。";
-      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评分 " + criticItems.length + " 条在「旁批」页 · 未改稿");
+        "得分 " + scoreTxt + "。" + dedTxt + "。这一步只算分，不判句子好坏，稿子一个字没动。";
+      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "只评分 · 未改稿");
       if (els.criticStat) {
         els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
-          "只评分，未讨论也未改稿。想让它判要不要改，就说一句话发起讨论。";
+          "评分只给分与扣分项，不判好坏。" + (dedCnt ? "扣 " + dedPts + " 分，明细见下方分数卡。" : "") +
+          "想看句子问题或要不要改，说一句话发起讨论。";
       }
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
@@ -6133,7 +6288,7 @@
     if (isMobile()) setMView("paper");
     runCritic();
   });
-  // 评分是单独一步：只打分给评语，不动稿也不谈
+  // 评分是单独一步：只按标准给分并列扣分项，不判句子好坏、不动稿也不谈
   on(els.scoreBtn, "click", function () {
     if (isMobile()) setMView("paper");
     runScore();
@@ -6155,7 +6310,13 @@
   on(els.debateRounds, "change", function () { setDebateRounds(els.debateRounds.value); });
   on(els.debateRounds, "blur", function () { setDebateRounds(els.debateRounds.value); });
   on(els.debateAutoApply, "change", function () { setDebateAuto(els.debateAutoApply.checked); });
+  // 轮数上限开关：开了就是不限轮数，谈得动一直谈
+  on(els.debateNoLimit, "click", function () {
+    setDebateNoLimit(!debateNoLimit);
+    setDocHint(debateNoLimit ? "已关掉轮数上限：谈到两边谈不动为止（按实际轮数扣积分）" : "已恢复轮数上限：填几就最多谈几轮");
+  });
   loadDebateRounds();
+  loadDebateNoLimit();
   loadDebateAuto();
 
   // 对话框下方的模型切换
