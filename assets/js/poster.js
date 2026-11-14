@@ -6,8 +6,8 @@
 (function () {
   "use strict";
 
-  var W = 1080, H = 1520;
-  var CARD_X = 76, CARD_Y = 206, CARD_W = 928, CARD_H = 1100;
+  var W = 1080, H = 1520;            /* H 在 render 里按正文长度动态改写 */
+  var CARD_X = 76, CARD_Y = 206, CARD_W = 928;
   var PAD = 64;
   var SERIF = '"Songti SC", "Noto Serif SC", "SimSun", Georgia, serif';
   var HAND = '"LXGW WenKai", "Kaiti SC", "KaiTi", ' + SERIF;
@@ -127,35 +127,35 @@
     for (var y = 54; y < H; y += 54) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
   }
 
-  function drawSproutWatermark(c) {
+  function drawSproutWatermark(c, cardH) {
     c.save();
-    c.globalAlpha = .045;
+    c.globalAlpha = .04;
     c.fillStyle = "#1d7048";
-    c.font = "700 220px " + SERIF;
+    c.font = "700 200px " + SERIF;
     c.textAlign = "right"; c.textBaseline = "bottom";
-    /* 上移，别压住纸卡底部的字 */
-    c.fillText("文", CARD_X + CARD_W - 24, CARD_Y + CARD_H - 130);
+    /* 放在纸卡偏下、底部信息条之上，作淡淡的背景，不压字 */
+    c.fillText("文", CARD_X + CARD_W - 28, CARD_Y + cardH - 150);
     c.restore();
   }
 
-  function drawPaper(c, d) {
+  function drawPaper(c, d, cardH, lay) {
     c.save();
     c.shadowColor = "rgba(9,38,26,.5)"; c.shadowBlur = 60; c.shadowOffsetY = 24;
-    rr(c, CARD_X, CARD_Y, CARD_W, CARD_H, 28);
+    rr(c, CARD_X, CARD_Y, CARD_W, cardH, 28);
     c.fillStyle = "#fffdf8"; c.fill();
     c.restore();
-    rr(c, CARD_X, CARD_Y, CARD_W, CARD_H, 28);
+    rr(c, CARD_X, CARD_Y, CARD_W, cardH, 28);
     c.strokeStyle = "#c7d8c8"; c.lineWidth = 2; c.stroke();
 
     /* 纸卡顶部一道绿色书脊 */
     c.save();
-    rr(c, CARD_X, CARD_Y, CARD_W, CARD_H, 28); c.clip();
+    rr(c, CARD_X, CARD_Y, CARD_W, cardH, 28); c.clip();
     var bar = c.createLinearGradient(CARD_X, 0, CARD_X + CARD_W, 0);
     bar.addColorStop(0, "#1d7048"); bar.addColorStop(1, "#9acdb0");
     c.fillStyle = bar; c.fillRect(CARD_X, CARD_Y, CARD_W, 7);
     c.restore();
 
-    drawSproutWatermark(c);
+    drawSproutWatermark(c, cardH);
 
     var left = CARD_X + PAD, maxW = CARD_W - PAD * 2;
     var title = txt(d.title).replace(/[《》]/g, "").trim() || "无题";
@@ -184,44 +184,33 @@
     c.strokeStyle = "#c7d8c8"; c.lineWidth = 2;
     c.beginPath(); c.moveTo(left, CARD_Y + 214); c.lineTo(left + maxW, CARD_Y + 214); c.stroke();
 
-    /* 正文：按段断行，铺到纸卡底部为止。段间只加一小段距离，
-       不再插整行空行，否则短作文会被拉得很散、长作文又过早截断。 */
-    var body = bodyText(d);
-    var total = words(body);
-    var paras = body.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
-    if (!paras.length) paras = ["（这篇还没有正文）"];
+    /* 正文：整篇排完，不再截断。纸卡高度由 render 按全文行数算好，随正文变长。 */
     c.font = "30px " + HAND;
-    var lineH = 58, segGap = 18, bottom = CARD_Y + CARD_H - 118;
-    var y = CARD_Y + 282, truncated = false, stop = false;
     c.fillStyle = "#17261d";
-    for (var i = 0; i < paras.length && !stop; i++) {
-      if (i > 0) y += segGap;
-      var seg = wrap(c, "　　" + paras[i], maxW);
-      for (var j = 0; j < seg.length; j++) {
-        if (y > bottom) { truncated = true; stop = true; break; }
-        c.fillText(seg[j], left, y);
-        y += lineH;
-      }
+    var y = CARD_Y + 282;
+    for (var k = 0; k < lay.lines.length; k++) {
+      c.fillText(lay.lines[k], left, y);
+      y += 58;
     }
-    /* 截断不再单独画一行省略号：正文已经铺到纸卡底部，再加一行会挤到底部信息。
-       底部那句「此处为节选」已经把话说明白。 */
+
+    /* 底部信息：实算全文字数，不再有「节选」说法 */
     c.fillStyle = "#5e7165"; c.font = "23px " + SANS;
     c.textAlign = "left";
-    c.fillText("全文共 " + total + " 字" + (truncated ? " · 此处为节选" : ""), left, CARD_Y + CARD_H - 46);
+    c.fillText("全文共 " + lay.total + " 字", left, CARD_Y + cardH - 46);
     c.textAlign = "right";
     c.fillStyle = "#1d7048"; c.font = "600 23px " + SANS;
-    c.fillText("文芽作文 · 手批", CARD_X + CARD_W - PAD, CARD_Y + CARD_H - 46);
+    c.fillText("文芽作文 · 手批", CARD_X + CARD_W - PAD, CARD_Y + cardH - 46);
     c.textAlign = "left";
   }
 
-  function drawFooter(c, d) {
-    rr(c, CARD_X, 1350, CARD_W, 104, 24);
+  function drawFooter(c, d, footerY) {
+    rr(c, CARD_X, footerY, CARD_W, 104, 24);
     c.fillStyle = "#1d7048"; c.fill();
     c.textBaseline = "alphabetic"; c.textAlign = "left";
     c.fillStyle = "#f2f9f3"; c.font = "700 40px " + SANS;
-    c.fillText("wenyazw.top", CARD_X + 36, 1416);
+    c.fillText("wenyazw.top", CARD_X + 36, footerY + 66);
     c.fillStyle = "rgba(242,249,243,.78)"; c.font = "24px " + SANS;
-    c.fillText("不替你写，只陪你改", CARD_X + 330, 1413);
+    c.fillText("不替你写，只陪你改", CARD_X + 330, footerY + 63);
 
     var author = "";
     try { author = localStorage.getItem("wenyazw.auth.user") || ""; } catch (e) { }
@@ -229,24 +218,47 @@
     tag = tag.slice(0, 10);
     c.font = "600 22px " + SANS;
     var tw = c.measureText(tag).width + 44;
-    rr(c, CARD_X + CARD_W - 36 - tw, 1378, tw, 48, 24);
+    rr(c, CARD_X + CARD_W - 36 - tw, footerY + 28, tw, 48, 24);
     c.fillStyle = "#f2f9f3"; c.fill();
     c.textAlign = "center"; c.fillStyle = "#123f2c";
-    c.fillText(tag, CARD_X + CARD_W - 36 - tw / 2, 1410);
+    c.fillText(tag, CARD_X + CARD_W - 36 - tw / 2, footerY + 60);
     c.textAlign = "left";
+  }
+
+  /* 先按当前字体把整篇正文断行、量出总高度，供 render 决定画布与纸卡尺寸 */
+  function layoutBody(c, d) {
+    var body = bodyText(d);
+    var paras = body.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!paras.length) paras = ["（这篇还没有正文）"];
+    c.font = "30px " + HAND;
+    var lineH = 58, segGap = 18, lines = [], bodyPx = 0;
+    for (var i = 0; i < paras.length; i++) {
+      if (i > 0) bodyPx += segGap;
+      var seg = wrap(c, "　　" + paras[i], CARD_W - PAD * 2);
+      for (var j = 0; j < seg.length; j++) { lines.push(seg[j]); bodyPx += lineH; }
+    }
+    return { lines: lines, bodyPx: bodyPx, total: words(body) };
   }
 
   function render(d) {
     return new Promise(function (resolve, reject) {
       try {
+        var probe = document.createElement("canvas").getContext("2d");
+        var lay = layoutBody(probe, d);
+        /* 画布高度随全文长度变长：纸卡顶到正文 + 底部信息留白，再接页脚与边距 */
+        var headerH = 282, footerPad = 96;
+        var cardH = headerH + lay.bodyPx + footerPad;
+        var footerGap = 44, footerH = 104, bottomMargin = 56;
+        H = CARD_Y + cardH + footerGap + footerH + bottomMargin;
+
         var canvas = document.createElement("canvas");
         canvas.width = W; canvas.height = H;
         var c = canvas.getContext("2d");
         if (!c) throw new Error("浏览器不支持画布");
         drawBackground(c);
         drawBrand(c);
-        drawPaper(c, d);
-        drawFooter(c, d);
+        drawPaper(c, d, cardH, lay);
+        drawFooter(c, d, H - bottomMargin - footerH);
 
         var done = function (url) { resolve(url); };
         if (canvas.toBlob) {
