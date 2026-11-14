@@ -5311,22 +5311,24 @@
     return ds.concat(ms).sort().join("#");
   }
 
-  function debateBText(b) {
+  function debateBText(b, cmd) {
     var n = (b.disputes || []).length, m = (b.missed || []).length;
-    var tail = (b.reviseNote ? " 对幅度的意见：" + b.reviseNote : "") + (b.scoreNote ? " " + b.scoreNote : "");
-    if (!n && !m) return "复核完了，这版没有异议。" + tail;
-    var out = "复核：" + b.stance + "。";
-    if (n) out += "对 " + n + " 条有意见。";
-    if (m) out += "另外认为漏了 " + m + " 句。";
+    var tail = cmd
+      ? ((b.reviseNote ? " 改动范围：" + b.reviseNote : "") + (b.scoreNote ? " " + b.scoreNote : ""))
+      : ((b.reviseNote ? " 对幅度的意见：" + b.reviseNote : "") + (b.scoreNote ? " " + b.scoreNote : ""));
+    if (!n && !m) return (cmd ? "方案看过了，没有要改的地方。" : "复核完了，这版没有异议。") + tail;
+    var out = cmd ? ("方案：" + b.stance + "。") : ("复核：" + b.stance + "。");
+    if (n) out += (cmd ? "对 " + n + " 处改法有意见。" : "对 " + n + " 条有意见。");
+    if (m) out += (cmd ? "另外认为漏了 " + m + " 处。" : "另外认为漏了 " + m + " 句。");
     return out + tail;
   }
 
-  function debateAText(replies) {
-    if (!replies.length) return "这版没什么可争的，保持原判。";
+  function debateAText(replies, cmd) {
+    if (!replies.length) return cmd ? "没异议，改法就按这份执行。" : "这版没什么可争的，保持原判。";
     var keep = replies.filter(function (r) { return r.stance === "坚持"; }).length;
     var back = replies.filter(function (r) { return r.stance === "撤回"; }).length;
     var mid = replies.filter(function (r) { return r.stance === "折中"; }).length;
-    var out = "逐条回应：" ;
+    var out = cmd ? "回应：" : "逐条回应：" ;
     var bits = [];
     if (keep) bits.push("坚持 " + keep + " 条");
     if (back) bits.push("撤回 " + back + " 条");
@@ -5526,31 +5528,36 @@
     lastRevision = null;
     // 关掉上限时给一个兜底值，靠「乙无异议」和「原地打转」两个出口收工
     var cap = debateNoLimit ? Math.max(1, DEBATE_HARD_MAX) : Math.max(1, debateRounds);
-    setDocHint(debateNoLimit
-      ? "讨论开始：不限轮数，甲先评分、乙复核，谈不动就收工"
-      : ("讨论开始：最多 " + debateCost() + " 次调用，甲先评分，乙复核，谈不动就提前收"));
-    var runOwned = runOwn("讨论中 · 甲评分");
+    var cmdMode = askWantsEdit(runningAsk);
+    setDocHint(cmdMode
+      ? "按你说的办：甲先出改法，乙挑方案，两边谈拢了再动稿"
+      : (debateNoLimit
+        ? "讨论开始：不限轮数，甲先评分、乙复核，谈不动就收工"
+        : ("讨论开始：最多 " + debateCost() + " 次调用，甲先评分，乙复核，谈不动就提前收")));
+    var runOwned = runOwn(cmdMode ? "讨论中 · 甲出改法" : "讨论中 · 甲评分");
 
     try {
       // 第 0 步：甲方评分（评分本身就是讨论的第一步，不再单列）
-      var bA = addAssistantBubble("评卷甲");
-      bA.textContent = askWantsEdit(runningAsk)
-        ? ("先按你说的「" + runningAsk.slice(0, 20) + "」找到要动的地方，再打分定稿。")
+      var bA = addAssistantBubble(cmdMode ? "甲·改法" : "评卷甲");
+      bA.textContent = cmdMode
+        ? ("先按你说的「" + runningAsk.slice(0, 20) + "」出一版改法清单，等乙来挑。")
         : "先按评分标准打一遍分，逐句判好坏与 AI 味。";
       var rawA = await fetchAnnotation("criticA", criticVars());
       var review = parseCriticJSON(rawA);
       showCriticReview(review);
-      bA.textContent = "初评：" + (review.overall || "已出第一版") + "。等乙方复核。";
+      bA.textContent = cmdMode
+        ? ((review.overall || "列了要动的地方") + "。等乙挑毛病。")
+        : ("初评：" + (review.overall || "已出第一版") + "。等乙方复核。");
 
       // 逐轮：乙挑错 → 甲表态并改定稿；乙无异议或原地打转就停
       var lastSig = "";
       for (var r = 1; r <= cap; r++) {
         runPhase("第 " + r + "/" + cap + " 轮 · 乙复核");
-        els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：复核方正在挑错…";
-        var bB = addAssistantBubble("评卷乙");
-        bB.textContent = "正在复核第 " + r + " 轮…";
+        els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：" + (cmdMode ? "乙正在挑这份改法的问题…" : "复核方正在挑错…");
+        var bB = addAssistantBubble(cmdMode ? "乙·挑方案" : "评卷乙");
+        bB.textContent = cmdMode ? ("正在看这份改法有没有漏、有没有改偏（第 " + r + " 轮）…") : ("正在复核第 " + r + " 轮…");
         var bObj = parseDebateB(await fetchAnnotation("criticB", criticVars({ review: slimReview(review), round: r, hist: debateHistoryText() })));
-        bB.textContent = debateBText(bObj);
+        bB.textContent = debateBText(bObj, cmdMode);
 
         // 乙挑不出东西：这版就定了，不再多花一次调用硬走流程
         if (!bObj.disputes.length && !bObj.missed.length) {
@@ -5569,11 +5576,11 @@
         lastSig = sig;
 
         runPhase("第 " + r + "/" + cap + " 轮 · 甲回应");
-        els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：主评正在逐条回应…";
-        var bR = addAssistantBubble("评卷甲");
-        bR.textContent = "正在逐条回应乙方的质疑…";
+        els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：" + (cmdMode ? "甲正在按乙的意见改方案…" : "主评正在逐条回应…");
+        var bR = addAssistantBubble(cmdMode ? "甲·定改法" : "评卷甲");
+        bR.textContent = cmdMode ? "正在按乙的意见调整改法…" : "正在逐条回应乙方的质疑…";
         var aObj = parseDebateA(await fetchAnnotation("criticAReply", criticVars({ review: slimReview(review), b: bObj, round: r, hist: debateHistoryText() })));
-        bR.textContent = debateAText(aObj.replies) +
+        bR.textContent = debateAText(aObj.replies, cmdMode) +
           (aObj.revision && aObj.revision.action ? " 幅度：" + aObj.revision.action + "。" : "");
 
         debateLog.push({ round: r, b: bObj, replies: aObj.replies });
@@ -5606,19 +5613,28 @@
         lastRevision.why = "你这一轮要求「" + runningAsk.slice(0, 24) + "」，按你说的改。";
       }
       els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
-        "第 " + discussNo + " 次讨论（" + debateLog.length + " 轮），坐实 " + settledCnt + " 条" +
-        (open ? "，另有 " + open + " 条没谈拢（标灰、不改）" : "") +
-        "，结论：" + act + "。";
+        (cmdMode
+          ? ("就你这句谈完（" + debateLog.length + " 轮），要动 " + settledCnt + " 处" +
+            (open ? "，另有 " + open + " 处没谈拢（不改）" : "") + "，结论：" + act + "。")
+          : ("第 " + discussNo + " 次讨论（" + debateLog.length + " 轮），坐实 " + settledCnt + " 条" +
+            (open ? "，另有 " + open + " 条没谈拢（标灰、不改）" : "") +
+            "，结论：" + act + "。"));
       setDocHint((scoreTxt ? scoreTxt + " · " : "") + "讨论 " + debateLog.length + " 轮 · 结论 " + act +
         "，逐条看「旁批」页");
       renderDebateLog();
       // 结论单独一条，学生扫一眼就知道这次动没动稿
       var concl = addAssistantBubble("讨论结论");
-      concl.textContent = "第 " + discussNo + " 次讨论谈完（" + debateLog.length + " 轮）：" +
-        (review.overall || "") + (scoreTxt ? " 得分 " + scoreTxt + "。" : "") +
-        " 结论是「" + act + "」" + (lastRevision.why ? "：" + lastRevision.why : "。") +
-        (open ? " 另有 " + open + " 条没谈拢，已标灰不给改。" : "") +
-        " 逐句评语在「旁批」页。";
+      concl.textContent = cmdMode
+        ? ("两个老师就你这句「" + runningAsk.slice(0, 24) + "」谈了 " + debateLog.length + " 轮，定下改法：" +
+          (review.overall || "") + (scoreTxt ? " 改前得分 " + scoreTxt + "。" : "") +
+          " 幅度「" + act + "」" + (lastRevision.why ? "：" + lastRevision.why : "。") +
+          (open ? " 另有 " + open + " 处没谈拢，那一处不改。" : "") +
+          " 要动的句子在「旁批」页。")
+        : ("第 " + discussNo + " 次讨论谈完（" + debateLog.length + " 轮）：" +
+          (review.overall || "") + (scoreTxt ? " 得分 " + scoreTxt + "。" : "") +
+          " 结论是「" + act + "」" + (lastRevision.why ? "：" + lastRevision.why : "。") +
+          (open ? " 另有 " + open + " 条没谈拢，已标灰不给改。" : "") +
+          " 逐句评语在「旁批」页。");
       await autoApplySettled(lastRevision);
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
