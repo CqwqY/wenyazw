@@ -2695,6 +2695,45 @@ table.score-table .score-table-key {
 .history-diff-legend .lg-add { color: #123f2c; }
 .history-diff-legend .lg-del { color: #8a4a25; }
 
+/* ---------- 作文纸整版差异视图（重写后直接画在稿纸上） ---------- */
+.paper-body .paper-diff-legend {
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--ink-mute, #8a8a8a);
+  background: rgba(29, 112, 72, .06);
+  border-left: 2px solid rgba(29, 112, 72, .4);
+  padding: 4px 8px;
+  margin: 0 0 10px;
+  border-radius: 2px;
+}
+.paper-body .paper-diff-eq { color: var(--ink, #233); }
+.paper-body .paper-diff-del {
+  background: rgba(192, 100, 47, .12);
+  color: #8a4a25;
+  text-decoration: line-through;
+  text-decoration-color: rgba(192, 100, 47, .6);
+}
+.paper-body .paper-diff-add {
+  background: rgba(29, 112, 72, .12);
+  color: #123f2c;
+}
+.paper-body .paper-diff-p .diff-ins {
+  background: rgba(29, 112, 72, .35);
+  color: #0c2e20;
+  border-radius: 2px;
+}
+.paper-body .paper-diff-p .diff-del-inline {
+  background: rgba(192, 100, 47, .35);
+  color: #6e3a1c;
+  border-radius: 2px;
+  text-decoration: line-through;
+}
+.btn-outline.diff-on {
+  background: var(--g-700, #1d7048);
+  border-color: var(--g-700, #1d7048);
+  color: #fff;
+}
+
 /* ---------- 两评讨论：甲主评、乙复核，轮流提意见 ---------- */
 
 .debate-setup {

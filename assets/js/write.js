@@ -104,6 +104,7 @@
     modelPickWrap: $("modelPickWrap"),
     runBar: $("runBar"), runText: $("runText"), runSub: $("runSub"),
     paperNotes: $("paperNotes"), undoRewriteBtn: $("undoRewriteBtn"), diffBtn: $("diffBtn"),
+    paperDiffBtn: $("paperDiffBtn"),
     drawerNoteList: $("drawerNoteList"), drawerNoteEmpty: $("drawerNoteEmpty"),
     drawerDotNotes: $("drawerDotNotes"),
 
@@ -212,6 +213,10 @@
       var a = JSON.parse(localStorage.getItem(versionKey()) || "[]");
       versions = Array.isArray(a) ? a : [];
     } catch (e) { versions = []; }
+    // 换一篇作文：之前的整版对照作废，按钮藏回去
+    paperDiffMode = false;
+    diffPrevBody = "";
+    if (els.paperDiffBtn) { els.paperDiffBtn.hidden = true; els.paperDiffBtn.classList.remove("diff-on"); els.paperDiffBtn.textContent = "对照上一版"; }
   }
   function persistVersions() {
     try { localStorage.setItem(versionKey(), JSON.stringify(versions)); } catch (e) { /* 隐私模式忽略 */ }
@@ -2974,6 +2979,98 @@
     if (els.undoRewriteBtn) els.undoRewriteBtn.hidden = !undoStack.length;
   }
 
+  // 作文纸整版差异视图：重写完成后把「上一版 → 本版」的差异直接画在稿纸上，
+  // 段落级 LCS 找增删，相似段再逐字对照（与历史抽屉的改动对照同一套算法）。
+  var paperDiffMode = false;
+  var diffPrevBody = "";
+
+  function showPaperDiff() {
+    if (!diffPrevBody) return;
+    paperDiffMode = true;
+    renderPaperDiff();
+    if (els.paperDiffBtn) {
+      els.paperDiffBtn.hidden = false;
+      els.paperDiffBtn.classList.add("diff-on");
+      els.paperDiffBtn.textContent = "退出对照";
+    }
+  }
+
+  function exitPaperDiff() {
+    paperDiffMode = false;
+    if (els.paperDiffBtn) {
+      els.paperDiffBtn.classList.remove("diff-on");
+      els.paperDiffBtn.textContent = "对照上一版";
+    }
+    renderAnnotated();
+  }
+
+  function togglePaperDiff() {
+    if (paperDiffMode) exitPaperDiff(); else showPaperDiff();
+  }
+
+  function renderPaperDiff() {
+    if (!els.paperBody) return;
+    var pa = splitParas(diffPrevBody), pb = splitParas(docBody);
+    var ops = diffParas(pa, pb);
+    els.paperBody.textContent = "";
+    els.paperBody.classList.remove("paper-empty");
+    els.paperTitle.textContent = (docTitle || "作文") + " · 对照上一版";
+    var legend = document.createElement("p");
+    legend.className = "paper-diff-legend";
+    legend.textContent = "绿色＝本版新增/改动，红色删除线＝上一版被删，其余为未改动。点「退出对照」回到稿纸。";
+    els.paperBody.appendChild(legend);
+    var i = 0;
+    while (i < ops.length) {
+      var o = ops[i];
+      if (o.t === "eq") {
+        var pe = document.createElement("p");
+        pe.className = "paper-diff-eq";
+        pe.textContent = pa[o.a];
+        els.paperBody.appendChild(pe);
+        i++;
+        continue;
+      }
+      var dels = [], adds = [];
+      while (i < ops.length && ops[i].t !== "eq") {
+        if (ops[i].t === "del") dels.push(ops[i].a); else adds.push(ops[i].b);
+        i++;
+      }
+      var groupN = Math.max(dels.length, adds.length);
+      for (var g = 0; g < groupN; g++) {
+        var aTxt = g < dels.length ? pa[dels[g]] : null;
+        var bTxt = g < adds.length ? pb[adds[g]] : null;
+        if (aTxt != null && bTxt != null && paraSimilarity(aTxt, bTxt) >= 0.55) {
+          var pp = document.createElement("p");
+          pp.className = "paper-diff-p";
+          charDiff(aTxt, bTxt).forEach(function (c) {
+            if (c.t === "eq") pp.appendChild(document.createTextNode(c.s));
+            else {
+              var sp = document.createElement("span");
+              sp.className = c.t === "add" ? "diff-ins" : "diff-del-inline";
+              sp.textContent = c.s;
+              pp.appendChild(sp);
+            }
+          });
+          els.paperBody.appendChild(pp);
+        } else {
+          if (aTxt != null) {
+            var pd = document.createElement("p");
+            pd.className = "paper-diff-del";
+            pd.textContent = aTxt;
+            els.paperBody.appendChild(pd);
+          }
+          if (bTxt != null) {
+            var pa2 = document.createElement("p");
+            pa2.className = "paper-diff-add";
+            pa2.textContent = bTxt;
+            els.paperBody.appendChild(pa2);
+          }
+        }
+      }
+    }
+    els.paperStat.textContent = diffStat(diffPrevBody, docBody);
+  }
+
   function renderAnnotated() {
     pruneStaleNotes();
     els.paperTitle.textContent = docTitle || "作文";
@@ -4145,7 +4242,7 @@
         ? "大纲可继续改，改完点「按大纲重写」"
         : "大纲可以先改、可以增补，再开始写";
     }
-    if (paper) renderAnnotated();
+    if (paper) { if (paperDiffMode) renderPaperDiff(); else renderAnnotated(); }
     // 手机端：切 pane 就等于切底部视图，两边状态保持一致
     if (isMobile() && !els.studio.hasAttribute("hidden")) setMView(name);
   }
@@ -4695,6 +4792,9 @@
     setPaperHint(done);
     setDocHint(done);
     commitVersion(opts.versionLabel || "重写", verScore);
+    // 重写完立即在稿纸上整版对照上一版，不必去历史抽屉手点「改动对照」
+    diffPrevBody = snap.body;
+    showPaperDiff();
     if (assistantReplyEl) {
       assistantReplyEl.textContent = "已重写一版完整新稿（" + plain(docBody) + " 字）。旧旁批已清空。";
     }
@@ -5470,8 +5570,7 @@
   function showCriticReview(rev) {
     criticItems = (rev.items || []).filter(function (it) { return !isLocked(it.sentence); });
     criticScores = rev.scores || [];
-    renderCritic();       // 内部会连讨论记录一起刷新
-    switchPane("paper");
+    renderCritic();       // 内部会连讨论记录一起刷新（讨论过程中不抢视图，写完才跳作文纸）
   }
 
   /* 讨论完按甲定下的幅度落地：
@@ -6331,6 +6430,7 @@
   });
 
   if (els.diffBtn) on(els.diffBtn, "click", openLatestDiff);
+  if (els.paperDiffBtn) on(els.paperDiffBtn, "click", togglePaperDiff);
 
   // 悬浮评语小卡：点别处 / Esc / 滚动即收（稿纸自己的选字逻辑不受影响）
   document.addEventListener("click", function (e) {
