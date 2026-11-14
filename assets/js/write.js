@@ -4499,7 +4499,7 @@
       setDocHint("正文已生成 · 左上可切回大纲");
       saveEssayToCloud();
       scheduleEssaySave();
-      commitVersion(wasDraft ? "重新生成" : "初稿");
+      commitVersion(versions.length === 0 ? "初稿" : "重新生成");
     } else {
       setDocHint("正文没生成出来，可再点一次「按大纲开始写」");
     }
@@ -6394,6 +6394,22 @@
     return -1;
   }
 
+  // 落点没精确压在字格上（字间、行距、段间距、稿纸末尾留白）时，按坐标回退到最近的字格，
+  // 否则拖到行尾 / 文末空白处就选不到终点。仅在 elementFromPoint 没命中字格时才跑，开销可控。
+  function chIndexNear(x, y) {
+    if (!selChars.length) return -1;
+    var best = -1, bestD = Infinity;
+    for (var i = 0; i < selChars.length; i++) {
+      var r = selChars[i].getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+      var cx = x < r.left ? r.left : (x > r.right ? r.right : x);
+      var cy = y < r.top ? r.top : (y > r.bottom ? r.bottom : y);
+      var d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
   function selRange() {
     if (selA < 0 || selB < 0) return null;
     var a = Math.min(selA, selB), b = Math.max(selA, selB);
@@ -6511,6 +6527,7 @@
       }
       var el = document.elementFromPoint(e.clientX, e.clientY);
       var idx = chIndexAt(el);
+      if (idx < 0) idx = chIndexNear(e.clientX, e.clientY);
       if (idx >= 0 && idx !== selB) { selB = idx; paintSel(); }
       hideLockPop();
       if (e.cancelable) e.preventDefault();

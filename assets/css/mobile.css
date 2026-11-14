@@ -55,6 +55,9 @@
   /* 顶栏积分做成紧凑胶囊，别挤掉登录按钮 */
   .account-area .credit-chip,
   .account-area a[href="credits.html"] {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
     padding: 0 10px;
     font-size: 12px;
     height: 30px;
