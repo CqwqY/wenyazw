@@ -3617,6 +3617,8 @@
       essay: currentComposition || docBody || "",
       locked: lockedTexts.slice(),
       asks: asks,
+      askNow: trim(runningAsk || ""),
+      askEdit: askWantsEdit(runningAsk),
       adopted: adopted,
       lastScores: (criticScores || []).map(function (x) {
         return { province: x.province || "", total: x.total, full: x.full, band: x.band || "", why: x.why || "" };
@@ -4483,7 +4485,7 @@
       els.chatModeHint.textContent = "只讲不改：不动一个字，不出批注";
       els.chatInput.placeholder = "例：为什么结尾这句算空泛？我该怎么想这一段";
     } else {
-      els.chatModeHint.textContent = "讨论改稿：说一句就是发起一次讨论，两评选完由 AI 定改不改";
+      els.chatModeHint.textContent = "讨论改稿：说一句就是一次评改，你说改哪就改哪，你没提的地方才由 AI 定";
       els.chatInput.placeholder = "例：把开头再写细一点 / 结尾这句是不是空泛 / 控制在 600 字";
     }
   }
@@ -4493,9 +4495,22 @@
   }
 
   // 用户明确说了「别动稿」时，即使停在手批模式也走只讲不改，避免模型硬改几处交差
+  /* 本轮这句话是在让我改稿，还是只是让我看看。
+     改稿：出现具体动作（改 / 换成 / 删掉 / 补一句 / 展开 / 压一压…），且没有「别改」「该不该改」这类否定与疑问。 */
+  function askWantsEdit(req) {
+    var s = String(req || "").replace(/\s/g, "");
+    if (!s) return false;
+    if (wantsExplainOnly(s)) return false;
+    if (/改不改|该不该改|要不要改|能不能改|可不可以改|是不是该改|需不需要改|有没有必要改|值得改吗|需要改吗|怎么改|如何改|哪里该改|哪些地方该改/.test(s)) return false;
+    return /改|重写|换成|换掉|换个|替换|删掉|删去|去掉|加一句|加一段|加上|补一句|补上|补一段|扩写|展开|写细|写具体|缩短|压一压|压缩|收一收|润色|调整|挪|合并|拆分|分开|重排|精简|增一句|减一句/.test(s);
+  }
+
+  /* 只讲不改：得把「别的别动」「其余别改」这类限定范围先剔掉，
+     否则「把开头改细，别的别动」会被当成「整篇别动」，直接掉进讲评。 */
   function wantsExplainOnly(req) {
     var s = String(req || "").replace(/\s/g, "");
-    return /不要改|别改|不用改|不许改|不要动|别动|不要重写|别重写|不需要改|先别改|只解释|只说明|只讲|只点评|只想问|只想知道/.test(s);
+    s = s.replace(/(别的地方|别处|别的|其他的|其余的|剩下的|剩下)(都|也)?(不要|别|不许)?(动|改)/g, "");
+    return /不要改稿|别改稿|不要动稿|别动稿|不用改稿|不许改稿|不要重写|别重写|不需要改|先别改|还是别改|别改了|不要再改|不用改|不要动正文|别动正文|只解释|只说明|只讲|只评|只说|只分析|只点评|只想问|只想知道/.test(s);
   }
 
   async function handleSend() {
@@ -4987,19 +5002,26 @@
   }
 
   // 把讨论定下的结论拼成一次修改要求，交给整篇重写。幅度由 AI 定：小改只动坐实那几句，大改允许重搭
-  function criticReqText(mode, revision) {
+  function criticReqText(mode, revision, ask) {
     revision = revision || lastRevision || {};
     var big = mode === "大改" || revision.action === "大改";
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; });
-    if (!picked.length && !big) return "";
+    var want = trim(ask || "");
+    if (!picked.length && !big && !want) return "";
     var lines = [];
+    // 作者自己说的话排在最前面：这是他这一轮唯一要做的事，坐实条目只能是补充
+    if (want) {
+      lines.push("作者这一轮的原话：{\n" + want + "\n}");
+      lines.push("这句话是他的命令，不是建议。按它改到位，一条都不许漏；他没提到的句子不要顺手改，也不要换成你认为更好的写法。" +
+        "他让你改哪一处就只改那一处，改完其余段落尽量沿用原文写住的句子。");
+    }
     if (big) {
       lines.push("这次讨论的结论是这篇要大改" + (revision.why ? "：" + revision.why : "。") +
         "请从头重写一版完整作文，允许调整段落顺序、重写整段、换开头结尾、合并或拆分段。");
       if (revision.scope) lines.push("要动的部分：" + revision.scope + "。上面没点到的部分也别整段照抄，该动就动。");
       lines.push("必须做到：结构立得住、题意不走、删掉空泛与套话与口号式升华、把坐实的问题逐条解决。");
       lines.push("不许丢的：原文里具体的人、物件、场景、动作、数字要带过去，别换成空词；主题与文体不变；字数不低于原来的七成。");
-    } else {
+    } else if (picked.length) {
       lines.push("下面这些是讨论里坐实的问题，一共 " + picked.length + " 条。请照它们从头重写一版完整作文：把这些地方改到位，其余段落尽量沿用原文写住的句子。");
       lines.push("只解决这 " + picked.length + " 条，不要顺手把没问题的句子改一遍，也不要另找问题凑数。");
     }
@@ -5417,15 +5439,21 @@
   async function autoApplySettled(revision) {
     revision = revision || lastRevision || {};
     var act = revision.action || "小改";
+    // 他这一轮明说要改，就不能"评完不动"：讨论归讨论，要求必须落地
+    var wantsEdit = askWantsEdit(runningAsk);
+    var forced = (act === "不改" && wantsEdit);
+    if (forced) act = "小改";
     var ready = criticItems.filter(function (it) {
       return it.verdict === "坏" && it.settled !== false && !it.soft;
     });
 
     if (!debateAutoApply) {
-      if (!ready.length) { setDocHint("这轮没有坐实的问题，稿子不动"); return false; }
+      if (!ready.length && !wantsEdit) { setDocHint("这轮没有坐实的问题，稿子不动"); return false; }
       ready.forEach(function (it) { it.agreed = "yes"; });
       renderCritic();
-      setDocHint("已把 " + ready.length + " 条坐实问题勾好，点「按认可的 " + ready.length + " 条重写整篇」就改");
+      setDocHint(ready.length
+        ? ("已把 " + ready.length + " 条坐实问题勾好，点「按认可的 " + ready.length + " 条重写整篇」就改")
+        : "这轮没坐实条目，只按你那句话改，点「重写整篇」就动");
       return false;
     }
 
@@ -5444,12 +5472,12 @@
     }
 
     var big = act === "大改";
-    if (!ready.length && !big) {
+    if (!ready.length && !big && !wantsEdit) {
       setDocHint("这轮没有坐实的问题，稿子不动");
       return false;
     }
     ready.forEach(function (it) { it.agreed = "yes"; });
-    var req = criticReqText(act, revision);
+    var req = criticReqText(act, revision, wantsEdit ? runningAsk : "");
     if (!req) { setDocHint("这轮没拼出修改要求，稿子不动"); return false; }
 
     var scoreTxt = criticScores.map(function (sc) {
@@ -5459,11 +5487,13 @@
     var bubble = addAssistantBubble("改稿");
     bubble.textContent = big
       ? ("讨论结论是这篇要大改" + (revision.scope ? "（动 " + revision.scope + "）" : "") + "，正在重搭一版完整新稿…")
-      : ("坐实 " + ready.length + " 条，只动这几处，正在改一版完整新稿…");
+      : (ready.length
+        ? ("坐实 " + ready.length + " 条，只动这几处，正在改一版完整新稿…")
+        : ("没坐实条目，按你那句「" + runningAsk.slice(0, 24) + "」改一版…"));
 
     var ok = await rewriteEssay(req, {
       silentBubble: true,
-      versionLabel: big ? "讨论改写 · 大改" : ("讨论改写 · " + ready.length + " 条"),
+      versionLabel: big ? "讨论改写 · 大改" : (ready.length ? ("讨论改写 · " + ready.length + " 条") : "讨论改写 · 按作者要求"),
       versionScore: scoreKeep,
       minRatio: big ? 0.45 : 0.6
     });
@@ -5471,12 +5501,15 @@
       bubble.textContent = "改稿没成，讨论结论还留在稿纸上，可以自己点「按认可的 " + ready.length + " 条重写整篇」。";
       return false;
     }
-    bubble.textContent = (big ? "大改完了" : ("已按 " + ready.length + " 条坐实问题改好一版")) +
+    bubble.textContent = (big ? "大改完了" : (ready.length
+      ? ("已按 " + ready.length + " 条坐实问题改好一版")
+      : "已按你的要求改好一版")) +
       "（" + plainLen(docBody) + " 字）" + (scoreTxt ? "，改前 " + scoreTxt : "") +
       "。「历史版本」里能逐段挑着留。";
     if (els.criticStat) {
-      els.criticStat.textContent = (big ? "大改" : "小改") +
-        "完成：" + ready.length + " 条坐实问题已改" + (scoreTxt ? "，改前 " + scoreTxt : "") +
+      els.criticStat.textContent = (big ? "大改" : "小改") + "完成：" +
+        (ready.length ? ready.length + " 条坐实问题已改" : "按你的要求改了") +
+        (scoreTxt ? "，改前 " + scoreTxt : "") +
         "。改了什么去「历史版本」逐段看，可以只留想要的那几段。";
     }
     setDocHint((big ? "大改" : "讨论改写") + "已存成一版 · 去「历史版本」逐段取舍");
@@ -5501,7 +5534,9 @@
     try {
       // 第 0 步：甲方评分（评分本身就是讨论的第一步，不再单列）
       var bA = addAssistantBubble("评卷甲");
-      bA.textContent = "先按评分标准打一遍分，逐句判好坏与 AI 味。";
+      bA.textContent = askWantsEdit(runningAsk)
+        ? ("先按你说的「" + runningAsk.slice(0, 20) + "」找到要动的地方，再打分定稿。")
+        : "先按评分标准打一遍分，逐句判好坏与 AI 味。";
       var rawA = await fetchAnnotation("criticA", criticVars());
       var review = parseCriticJSON(rawA);
       showCriticReview(review);
@@ -5564,6 +5599,12 @@
       }).join("，");
       var settledCnt = criticItems.filter(function (it) { return it.settled !== false; }).length;
       var act = lastRevision.action || "小改";
+      // 他这一轮明说要改，就不能对外报「不改」：结论按最小改动落地
+      var wantsEditNow = askWantsEdit(runningAsk);
+      if (act === "不改" && wantsEditNow) {
+        act = "小改";
+        lastRevision.why = "你这一轮要求「" + runningAsk.slice(0, 24) + "」，按你说的改。";
+      }
       els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
         "第 " + discussNo + " 次讨论（" + debateLog.length + " 轮），坐实 " + settledCnt + " 条" +
         (open ? "，另有 " + open + " 条没谈拢（标灰、不改）" : "") +
