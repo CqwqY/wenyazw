@@ -13,11 +13,11 @@
 <title>积分与兑换 - 文芽作文</title>
 <meta name="description" content="文芽作文积分：查看余额与明细，用兑换码换积分。站内模型每次 AI 操作消耗 1 积分，生成失败自动退回。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261116H">
-<link rel="stylesheet" href="assets/css/write.css?v=20261116H">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261116H">
-<link rel="stylesheet" href="assets/css/account.css?v=20261116H">
-<link rel="stylesheet" href="assets/css/credits.css?v=20261116H">
+<link rel="stylesheet" href="assets/css/style.css?v=20261116I">
+<link rel="stylesheet" href="assets/css/write.css?v=20261116I">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261116I">
+<link rel="stylesheet" href="assets/css/account.css?v=20261116I">
+<link rel="stylesheet" href="assets/css/credits.css?v=20261116I">
 </head>
 <body class="page-stick">
 
@@ -113,35 +113,83 @@
       <h2 id="authTitle">登录文芽作文</h2>
       <button class="modal-close" id="authClose" aria-label="关闭">×</button>
     </div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" data-mode="login">登录</button>
-      <button class="auth-tab" data-mode="register">注册</button>
-    </div>
-    <div class="field" id="authUserField">
-      <label for="authUser">用户名</label>
-      <input class="input" id="authUser" type="text" autocomplete="username" placeholder="3～24 位，字母数字下划线" maxlength="24">
-    </div>
-    <div class="field">
-      <label for="authEmail">邮箱</label>
-      <input class="input" id="authEmail" type="email" autocomplete="email" placeholder="用于接收验证码" maxlength="120">
-    </div>
-    <div class="field">
-      <label for="authCode">邮箱验证码</label>
-      <div class="code-row">
-        <input class="input" id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" maxlength="6">
-        <button class="btn-outline" id="sendCodeBtn" type="button">发送验证码</button>
+    <div id="authMain">
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-mode="login">登录</button>
+        <button class="auth-tab" data-mode="register">注册</button>
       </div>
-      <div class="auth-hint" id="codeHint">验证码 10 分钟内有效，每个邮箱 60 秒可重发一次。</div>
+      <div class="auth-subtabs" id="authSubTabs">
+        <button type="button" class="auth-subtab active" data-way="password">密码登录</button>
+        <button type="button" class="auth-subtab" data-way="code">邮箱验证码</button>
+      </div>
+
+      <div id="authPwPane">
+        <div class="field">
+          <label for="authAccount">邮箱或用户名</label>
+          <input class="input" id="authAccount" type="text" autocomplete="username" placeholder="邮箱或用户名" maxlength="120">
+        </div>
+        <div class="field">
+          <label for="authPassword">密码</label>
+          <input class="input" id="authPassword" type="password" autocomplete="current-password" placeholder="6～64 位密码" maxlength="64">
+        </div>
+        <div class="auth-hint">还没设密码？切到「邮箱验证码」登录，登录时会提示补设。</div>
+      </div>
+
+      <div id="authCodePane" hidden>
+        <div class="field" id="authUserField">
+          <label for="authUser">用户名</label>
+          <input class="input" id="authUser" type="text" autocomplete="username" placeholder="3～24 位，字母数字下划线" maxlength="24">
+        </div>
+        <div class="field">
+          <label for="authEmail">邮箱</label>
+          <input class="input" id="authEmail" type="email" autocomplete="email" placeholder="用于接收验证码" maxlength="120">
+        </div>
+        <div class="field">
+          <label for="authCode">邮箱验证码</label>
+          <div class="code-row">
+            <input class="input" id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6 位数字" maxlength="6">
+            <button class="btn-outline" id="sendCodeBtn" type="button">发送验证码</button>
+          </div>
+          <div class="auth-hint" id="codeHint">验证码 10 分钟内有效，每个邮箱 60 秒可重发一次。</div>
+        </div>
+        <div class="field" id="authRegPwField" hidden>
+          <label for="authRegPassword">设置密码（可选）</label>
+          <input class="input" id="authRegPassword" type="password" autocomplete="new-password" placeholder="不填也行，登录后再补" maxlength="64">
+          <div class="auth-hint">设了之后，下次可以用邮箱或用户名直接登录。</div>
+        </div>
+      </div>
+
+      <div class="auth-msg" id="authMsg"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="authSubmit">登录</button>
+      </div>
     </div>
-    <div class="auth-msg" id="authMsg"></div>
-    <div class="modal-actions">
-      <button class="btn btn-primary" id="authSubmit">登录</button>
+
+    <div id="authPwSet" hidden>
+      <div class="auth-hint" id="pwSetHint">给账号加个密码，以后用邮箱或用户名就能直接登录，不用等邮件。</div>
+      <div class="field" id="pwOldField" hidden>
+        <label for="pwOld">原密码</label>
+        <input class="input" id="pwOld" type="password" autocomplete="current-password" placeholder="修改密码时填" maxlength="64">
+      </div>
+      <div class="field">
+        <label for="pwNew">新密码</label>
+        <input class="input" id="pwNew" type="password" autocomplete="new-password" placeholder="6～64 位" maxlength="64">
+      </div>
+      <div class="field">
+        <label for="pwNew2">再输一次</label>
+        <input class="input" id="pwNew2" type="password" autocomplete="new-password" placeholder="确认新密码" maxlength="64">
+      </div>
+      <div class="auth-msg" id="pwSetMsg"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="pwSetSubmit" type="button">保存密码</button>
+        <button class="btn-outline" id="pwSetSkip" type="button">以后再说</button>
+      </div>
     </div>
     <div class="auth-foot">注册与登录都用邮箱验证码，无需设置密码。</div>
   </div>
 </div>
 
-<script src="assets/js/auth.js?v=20261116H"></script>
-<script src="assets/js/credits.js?v=20261116H"></script>
+<script src="assets/js/auth.js?v=20261116I"></script>
+<script src="assets/js/credits.js?v=20261116I"></script>
 </body>
 </html>

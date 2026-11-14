@@ -4203,12 +4203,21 @@
     currentEssayId = data.id || null;
     // 版本账本按 essayId 分：换了一篇就重新读自己那份，别把上一篇的版本摆在列表里
     if (String(prevId || "") !== String(currentEssayId || "")) loadVersions();
+    var params = null;
+    try { params = data.params ? JSON.parse(data.params) : null; } catch (e) { params = null; }
     var parsedCat = parseCategoryStore(data.category);
-    activeCat = parsedCat.cat || "";
-    activeGenre = parsedCat.genre;
+    // 列表里改过的基础参数优先：类别、文体、学段、评分标准、目标字数全部带回工作台
+    activeCat = (params && params.cat) || parsedCat.cat || "";
+    activeGenre = (params && params.genre) || parsedCat.genre;
     activeTopic = data.title || "";
-    activeProvinces = resumeProvinceList(data.province);
-    activeStage = "";   // 旧稿没有存学段，回退到当前所选学段
+    activeProvinces = (params && Array.isArray(params.prov) && params.prov.length)
+      ? resumeProvinceList(params.prov.join("、"))
+      : resumeProvinceList(data.province);
+    activeStage = (params && params.stage) || "";   // 老稿没存学段就回退到当前所选学段
+    if (params && params.words) {
+      var savedWords = parseInt(params.words, 10);
+      if (savedWords >= 100 && savedWords <= 3000) wordCount = savedWords;
+    }
 
     var parts = splitStoredEssay(data.body || "");
     docTitle = (data.title || parts.title || "作文").trim();

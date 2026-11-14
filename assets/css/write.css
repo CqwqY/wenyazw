@@ -1145,6 +1145,16 @@ body.studio-mode .site-footer { display: none; }
   padding: 7px 14px; border-bottom: 2px solid transparent;
 }
 .auth-tab.active { color: var(--brand-deep, #245c40); border-bottom-color: var(--brand, #2f6f4e); font-weight: 600; }
+.auth-subtabs { display: flex; gap: 6px; margin: 0 0 12px; }
+.auth-subtabs[hidden] { display: none; }
+.auth-subtab {
+  border: 1px solid var(--line); background: transparent; cursor: pointer;
+  font-family: var(--sans); font-size: 12.5px; color: var(--ink-mute);
+  padding: 5px 12px; border-radius: 999px;
+}
+.auth-subtab.active { color: var(--brand-deep, #245c40); border-color: var(--brand, #2f6f4e); font-weight: 600; }
+#authMain[hidden], #authPwSet[hidden], #authPwPane[hidden], #authCodePane[hidden],
+#authSubTabs[hidden], #authRegPwField[hidden], #pwOldField[hidden] { display: none !important; }
 .modal-card .field { margin-bottom: 12px; }
 .modal-card .field[hidden] { display: none; }
 .code-row { display: flex; gap: 8px; align-items: stretch; }

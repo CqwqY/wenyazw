@@ -6,7 +6,18 @@
 
   var API = "https://back.wenyazw.top";
   var RESUME_KEY = "wy.resume.v1";
-  var TESS_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+
+  /* 识别组件：cdn.jsdelivr.net 在不少网络里直接连不上，单个 CDN 会一上来就报「下载失败」。
+     四个源同时试，谁先加载成功用谁；worker / core / 字库也显式指到同源可达地址，
+     否则组件虽然加载了，内部默认还是会去 jsdelivr 拉 worker 而卡死。 */
+  var TESS_VER = "5.1.1";
+  var TESS_SOURCES = [
+    { base: "https://unpkg.com/tesseract.js@" + TESS_VER, core: "https://unpkg.com/tesseract.js-core@" + TESS_VER + "/" },
+    { base: "https://fastly.jsdelivr.net/npm/tesseract.js@" + TESS_VER, core: "https://fastly.jsdelivr.net/npm/tesseract.js-core@" + TESS_VER + "/" },
+    { base: "https://gcore.jsdelivr.net/npm/tesseract.js@" + TESS_VER, core: "https://gcore.jsdelivr.net/npm/tesseract.js-core@" + TESS_VER + "/" },
+    { base: "https://cdn.jsdelivr.net/npm/tesseract.js@" + TESS_VER, core: "https://cdn.jsdelivr.net/npm/tesseract.js-core@" + TESS_VER + "/" }
+  ];
+  var TESS_LANG_PATH = "https://tessdata.projectnaptha.com/4.0.0/";
 
   function $(id) { return document.getElementById(id); }
   var els = {
@@ -19,18 +30,25 @@
     importTabs: $("importTabs"), importType: $("importType"), importPhoto: $("importPhoto"),
     importTitle: $("importTitle"), importBody: $("importBody"), importCount: $("importCount"),
     importSave: $("importSave"), importMsg: $("importMsg"),
+    importParams: $("importParams"), paramTpl: $("paramTpl"),
+    paramsMask: $("paramsMask"), paramsForm: $("paramsForm"), paramsClose: $("paramsClose"),
+    paramsSave: $("paramsSave"), paramsMsg: $("paramsMsg"), paramsHint: $("paramsHint"),
     photoCapture: $("photoCapture"), photoPick: $("photoPick"),
     photoCaptureBtn: $("photoCaptureBtn"), photoPickBtn: $("photoPickBtn"),
-    photoPreview: $("photoPreview"), ocrStatus: $("ocrStatus"),
+    photoPreview: $("photoPreview"), ocrStatus: $("ocrStatus"), ocrRetry: $("ocrRetry"),
     photoTitle: $("photoTitle"), photoText: $("photoText"), photoCount: $("photoCount"),
     photoSave: $("photoSave"),
     appEmail: $("appEmail"), appUser: $("appUser"), appCredits: $("appCredits"),
-    appLogout: $("appLogout")
+    appPassword: $("appPassword"), appLogout: $("appLogout")
   };
 
   var currentView = "essays";
   var pending = false;
   var tessPromise = null;
+  var tessReady = null;
+  var lastPhoto = null;
+  var ocrStage = "加载识别组件";
+  var editingId = 0;
   var previewUrl = "";
 
   function auth() { return window.WY_AUTH; }
@@ -55,6 +73,137 @@
     try { j = await res.json(); } catch (e) { /* 忽略非 JSON 响应 */ }
     if (!res.ok || !j.ok) throw new Error(j.error || ("请求失败（HTTP " + res.status + "）"));
     return j;
+  }
+
+  /* ---------------- 作文基础参数 ----------------
+     选项来自公开的 rules.js；录入区与「改参数」弹层共用一份表单模板。 */
+  function paramDefaults() {
+    var W = window;
+    var cats = W.WY_CATEGORY ? Object.keys(W.WY_CATEGORY) : ["命题"];
+    var genres = W.WY_GENRE ? Object.keys(W.WY_GENRE) : ["记叙文"];
+    var stages = W.WY_STAGE_LIST || ["小学", "初中", "高中"];
+    var provs = W.WY_SCORING ? Object.keys(W.WY_SCORING) : ["全国卷（通用）"];
+    var st = stages.indexOf("初中") >= 0 ? "初中" : (stages[0] || "初中");
+    return {
+      cat: cats[0] || "命题",
+      genre: genres[0] || "记叙文",
+      stage: st,
+      prov: provs[0] || "全国卷（通用）",
+      words: (W.WY_STAGE && W.WY_STAGE[st] && W.WY_STAGE[st].words) || 600,
+      cats: cats, genres: genres, stages: stages, provs: provs
+    };
+  }
+
+  function fillSelect(sel, list, cur) {
+    if (!sel) return;
+    sel.innerHTML = "";
+    list.forEach(function (name) {
+      var o = document.createElement("option");
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    });
+    if (cur && list.indexOf(cur) >= 0) sel.value = cur;
+  }
+
+  function mountParams(host) {
+    if (!host || !els.paramTpl || !els.paramTpl.content) return;
+    host.innerHTML = "";
+    host.appendChild(els.paramTpl.content.cloneNode(true));
+    var d = paramDefaults();
+    fillSelect(host.querySelector('[data-p="cat"]'), d.cats, d.cat);
+    fillSelect(host.querySelector('[data-p="genre"]'), d.genres, d.genre);
+    fillSelect(host.querySelector('[data-p="stage"]'), d.stages, d.stage);
+    fillSelect(host.querySelector('[data-p="prov"]'), d.provs, d.prov);
+    var w = host.querySelector('[data-p="words"]');
+    if (w) w.value = d.words;
+    var st = host.querySelector('[data-p="stage"]');
+    if (st && w) {
+      st.addEventListener("change", function () {
+        var conf = window.WY_STAGE && window.WY_STAGE[st.value];
+        if (conf && conf.words) w.value = conf.words;
+      });
+    }
+  }
+
+  function pick(host, key) {
+    var el = host && host.querySelector('[data-p="' + key + '"]');
+    return el ? String(el.value || "").trim() : "";
+  }
+
+  function readParams(host) {
+    var d = paramDefaults();
+    return {
+      cat: pick(host, "cat") || d.cat,
+      genre: pick(host, "genre") || d.genre,
+      stage: pick(host, "stage") || d.stage,
+      prov: [pick(host, "prov") || d.prov],
+      words: Math.max(100, Math.min(3000, Number(pick(host, "words")) || d.words))
+    };
+  }
+
+  function writeParams(host, p) {
+    if (!host) return;
+    var d = paramDefaults();
+    var val = function (k, list) { return list.indexOf(p[k]) >= 0 ? p[k] : d[k]; };
+    var set = function (k, v) { var el = host.querySelector('[data-p="' + k + '"]'); if (el) el.value = v; };
+    var cat = host.querySelector('[data-p="cat"]');
+    var genre = host.querySelector('[data-p="genre"]');
+    var stage = host.querySelector('[data-p="stage"]');
+    var prov = host.querySelector('[data-p="prov"]');
+    if (cat) { fillSelect(cat, d.cats, val("cat", d.cats)); }
+    if (genre) { fillSelect(genre, d.genres, val("genre", d.genres)); }
+    if (stage) { fillSelect(stage, d.stages, val("stage", d.stages)); }
+    var provList = (Array.isArray(p.prov) && p.prov.length) ? p.prov : [d.prov];
+    if (prov) { fillSelect(prov, d.provs, provList[0]); }
+    set("words", Number(p.words) || d.words);
+  }
+
+  /* 老作文没有 params：从 category「命题 · 记叙文」和 province 里拆出来当初值 */
+  function parseParams(raw, row) {
+    var p = {};
+    try { p = JSON.parse(String(raw || "")) || {}; } catch (e) { p = {}; }
+    var d = paramDefaults();
+    var catParts = String((row && row.category) || "").split("·").map(function (x) { return x.trim(); });
+    var provOld = String((row && row.province) || "").split(/[、,，]/).map(function (x) { return x.trim(); }).filter(Boolean);
+    return {
+      cat: p.cat || catParts[0] || d.cat,
+      genre: p.genre || catParts[1] || d.genre,
+      stage: p.stage || d.stage,
+      prov: (Array.isArray(p.prov) && p.prov.length) ? p.prov : (provOld.length ? provOld : [d.prov]),
+      words: Number(p.words) || d.words
+    };
+  }
+
+  function openParams(row) {
+    if (!els.paramsMask) return;
+    editingId = row.id;
+    writeParams(els.paramsForm, parseParams(row.params, row));
+    if (els.paramsHint) {
+      els.paramsHint.textContent = "《" + esc(row.title || "无题") +
+        "》的基础参数。改完保存，下次进工作台就按这套参数评改、给分；正文一个字都不会动。";
+    }
+    setMsg(els.paramsMsg, "");
+    els.paramsMask.removeAttribute("hidden");
+  }
+
+  async function saveParams() {
+    if (!editingId) return;
+    var p = readParams(els.paramsForm);
+    els.paramsSave.disabled = true;
+    setMsg(els.paramsMsg, "正在保存…");
+    try {
+      await api("/api/essays/" + encodeURIComponent(editingId) + "/params", {
+        method: "PUT", body: { params: JSON.stringify(p) }
+      });
+      els.paramsMask.setAttribute("hidden", "");
+      await loadEssays();
+      setMsg(els.essayMsg, "参数已更新，进工作台就按新的来。", "ok");
+    } catch (e) {
+      setMsg(els.paramsMsg, "保存失败：" + ((e && e.message) || "未知错误"), "error");
+    } finally {
+      els.paramsSave.disabled = false;
+    }
   }
 
   /* ---------------- 视图切换 ---------------- */
@@ -91,8 +240,8 @@
     if (els.cta) els.cta.textContent = on ? "继续写作" : "开始写作";
     if (els.heroNote) {
       els.heroNote.textContent = on
-        ? "已登录。进工作台后先确认接口配置，再点开始生成。"
-        : "生成需要登录，邮箱验证码即可，不设密码。";
+        ? "已登录。进工作台后直接写，模型由站内直连。"
+        : "生成需要登录：密码登录，或邮箱验证码登录后补设密码。";
     }
     if (on) setView(viewFromHash(), true);
   }
@@ -157,6 +306,13 @@
       go.textContent = "继续修改";
       go.addEventListener("click", function () { openEssay(r.id); });
       acts.appendChild(go);
+
+      var prm = document.createElement("button");
+      prm.type = "button";
+      prm.className = "btn-outline";
+      prm.textContent = "改参数";
+      prm.addEventListener("click", function () { openParams(r); });
+      acts.appendChild(prm);
 
       var del = document.createElement("button");
       del.type = "button";
@@ -232,6 +388,7 @@
       return;
     }
     var btn = src === "photo" ? els.photoSave : els.importSave;
+    var p = readParams(els.importParams);
     btn.disabled = true;
     setMsg(els.importMsg, "正在保存…");
     try {
@@ -241,8 +398,9 @@
           title: String(title || "").trim().slice(0, 120) || "无题",
           body: text,
           outline: "",
-          category: "命题·" + (src === "photo" ? "拍摄录入" : "输入录入"),
-          province: "",
+          category: p.cat + " · " + p.genre,
+          province: p.prov.join("、"),
+          params: JSON.stringify(p),
           session: "",
           wordCount: words(text)
         }
@@ -265,22 +423,71 @@
     }
   }
 
-  /* 拍摄录入：浏览器本地中文 OCR，字库首次加载会慢一点，识别结果一律交给用户校对 */
+  /* 拍摄录入：浏览器本地中文 OCR。
+     四条 CDN 同时试，谁先加载成功用谁；worker / core / 字库都显式指到同源可达地址，
+     否则组件加载了、内部默认还是会去不通的 jsdelivr 拉 worker 卡死。
+     失败时清掉缓存的 Promise，点「重试识别」会真的重新发请求。 */
   function loadTesseract() {
-    if (window.Tesseract) return Promise.resolve(window.Tesseract);
-    if (!tessPromise) {
-      tessPromise = new Promise(function (resolve, reject) {
+    if (tessReady && window.Tesseract) return Promise.resolve(tessReady);
+    if (tessPromise) return tessPromise;
+    tessPromise = new Promise(function (resolve, reject) {
+      var left = TESS_SOURCES.length;
+      var settled = false;
+      var timer = setTimeout(function () {
+        fail("识别组件加载超时（15 秒），可能是网络挡住了外部 CDN");
+      }, 15000);
+      function fail(msg) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        tessPromise = null;
+        reject(new Error(msg));
+      }
+      TESS_SOURCES.forEach(function (src) {
         var s = document.createElement("script");
-        s.src = TESS_URL;
-        s.onload = function () { window.Tesseract ? resolve(window.Tesseract) : reject(new Error("识别组件没加载成功")); };
-        s.onerror = function () { reject(new Error("识别组件下载失败，检查网络后重试")); };
+        s.src = src.base + "/dist/tesseract.min.js";
+        s.async = true;
+        s.onload = function () {
+          if (settled) return;
+          if (!window.Tesseract) {
+            left--;
+            if (!left) fail("组件下载了但没初始化成功");
+            return;
+          }
+          settled = true;
+          clearTimeout(timer);
+          tessReady = src;
+          resolve(src);
+        };
+        s.onerror = function () {
+          try { s.remove(); } catch (e) { /* ignore */ }
+          left--;
+          if (!settled && !left) fail("四条 CDN 线路都没连上，网络可能挡了外部资源");
+        };
         document.head.appendChild(s);
       });
-    }
+    });
     return tessPromise;
   }
 
   function setOcr(text) { if (els.ocrStatus) els.ocrStatus.textContent = text; }
+
+  var OCR_PHASES = {
+    "loading tesseract core": "下载识别内核",
+    "initializing tesseract": "启动识别内核",
+    "loading language traineddata": "下载中文字库",
+    "initializing api": "准备识别",
+    "recognizing text": "识别文字"
+  };
+
+  function ocrLogger(m) {
+    if (!m) return;
+    var label = OCR_PHASES[String(m.status || "")];
+    if (!label) return;
+    ocrStage = label;
+    var p = (typeof m.progress === "number") ? " " + Math.round(m.progress * 100) + "%" : "";
+    setOcr("正在" + label + p + "…");
+  }
 
   function guessTitle(text) {
     var first = String(text || "").split(/\n/).map(function (t) { return t.trim(); })
@@ -291,6 +498,7 @@
 
   async function handlePhoto(file) {
     if (!file) return;
+    lastPhoto = file;
     if (previewUrl) { try { URL.revokeObjectURL(previewUrl); } catch (e) { /* ignore */ } }
     previewUrl = URL.createObjectURL(file);
     els.photoPreview.hidden = false;
@@ -301,22 +509,28 @@
     els.photoPreview.appendChild(img);
 
     setMsg(els.importMsg, "");
-    setOcr("正在准备识别组件…");
+    if (els.ocrRetry) els.ocrRetry.hidden = true;
+    ocrStage = "加载识别组件";
+    setOcr("正在加载识别组件（四条线路同时试）…");
+    var worker = null;
     try {
-      var T = await loadTesseract();
-      setOcr("正在下载中文字库（第一次会慢一些），然后开始识别…");
-      var worker = await T.createWorker("chi_sim+eng", 1, {
-        logger: function (m) {
-          if (m && m.status === "recognizing text" && typeof m.progress === "number") {
-            setOcr("正在识别文字 " + Math.round(m.progress * 100) + "%…");
-          }
-        }
+      var src = await loadTesseract();
+      ocrStage = "下载识别内核";
+      setOcr("组件就位，正在下载识别内核与中文字库（第一次会慢一些）…");
+      worker = await window.Tesseract.createWorker("chi_sim+eng", 1, {
+        workerPath: src.base + "/dist/worker.min.js",
+        corePath: src.core,
+        langPath: TESS_LANG_PATH,
+        logger: ocrLogger
       });
+      ocrStage = "识别文字";
       var ret = await worker.recognize(file);
       await worker.terminate();
+      worker = null;
       var text = String((ret && ret.data && ret.data.text) || "").replace(/\uFFFD+/g, "").trim();
       if (!text) {
-        setOcr("这张图没认出字。可以换个角度再拍一张，或把文字直接敲进下面的框里。");
+        setOcr("这张图没认出字。可以点「重试识别」换个角度再拍一张，或把文字直接敲进下面的框里。");
+        if (els.ocrRetry) els.ocrRetry.hidden = false;
         return;
       }
       els.photoText.value = text;
@@ -324,8 +538,11 @@
       if (!els.photoTitle.value.trim()) els.photoTitle.value = guessTitle(text);
       setOcr("识别完了。手写和照片角度会带错字，请对照原图校对一遍再保存。");
     } catch (e) {
-      setOcr("识别没成功：" + ((e && e.message) || "未知错误") +
-        "。可以改用「输入录入」，或把照片里的文字敲进下面的框里，照样能保存。");
+      if (worker) { try { await worker.terminate(); } catch (x) { /* ignore */ } }
+      var msg = (e && e.message) || "未知错误";
+      setOcr("没做成（卡在「" + ocrStage + "」）：" + msg +
+        "。可以点「重试识别」再试一次，或改用输入录入 / 直接把文字敲进下面的框里，照样能保存。");
+      if (els.ocrRetry) els.ocrRetry.hidden = false;
     }
   }
 
@@ -335,6 +552,10 @@
     if (!loggedIn()) return;
     if (els.appEmail) els.appEmail.textContent = (auth().email && auth().email()) || "—";
     if (els.appUser) els.appUser.textContent = (auth().user && auth().user()) || "";
+    if (els.appPassword) {
+      var has = auth() && auth().hasPassword && auth().hasPassword();
+      els.appPassword.textContent = has ? "修改密码" : "设置密码（推荐）";
+    }
     if (els.appCredits) els.appCredits.textContent = "…";
     try {
       var n = auth().refreshCredits ? await auth().refreshCredits() : null;
@@ -345,6 +566,29 @@
   }
 
   /* ---------------- 事件 ---------------- */
+
+  mountParams(els.importParams);
+  mountParams(els.paramsForm);
+
+  function closeParams() { if (els.paramsMask) els.paramsMask.setAttribute("hidden", ""); }
+  if (els.paramsClose) els.paramsClose.addEventListener("click", closeParams);
+  if (els.paramsSave) els.paramsSave.addEventListener("click", saveParams);
+  if (els.paramsMask) {
+    els.paramsMask.addEventListener("click", function (e) { if (e.target === els.paramsMask) closeParams(); });
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && els.paramsMask && !els.paramsMask.hasAttribute("hidden")) closeParams();
+  });
+  if (els.ocrRetry) {
+    els.ocrRetry.addEventListener("click", function () { if (lastPhoto) handlePhoto(lastPhoto); });
+  }
+  if (els.appPassword) {
+    els.appPassword.addEventListener("click", function () {
+      if (!loggedIn()) { if (auth()) auth().open("login"); return; }
+      var has = auth() && auth().hasPassword && auth().hasPassword();
+      if (auth() && auth().openPassword) auth().openPassword(has);
+    });
+  }
 
   if (els.cta) {
     els.cta.addEventListener("click", function () {
