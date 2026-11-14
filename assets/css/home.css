@@ -276,6 +276,23 @@ body.app-on .site-footer { display: none; }
 #paramsForm { margin-top: 14px; }
 @media (max-width: 480px) { .param-grid { grid-template-columns: 1fr; } }
 
+.account-hero {
+  background:
+    radial-gradient(520px 240px at 88% -20%, rgba(88, 169, 123, .30), transparent 70%),
+    linear-gradient(110deg, var(--g-900), var(--g-700));
+  border: 1px solid rgba(242, 249, 243, .14);
+  box-shadow: var(--shadow-green);
+  border-radius: 18px;
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+.account-hero-label { display: block; font-size: 12.5px; color: var(--on-green-mute); margin-bottom: 8px; }
+.account-hero-num { display: flex; align-items: baseline; gap: 10px; color: var(--on-green); font-family: var(--serif); }
+.account-hero-num .credit-coin { flex: 0 0 auto; position: relative; top: 4px; }
+.account-hero-num #appCredits { font-size: 40px; font-weight: 700; line-height: 1; color: var(--on-green); }
+.account-hero-unit { font-size: 15px; color: var(--on-green-mute); }
+.account-hero-tip { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--on-green-mute); }
+
 .account-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; max-width: 640px; }
 .account-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink); }
 .account-row:last-child { border-bottom: 0; }
@@ -318,4 +335,6 @@ body.app-on .site-footer { display: none; }
     cursor: pointer;
   }
   .app-tab.active { color: var(--brand-deep); font-weight: 600; }
+  .account-hero { padding: 18px 16px; }
+  .account-hero-num #appCredits { font-size: 34px; }
 }

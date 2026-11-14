@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="assets/css/style.css?v=20261116N">
 <link rel="stylesheet" href="assets/css/write.css?v=20261116N">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116N">
-<link rel="stylesheet" href="assets/css/home.css?v=20261116N">
+<link rel="stylesheet" href="assets/css/home.css?v=20261116O">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116N">
 </head>
 <body class="home">
@@ -208,17 +208,23 @@
           <p>账号、积分与登录管理。</p>
         </div>
       </div>
+      <div class="account-hero">
+        <div class="account-hero-main">
+          <span class="account-hero-label">当前余额</span>
+          <div class="account-hero-num">
+            <svg class="credit-coin" viewBox="0 0 16 16" width="30" height="30" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="#d9a441" stroke="#a97b1f" stroke-width="1"/><circle cx="8" cy="8" r="2.6" fill="#fdf3dd"/></svg>
+            <span id="appCredits">—</span><span class="account-hero-unit">积分</span>
+          </div>
+          <p class="account-hero-tip">站内模型每次 AI 操作消耗 1 积分，失败自动退回</p>
+        </div>
+      </div>
+
       <div class="account-card">
         <div class="account-row">
           <span class="account-label">当前账号</span>
           <strong id="appEmail">—</strong>
           <span class="account-sep">·</span>
           <span id="appUser"></span>
-        </div>
-        <div class="account-row">
-          <span class="account-label">剩余积分</span>
-          <strong id="appCredits">—</strong>
-          <span class="account-tip">站内模型每次 AI 操作消耗 1 积分，失败自动退回</span>
         </div>
         <div class="account-row account-links">
           <a class="btn-outline" href="credits.html">积分与兑换</a>
