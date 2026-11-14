@@ -4629,19 +4629,22 @@
     var snap = essaySnapshot();
     // 分数要在清批注之前抓下来：改完正文分数卡就作废了，但历史版本里得留着这次拿了几分
     var verScore = opts.versionScore !== undefined ? opts.versionScore : criticScoresSummary();
+    // 聊天里下的是一条命令时，按小手术报进度，别再对外说「从头重写整篇」
+    var smallOp = (opts.small !== undefined) ? !!opts.small : askWantsEdit(runningAsk);
+    var waitTxt = smallOp ? "按你说的改那一处，其余保持原样…" : "正在从头重写整篇…";
     if (opts.silentBubble) {
       assistantReplyEl = null;
     } else {
       addUserBubble(summarizeAsk(req));
       els.chatInput.value = "";
       assistantReplyEl = addAssistantBubble("批改老师");
-      if (assistantReplyEl) assistantReplyEl.textContent = "正在从头重写整篇…";
+      if (assistantReplyEl) assistantReplyEl.textContent = waitTxt;
     }
-    setPaperHint("正在从头重写整篇…");
-    setDocHint("整篇重写中 · 改好会整张稿纸一起换");
+    setPaperHint(waitTxt);
+    setDocHint(smallOp ? "小范围改稿 · 只动你点到的地方" : "整篇重写中 · 改好会整张稿纸一起换");
     switchPane("paper");
 
-    var ok = await runStream("rewrite", criticVars({ req: req }), { mode: "essay" });
+    var ok = await runStream("rewrite", criticVars({ req: req, smallEdit: smallOp }), { mode: "essay" });
     var plain = function (t) { return String(t || "").replace(/\s/g, "").length; };
     // 大改允许重搭结构，字数掉得多一点不拦；小改还是按住 0.6 的线
     var minRatio = typeof opts.minRatio === "number" ? opts.minRatio : 0.6;
@@ -5512,11 +5515,12 @@
     bubble.textContent = big
       ? ("讨论结论是这篇要大改" + (revision.scope ? "（动 " + revision.scope + "）" : "") + "，正在重搭一版完整新稿…")
       : (ready.length
-        ? ("坐实 " + ready.length + " 条，只动这几处，正在改一版完整新稿…")
-        : ("没坐实条目，按你那句「" + runningAsk.slice(0, 24) + "」改一版…"));
+        ? ("坐实 " + ready.length + " 条，只动这几处，其余段落原样留着…")
+        : ("没坐实条目，按你那句「" + runningAsk.slice(0, 24) + "」改那一处，别处不动…"));
 
     var ok = await rewriteEssay(req, {
       silentBubble: true,
+      small: !big && wantsEdit,
       versionLabel: big ? "讨论改写 · 大改" : (ready.length ? ("讨论改写 · " + ready.length + " 条") : "讨论改写 · 按作者要求"),
       versionScore: scoreKeep,
       minRatio: big ? 0.45 : 0.6
@@ -5955,7 +5959,7 @@
     criticItems.forEach(function (it) { it.agreed = hards.indexOf(it) >= 0 ? "yes" : ""; });
     renderCritic();
     flowSetStat("正在按 " + hards.length + " 条硬伤重写整篇…");
-    var ok = await rewriteEssay(criticReqText("小改", {}), { silentBubble: true });   // 流程里只照坐实条目改，不跟着上次的大改幅度走
+    var ok = await rewriteEssay(criticReqText("小改", {}), { silentBubble: true, small: false });   // 流程里只照坐实条目改，不跟着上次的大改幅度走
     if (flowAbort) return false;
     if (!ok) {
       flowStep("这轮没拿到合格新稿，已恢复改前版本", "warn");
@@ -6272,7 +6276,7 @@
     var req = criticReqText();
     if (!req) { setDocHint("先在「旁批」页里点「认可」，再按这些重写整篇。"); return; }
     if (!docBody.trim()) { setDocHint("正文是空的，改不了。"); return; }
-    rewriteEssay(req);
+    rewriteEssay(req, { small: false });
   });
 
   on(els.undoRewriteBtn, "click", function () {
