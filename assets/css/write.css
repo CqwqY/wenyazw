@@ -2754,9 +2754,9 @@ table.score-table .score-table-key {
   z-index: 110;
   left: 0;
   bottom: calc(100% + 8px);
-  width: 272px;
-  max-width: calc(100vw - 40px);
-  max-height: 270px;
+  width: 292px;
+  max-width: calc(100vw - 36px);
+  max-height: min(430px, 62vh);
   overflow: auto;
   padding: 8px;
   background: var(--card, #fffdf8);
@@ -2801,6 +2801,48 @@ table.score-table .score-table-key {
 .model-item-desc { margin-left: auto; font-size: 10.5px; color: var(--ink-mute, #8a8a8a); white-space: nowrap; }
 .model-item-check { flex: none; width: 12px; font-size: 11px; color: #2f6f4e; }
 .model-menu-empty { margin: 6px 4px 2px; font-size: 11px; line-height: 1.7; color: var(--ink-mute, #8a8a8a); }
+
+/* 模型菜单里的分组与就地编辑自定义模型名 */
+.model-group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 8px 4px 4px;
+  font-family: var(--sans);
+  font-size: 10.5px;
+  letter-spacing: .04em;
+  color: var(--ink-mute, #8a8a8a);
+}
+.model-group:first-child { margin-top: 2px; }
+.model-group-note { font-size: 10px; opacity: .8; letter-spacing: 0; }
+.model-item-link .model-item-name { color: var(--ink-soft, #4a4a45); }
+.model-edit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0 2px;
+  padding: 0 4px;
+}
+.model-edit-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.model-edit-save {
+  flex: none;
+  border: 1px solid var(--line, #e5e0d5);
+  background: var(--card, #fffdf8);
+  color: #2f6f4e;
+  border-radius: 8px;
+  font-family: var(--sans);
+  font-size: 11.5px;
+  padding: 6px 9px;
+  cursor: pointer;
+}
+.model-edit-save:hover { background: rgba(47, 111, 78, .10); border-color: rgba(47, 111, 78, .35); }
+.chat-model-btn.on-custom .chat-model-dot { background: #a85a3c; }
+
 
 /* 谈妥直接改稿 */
 .debate-auto {

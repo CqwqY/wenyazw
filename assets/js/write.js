@@ -867,13 +867,90 @@
   }
 
   /* ---------------- 模型切换：就在对话框下面 ----------------
-     站内模式：服务器手里有一串备用模型，这里挑一个就让它先试这个；
-     自带接口：模型名本来写在配置里，这里只做展示，点开给个回去改的入口。 */
+     一个菜单里放两组：站内（服务器给的那串模型，免密钥）和自定义接口（自己填的地址与模型名）。
+     自定义模型名能就地改，不用回工作台翻配置；切来切去也不会把填好的自定义配置弄丢。 */
 
-  var MODEL_PICK = "wy.model.pick.v1";     // 选中的模型名，空 = 跟随自动
+  var MODEL_PICK = "wy.model.pick.v1";     // 站内选中的模型名，空 = 跟随自动
   var MODEL_LIST = "wy.model.list.v1";     // 上次拿到的站内模型清单，离线也能列
+  var CUSTOM_CFG = "wy.custom.cfg.v1";     // 自定义接口的档案：切到站内也不会被冲掉
   var modelPick = "";
   var modelList = [];
+
+  function customCfgDefault() {
+    return {
+      preset: "deepseek",
+      base: PRESETS.deepseek.base,
+      path: "/chat/completions",
+      key: "",
+      model: PRESETS.deepseek.model
+    };
+  }
+
+  function customCfgFromForm() {
+    return {
+      preset: els.preset.value === "site" ? loadCustomCfg().preset : els.preset.value,
+      base: els.base.value.trim(),
+      path: els.path.value.trim(),
+      key: els.key.value.trim(),
+      model: els.model.value.trim()
+    };
+  }
+
+  /* 自定义接口档案：优先用单独存的那份；从来没有过的话，退回默认（deepseek） */
+  function loadCustomCfg() {
+    var out = customCfgDefault();
+    try {
+      var raw = localStorage.getItem(CUSTOM_CFG);
+      var o = raw ? JSON.parse(raw) : null;
+      if (o && typeof o === "object") {
+        if (typeof o.preset === "string" && o.preset && o.preset !== "site") out.preset = o.preset;
+        if (typeof o.base === "string" && o.base) out.base = o.base;
+        if (typeof o.path === "string" && o.path) out.path = o.path;
+        if (typeof o.key === "string") out.key = o.key;
+        if (typeof o.model === "string" && o.model) out.model = o.model;
+        return out;
+      }
+    } catch (e) { /* 坏数据就当没有 */ }
+    // 老用户：盘上还没有档案，但当前配置本来就是自定义，直接拿来当档案
+    var saved = readConfig();
+    if (saved.preset && saved.preset !== "site") {
+      out.preset = saved.preset;
+      out.base = saved.base;
+      out.path = saved.path;
+      out.key = saved.key;
+      out.model = saved.model;
+    }
+    return out;
+  }
+
+  function saveCustomCfg(o) {
+    if (!o) return;
+    // 用户没勾「记住 Key」时，档案里也不留 Key，别绕开这个选项偷偷存下来
+    var keep = o;
+    if (els.remember && !els.remember.checked) {
+      keep = { preset: o.preset, base: o.base, path: o.path, key: "", model: o.model };
+    }
+    try { localStorage.setItem(CUSTOM_CFG, JSON.stringify(keep)); } catch (e) { /* 隐私模式忽略 */ }
+  }
+
+  /* 站内 / 自定义 之间切：切走之前先把自定义配置存档案，切回来再填回去 */
+  function setPresetMode(mode) {
+    if (mode === "site") {
+      if (els.preset.value !== "site") saveCustomCfg(customCfgFromForm());
+      els.preset.value = "site";
+    } else {
+      var cfg = loadCustomCfg();
+      lastCustomCfg = null;
+      els.preset.value = (cfg.preset && cfg.preset !== "site") ? cfg.preset : "deepseek";
+      els.base.value = cfg.base;
+      els.path.value = cfg.path;
+      els.key.value = cfg.key;
+      els.model.value = cfg.model;
+    }
+    syncPresetUI();
+    saveConfig();
+    syncModelPill();
+  }
 
   function loadModelPick() {
     try { modelPick = localStorage.getItem(MODEL_PICK) || ""; } catch (e) { modelPick = ""; }
@@ -907,17 +984,19 @@
 
   function syncModelPill() {
     if (!els.modelPillName) return;
-    els.modelPillName.textContent = modelLabel();
     var site = currentConfig().preset === "site";
-    els.modelPill.title = site ? "切换站内模型" : "模型名写在接口配置里，点开可以改";
+    els.modelPillName.textContent = modelLabel();
+    els.modelPill.title = site ? "切换站内模型，或改用自定义接口" : "用的是自定义接口的模型，点开可以改";
+    if (els.modelPill) els.modelPill.classList.toggle("on-custom", !site);
   }
 
-  function modelItem(name, desc, val, cur) {
+  /* 菜单里的一行：on 决定打不打勾 */
+  function modelRow(name, desc, on, action, cls) {
     var b = document.createElement("button");
     b.type = "button";
-    b.className = "model-item" + (val === cur ? " on" : "");
+    b.className = "model-item" + (on ? " on" : "") + (cls ? " " + cls : "");
     b.setAttribute("role", "option");
-    b.setAttribute("aria-selected", String(val === cur));
+    b.setAttribute("aria-selected", String(!!on));
     var n = document.createElement("span");
     n.className = "model-item-name";
     n.textContent = name;
@@ -930,29 +1009,69 @@
     }
     var ck = document.createElement("span");
     ck.className = "model-item-check";
-    ck.textContent = val === cur ? "✓" : "";
+    ck.textContent = on ? "✓" : "";
     b.appendChild(ck);
-    b.onclick = function () {
-      if (val === "__cfg__") { closeModelMenu(); setConfigOpen(true); return; }
-      saveModelPick(val);
-      closeModelMenu();
-      setDocHint(val ? ("模型已切到 " + val + "，下一次请求就用它") : "模型跟随服务器自动挑");
-    };
+    b.onclick = action;
     return b;
+  }
+
+  function modelGroup(title, note) {
+    var g = document.createElement("div");
+    g.className = "model-group";
+    g.textContent = title;
+    if (note) {
+      var t = document.createElement("span");
+      t.className = "model-group-note";
+      t.textContent = note;
+      g.appendChild(t);
+    }
+    return g;
+  }
+
+  function useSiteModel(m) {
+    saveModelPick(m);
+    if (currentConfig().preset !== "site") setPresetMode("site");
+    closeModelMenu();
+    setDocHint(m ? ("已切到站内模型 " + m + "，下一次请求就用它") : "模型跟随服务器自动挑");
+  }
+
+  /* 自定义模型的关键动作：改名字（同时切到自定义接口） */
+  function useCustomModel(name) {
+    var v = trim(name);
+    if (!v) { setDocHint("自定义模型名不能是空的。"); return; }
+    var cfg = loadCustomCfg();
+    cfg.model = v;
+    // 在配置面板里正填着的地址 / Key 一并带进档案，免得只改了模型名、其余还是旧的
+    if (els.preset.value !== "site") {
+      cfg.preset = els.preset.value;
+      cfg.base = els.base.value.trim() || cfg.base;
+      cfg.path = els.path.value.trim() || cfg.path;
+      cfg.key = els.key.value.trim() || cfg.key;
+    }
+    saveCustomCfg(cfg);
+    setPresetMode("custom");
+    els.model.value = v;
+    saveConfig();
+    syncModelPill();
+    closeModelMenu();
+    setDocHint("已用自定义接口的模型 " + v + (cfg.key ? "" : "，但还没填 Key，记得去「接口配置」补上"));
   }
 
   function renderModelMenu() {
     if (!els.modelMenuList) return;
     els.modelMenuList.innerHTML = "";
-    var c = currentConfig();
-    if (c.preset !== "site") {
-      els.modelMenuList.appendChild(modelItem(c.model || "（空）", "来自「接口配置」里的模型名", c.model, c.model));
-      els.modelMenuList.appendChild(modelItem("去接口配置改模型名", "自带 key 时模型由你来填", "__cfg__", "__cfg__"));
-      return;
-    }
-    els.modelMenuList.appendChild(modelItem("跟随自动", "服务器按备用链挑第一个能用的", "", modelPick));
+    var site = currentConfig().preset === "site";
+    var cfg = loadCustomCfg();
+
+    /* ---- 站内 ---- */
+    els.modelMenuList.appendChild(modelGroup("站内模型", "免密钥 · 每次 1 积分"));
+    els.modelMenuList.appendChild(modelRow("跟随自动", "服务器按备用链挑第一个能用的", site && !modelPick, function () {
+      useSiteModel("");
+    }));
     modelList.forEach(function (m) {
-      els.modelMenuList.appendChild(modelItem(m, "", m, modelPick));
+      els.modelMenuList.appendChild(modelRow(m, "", site && modelPick === m, function () {
+        useSiteModel(m);
+      }));
     });
     if (!modelList.length) {
       var tip = document.createElement("p");
@@ -960,10 +1079,44 @@
       tip.textContent = "没读到站内模型清单（没登录，或服务器还是旧版）。选「跟随自动」照样能用。";
       els.modelMenuList.appendChild(tip);
     }
+
+    /* ---- 自定义 ---- */
+    els.modelMenuList.appendChild(modelGroup("自定义接口", cfg.key ? "用自己的 Key · 不扣积分" : "还没填 Key"));
+    els.modelMenuList.appendChild(modelRow(cfg.model || "（未填）", "点一下切到自定义接口", !site, function () {
+      useCustomModel(cfg.model);
+    }));
+
+    var ed = document.createElement("div");
+    ed.className = "model-edit";
+    var inp = document.createElement("input");
+    inp.className = "input model-edit-input";
+    inp.type = "text";
+    inp.value = cfg.model || "";
+    inp.placeholder = "填模型名，如 deepseek-chat";
+    inp.setAttribute("aria-label", "自定义模型名");
+    inp.spellcheck = false;
+    var ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "model-edit-save";
+    ok.textContent = "用这个";
+    function submit() { useCustomModel(inp.value); }
+    ok.onclick = submit;
+    inp.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); submit(); }
+      e.stopPropagation();     // 别让回车冒泡去发对话
+    });
+    ed.appendChild(inp);
+    ed.appendChild(ok);
+    els.modelMenuList.appendChild(ed);
+
+    var toCfg = modelRow("去接口配置", "改地址、路径与 Key", false, function () {
+      closeModelMenu();
+      setConfigOpen(true);
+    }, "model-item-link");
+    els.modelMenuList.appendChild(toCfg);
   }
 
   async function loadModelList(force) {
-    if (currentConfig().preset !== "site") return modelList;
     if (modelList.length && !force) return modelList;
     var tok = authToken();
     if (!tok) return modelList;
@@ -1083,15 +1236,26 @@
   }
 
   var lastCustomCfg = null;
-  function syncPresetUI() {
+  function syncPresetUI(silent) {
     if (typeof syncModelPill === "function") setTimeout(syncModelPill, 0);
     var site = els.preset.value === "site";
     if (site) {
-      if (!lastCustomCfg) {
+      // 字段还是自定义那套值时，说明刚从自定义切过来：先落进档案，别让站内地址把它冲掉
+      if (!silent && els.base.value && els.base.value !== siteBase()) {
         lastCustomCfg = {
           base: els.base.value, path: els.path.value,
           key: els.key.value, model: els.model.value
         };
+        if (typeof saveCustomCfg === "function") {
+          var keep = loadCustomCfg();
+          saveCustomCfg({
+            preset: keep.preset,
+            base: lastCustomCfg.base || keep.base,
+            path: lastCustomCfg.path || keep.path,
+            key: lastCustomCfg.key,
+            model: lastCustomCfg.model || keep.model
+          });
+        }
       }
       els.base.value = siteBase();
       els.path.value = "/chat/completions";
@@ -1103,6 +1267,15 @@
       els.key.value = lastCustomCfg.key;
       els.model.value = lastCustomCfg.model;
       lastCustomCfg = null;
+    } else if (typeof loadCustomCfg === "function") {
+      // 刷新后从站内切回自定义：表单里还是站内地址，得用档案填回来
+      var cfg = loadCustomCfg();
+      if (els.base.value === siteBase() || !els.base.value) {
+        els.base.value = cfg.base;
+        els.path.value = cfg.path;
+        els.key.value = cfg.key;
+        els.model.value = cfg.model;
+      }
     }
     [els.base, els.path, els.model, els.key].forEach(function (el) { el.disabled = site; });
     // 站内模式把这些字段整块藏掉：地址、路径、模型名、Key 都不让用户看见也不用管。
@@ -1165,7 +1338,7 @@
   }
 
   fillForm(readConfig());
-  syncPresetUI();
+  syncPresetUI(true);        // 首次渲染别把表单默认值当成用户填的自定义配置存进档案
 
   /* auth.js 在 write.js 之后加载，初始化时还拿不到登录态与积分，这里补两次 */
   function hookAuthCredits() {
