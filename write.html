@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261115V">
-<link rel="stylesheet" href="assets/css/write.css?v=20261115V">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261115V">
+<link rel="stylesheet" href="assets/css/style.css?v=20261115W">
+<link rel="stylesheet" href="assets/css/write.css?v=20261115W">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261115W">
 </head>
 <body>
 
@@ -245,8 +245,6 @@
         <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
         <button class="btn-outline" id="undoRewriteBtn" hidden>恢复上一版</button>
         <button class="btn-outline" id="diffBtn" hidden>改动对照</button>
-        <button class="btn-outline" id="scoreBtn">AI 评分</button>
-        <button class="btn-outline" id="criticBtn">AI 讨论</button>
         <button class="btn-outline" id="flowBtn">流程作文</button>
         <button class="btn-outline" id="copyBtn">复制</button>
         <button class="btn-outline" id="downloadBtn">下载 txt</button>
@@ -400,7 +398,7 @@
               <span class="debate-cost" id="debateCost"></span>
             </div>
             <label class="debate-auto"><input type="checkbox" id="debateAutoApply" checked> 讨论完由 AI 自己定改不改、改多大（关掉＝只讨论不动稿）</label>
-            <p class="debate-tip">评分和讨论是两步。顶部「AI 评分」只按标准给分并列扣分项，不判句子好坏、不挑句子、一个字不动。讨论里甲方仍会先给分（那是起点），乙复核、甲逐条表态并交定稿，最后甲自己定「不改 / 小改 / 大改」。轮数是上限不是任务，乙挑不出东西或原地打转就提前收工；不想要上限就点「不限轮数」。稿子立得住就不动，连片硬伤就重搭。改完在「历史版本」里逐段挑着留。</p>
+            <p class="debate-tip">在对话框里说一句就发起一次讨论：甲先按标准给分，乙复核，甲逐条表态并交定稿，最后甲自己定「不改 / 小改 / 大改」。轮数是上限不是任务，乙挑不出东西或原地打转就提前收工；不想要上限就点「不限轮数」。稿子立得住就不动，连片硬伤就重搭。改完在「历史版本」里逐段挑着留。</p>
           </div>
           <div class="debate-log" id="debateLog" hidden></div>
           <div class="critic-dock" id="criticDock" hidden>
@@ -412,14 +410,14 @@
             </div>
             <div class="critic-score" id="criticScore" hidden></div>
           </div>
-          <p class="drawer-empty" id="criticEmpty">还没有结果。点顶部「AI 评分」只按标准给分并列扣分项，不判句子好坏、不动稿；在对话框里说一句或点「AI 讨论」则发起一次讨论：甲评分、乙复核、甲定稿并自己决定改不改、改多大。逐句评语在「旁批」页。</p>
+          <p class="drawer-empty" id="criticEmpty">还没有结果。在对话框里说一句就发起一次讨论：甲评分、乙复核、甲定稿并自己决定改不改、改多大。逐句评语在「旁批」页。</p>
         </section>
 
         <!-- 旁批：手机端不再挂在稿纸下方，统一收进抽屉；桌面端稿纸右栏仍是原来的对齐旁批 -->
         <section class="drawer-pane" id="drawerPaneNotes" hidden>
           <p class="drawer-notes-tip" id="drawerNotesTip">逐句评语在这里。点卡片可跳到稿纸里的原句；认可后可让 AI 按这些重写整篇。</p>
           <div class="drawer-note-list" id="drawerNoteList"></div>
-          <p class="drawer-empty" id="drawerNoteEmpty">还没有旁批。点顶部「AI 讨论」后，逐句评语会出现在这里；提修改要求会直接从头重写整篇。</p>
+          <p class="drawer-empty" id="drawerNoteEmpty">还没有旁批。发起一次讨论后，逐句评语会出现在这里；提修改要求会直接从头重写整篇。</p>
         </section>
 
         <!-- 流程作文：轮次随时可改（运行中改也生效），进度与停止都在这里 -->
@@ -515,8 +513,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261115V"></script>
-<script src="assets/js/write.js?v=20261115V"></script>
-<script src="assets/js/auth.js?v=20261115V"></script>
+<script src="assets/js/prompt.js?v=20261115W"></script>
+<script src="assets/js/write.js?v=20261115W"></script>
+<script src="assets/js/auth.js?v=20261115W"></script>
 </body>
 </html>

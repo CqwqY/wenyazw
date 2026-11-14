@@ -2987,6 +2987,29 @@ table.score-table .score-table-key {
   .run-glow::after { animation: none; }
 }
 
+/* 工作台整页：光圈贴着视口边跑，不是只框住稿纸那一块。
+   抽屉、模型菜单最高到 z-index 110，这里压到 320，免得叠在上面的浮层把边切掉。
+   用 fixed 定位，页面滚起来边框也一直贴在屏幕上。 */
+#studio.run-glow { position: relative; }
+#studio.run-glow::after {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  border-radius: 0;
+  padding: 3px;
+  /* 整页边框贴着屏幕边，颜色要压得住页面的米白底，否则只剩一圈灰绿 */
+  background: conic-gradient(from var(--run-angle),
+    rgba(47, 190, 120, .62) 0deg,
+    rgba(47, 190, 120, .34) 105deg,
+    rgba(64, 210, 140, .68) 210deg,
+    rgba(74, 214, 143, .95) 300deg,
+    rgba(226, 255, 240, 1) 338deg,
+    rgba(74, 214, 143, .92) 356deg,
+    rgba(47, 190, 120, .62) 360deg);
+  filter: drop-shadow(0 0 10px rgba(90, 235, 165, .75));
+}
+body.run-on #studio.run-glow { outline: 2px solid rgba(47, 190, 120, .34); outline-offset: -2px; }
+
 .run-bar {
   position: fixed;
   top: 12px;
@@ -3011,9 +3034,6 @@ table.score-table .score-table-key {
   pointer-events: none;
 }
 .run-bar.on { opacity: 1; transform: translate(-50%, 0); }
-
-/* 一直有一圈淡绿描边，亮段沿边跑过去时更明显 */
-body.run-on .run-glow { outline: 1px solid rgba(47, 190, 120, .40); outline-offset: -1px; }
 
 /* 一直有一圈淡绿描边，亮段沿边跑过去时更明显 */
 body.run-on .run-glow { outline: 1px solid rgba(47, 190, 120, .40); outline-offset: -1px; }

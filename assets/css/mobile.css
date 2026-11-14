@@ -312,12 +312,6 @@
     border-radius: 999px;
   }
   .studio-tools .paper-stat { display: none; }
-  .studio-tools #criticBtn {
-    border-color: var(--brand);
-    color: var(--brand-deep);
-    font-weight: 600;
-    background: rgba(47, 111, 78, .07);
-  }
 
   /* 评分标准区：收起时只占一行 */
   .score-bar { margin: 8px 14px 0; }
@@ -630,4 +624,7 @@
   .run-bar.on { transform: none; }
   .run-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .run-sub { font-size: 11px; white-space: nowrap; }
+
+  /* 整页流光在手机上贴到屏幕边，2px 足够，别多占一圈正文的地 */
+  #studio.run-glow::after { padding: 2px; filter: drop-shadow(0 0 6px rgba(110, 240, 175, .55)); }
 }

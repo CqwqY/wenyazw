@@ -90,7 +90,7 @@
 
     scoreToggle: $("scoreToggle"), scoreChips: $("scoreChips"),
     scoreCaret: $("scoreCaret"), scoreTables: $("scoreTables"),
-    criticBtn: $("criticBtn"), scoreBtn: $("scoreBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
+    criticStat: $("criticStat"), criticList: $("criticList"),
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
@@ -1324,7 +1324,7 @@
   /* 站内模式下，凡是会扣分的按钮都挂一个角标（CSS 画，避免改 textContent 时被清掉） */
   var COST_BTN_KEYS = [
     "startBtn", "outlineAiBtn", "outlineRetryBtn", "writeEssayBtn",
-    "sendBtn", "criticBtn", "scoreBtn", "criticApplyBtn", "flowBtn", "flowRerunBtn", "testBtn"
+    "sendBtn", "criticApplyBtn", "flowBtn", "flowRerunBtn", "testBtn"
   ];
   function syncCostBadges() {
     var site = els.preset.value === "site";
@@ -3381,15 +3381,16 @@
     e.sub.textContent = txt;
   }
 
-  /* 哪儿在更新就在哪儿亮：左边对话区常亮，右边优先框住当前看得见的稿纸 */
+  /* 流光框住整个工作台，不是某一块面板：边框贴着屏幕边，
+     看对话、看稿纸、看抽屉都算在「这一台正在跑」里面。 */
   function runGlowTargets() {
     var out = [];
-    var chat = document.querySelector(".chat-panel");
-    if (chat) out.push(chat);
-    var paper = document.getElementById("paperPane");
-    var doc = document.querySelector(".doc-wrap");
-    var box = (paper && !paper.hasAttribute("hidden")) ? paper : doc;
-    if (box) out.push(box);
+    var studio = document.getElementById("studio");
+    if (studio && !studio.hasAttribute("hidden")) out.push(studio);
+    if (!out.length) {
+      var chat = document.querySelector(".chat-panel");
+      if (chat) out.push(chat);
+    }
     return out;
   }
 
@@ -5237,10 +5238,6 @@
   /* 评改按钮上的积分角标：轮数一改就变成真实的调用次数，别一直写死 1。
      关掉上限后只给「起步价」，实际按谈的轮数算。 */
   function syncCriticCostBadge() {
-    if (els.criticBtn) {
-      els.criticBtn.setAttribute("data-cost", (debateNoLimit ? "≥" : "") + String(debateCost()));
-    }
-    if (els.scoreBtn) els.scoreBtn.setAttribute("data-cost", "1");
     if (els.criticApplyBtn) els.criticApplyBtn.setAttribute("data-cost", "1");
   }
 
@@ -5868,7 +5865,7 @@
 
       if (!criticScores.length) {
         els.criticStat.textContent = "这次没拿到分数，可再点一次。";
-        bubble.textContent = "这次没有结果，再点一次「AI 评分」试试。";
+        bubble.textContent = "这次没有结果，再试一次。";
         return;
       }
       var dedTxt = dedCnt ? ("扣分项 " + dedCnt + " 处、共扣 " + dedPts + " 分，明细在「旁批」页的分数卡里") : "没列出扣分项（分数按档次直接给）";
@@ -6283,17 +6280,6 @@
     var open = !(drawerOpen && drawerTab === "score");
     setScoreOpen(open);
   });
-  on(els.criticBtn, "click", function () {
-    // 手机端先切到稿纸视图，评改标记才落在可见的稿纸上
-    if (isMobile()) setMView("paper");
-    runCritic();
-  });
-  // 评分是单独一步：只按标准给分并列扣分项，不判句子好坏、不动稿也不谈
-  on(els.scoreBtn, "click", function () {
-    if (isMobile()) setMView("paper");
-    runScore();
-  });
-
   on(els.flowBtn, "click", function () {
     if (isMobile()) setMView("paper");
     runFlow();
