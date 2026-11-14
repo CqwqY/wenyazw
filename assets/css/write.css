@@ -2884,3 +2884,100 @@ table.score-table .score-table-key {
 }
 .diff-foot-stat { margin-right: auto; font-family: var(--sans); font-size: 11.5px; color: var(--ink-mute, #8a8a8a); }
 .diff-apply { font-size: 12.5px; padding: 7px 12px; }
+
+/* ---------- 运行时反馈：绿色流光边框 + 过程状态条 ----------
+   只在真在跑的时候亮：请求发出去亮流光的边框，状态条报「连接中 / 输出中」和已用秒数。
+   流光靠 conic-gradient 绕边框跑一圈，用 mask 只留 2px 边，不挡正文也不吃点击。 */
+
+@property --run-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.run-glow { position: relative; }
+
+.run-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--run-angle),
+    rgba(47, 190, 120, .30) 0deg,
+    rgba(47, 190, 120, .16) 110deg,
+    rgba(47, 190, 120, .30) 210deg,
+    rgba(74, 214, 143, .70) 304deg,
+    rgba(196, 255, 224, 1) 340deg,
+    rgba(74, 214, 143, .62) 356deg,
+    rgba(47, 190, 120, .30) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 5px rgba(110, 240, 175, .55));
+  animation: runSpin 2.1s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes runSpin {
+  to { --run-angle: 360deg; }
+}
+
+/* 不支持 @property 的浏览器：光圈不动，但照样看得见 */
+@media (prefers-reduced-motion: reduce) {
+  .run-glow::after { animation: none; }
+}
+
+.run-bar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(20, 36, 28, .88);
+  color: #e8f8ef;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow: 0 8px 26px rgba(20, 60, 40, .20);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translate(-50%, -8px);
+  transition: opacity .18s ease, transform .18s ease;
+  pointer-events: none;
+}
+.run-bar.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* 一直有一圈淡绿描边，亮段沿边跑过去时更明显 */
+body.run-on .run-glow { outline: 1px solid rgba(47, 190, 120, .40); outline-offset: -1px; }
+
+/* 一直有一圈淡绿描边，亮段沿边跑过去时更明显 */
+body.run-on .run-glow { outline: 1px solid rgba(47, 190, 120, .40); outline-offset: -1px; }
+
+/* 跑起来时顶栏那行类别/题目先暗下去，别跟进度条挤在一起 */
+body.run-on .studio-meta { opacity: .22; transition: opacity .2s ease; }
+
+.run-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5cf0a6;
+  animation: runPulse 1.15s ease-out infinite;
+}
+
+@keyframes runPulse {
+  0% { box-shadow: 0 0 0 0 rgba(92, 240, 166, .55); }
+  70% { box-shadow: 0 0 0 7px rgba(92, 240, 166, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(92, 240, 166, 0); }
+}
+
+.run-sub { font-size: 11.5px; opacity: .72; }
+.run-sub:empty { display: none; }

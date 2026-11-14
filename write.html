@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261113S">
-<link rel="stylesheet" href="assets/css/write.css?v=20261113S">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261113S">
+<link rel="stylesheet" href="assets/css/style.css?v=20261113T">
+<link rel="stylesheet" href="assets/css/write.css?v=20261113T">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261113T">
 </head>
 <body>
 
@@ -228,6 +228,13 @@
 
   <!-- ============ 生成界面 ============ -->
   <section id="studio" class="mv-outline" hidden>
+
+    <!-- 运行时状态：连接中 / 输出中，挂在屏幕顶部，跑起来才出现 -->
+    <div class="run-bar" id="runBar" hidden role="status" aria-live="polite">
+      <span class="run-dot" aria-hidden="true"></span>
+      <span class="run-text" id="runText">连接中</span>
+      <span class="run-sub" id="runSub"></span>
+    </div>
 
     <div class="studio-top">
       <button class="btn-outline" id="backBtn">← 返回工作台</button>
@@ -506,8 +513,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261113S"></script>
-<script src="assets/js/write.js?v=20261113S"></script>
-<script src="assets/js/auth.js?v=20261113S"></script>
+<script src="assets/js/prompt.js?v=20261113T"></script>
+<script src="assets/js/write.js?v=20261113T"></script>
+<script src="assets/js/auth.js?v=20261113T"></script>
 </body>
 </html>

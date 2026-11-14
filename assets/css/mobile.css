@@ -613,3 +613,21 @@
   .diff-foot .diff-apply { width: 100%; }
   .diff-foot-stat { width: 100%; margin: 0 0 2px; }
 }
+
+/* 窄屏顶栏是两行栅格，居中会把返回键与标题都压住，所以挪到右上角 */
+@media (max-width: 720px) {
+  /* 顶栏右侧那块在运行时是淡下去的元信息，状态条就贴这儿，既不压返回键也不撞工作窗 */
+  .run-bar {
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    bottom: auto;
+    left: auto;
+    right: 12px;
+    font-size: 12px;
+    padding: 6px 12px;
+    max-width: 62vw;
+    transform: translateY(-6px);
+  }
+  .run-bar.on { transform: none; }
+  .run-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .run-sub { font-size: 11px; white-space: nowrap; }
+}

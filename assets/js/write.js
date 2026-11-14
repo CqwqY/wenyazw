@@ -100,6 +100,7 @@
     modelPill: $("modelPill"), modelPillName: $("modelPillName"),
     modelMenu: $("modelMenu"), modelMenuList: $("modelMenuList"),
     modelPickWrap: $("modelPickWrap"),
+    runBar: $("runBar"), runText: $("runText"), runSub: $("runSub"),
     paperNotes: $("paperNotes"), undoRewriteBtn: $("undoRewriteBtn"), diffBtn: $("diffBtn"),
     drawerNoteList: $("drawerNoteList"), drawerNoteEmpty: $("drawerNoteEmpty"),
     drawerDotNotes: $("drawerDotNotes"),
@@ -3329,6 +3330,97 @@
     } catch (e) { /* 离线或后端异常时静默降级，作文仍在本机 */ }
   }
 
+  /* ---------------- 运行时反馈：边框绿色流光 + 过程状态 ----------------
+     只在「真的在跑」时出现：请求刚发出去是连接中，收到第一个字变输出中，
+     旁边挂着已经用了几秒、写出多少字；结束就淡出，不留痕迹。 */
+
+  var runAt = 0;
+  var runTimer = null;
+  var runChars = 0;
+  var runLive = false;
+
+  function runNodes() {
+    return { bar: els.runBar, text: els.runText, sub: els.runSub };
+  }
+
+  function runPaint() {
+    if (!runLive) return;
+    var e = runNodes();
+    if (!e.sub) return;
+    var sec = (Date.now() - runAt) / 1000;
+    var txt = (runChars > 0 ? runChars + " 字 · " : "") + sec.toFixed(1) + " 秒";
+    // 一直没吐字又不是刚发出去：多半卡在排队或网关，明说一句，别让人干等
+    if (!runChars && sec > 12) txt += " · 还在等服务器";
+    e.sub.textContent = txt;
+  }
+
+  /* 哪儿在更新就在哪儿亮：左边对话区常亮，右边优先框住当前看得见的稿纸 */
+  function runGlowTargets() {
+    var out = [];
+    var chat = document.querySelector(".chat-panel");
+    if (chat) out.push(chat);
+    var paper = document.getElementById("paperPane");
+    var doc = document.querySelector(".doc-wrap");
+    var box = (paper && !paper.hasAttribute("hidden")) ? paper : doc;
+    if (box) out.push(box);
+    return out;
+  }
+
+  /* 开始：拉出状态条，给正在看的两个面板套上流光边框 */
+  function runBegin(label) {
+    runLive = true;
+    runAt = Date.now();
+    runChars = 0;
+    var e = runNodes();
+    if (e.text) e.text.textContent = label || "连接中";
+    if (e.sub) e.sub.textContent = "";
+    if (e.bar) { e.bar.hidden = false; e.bar.classList.add("on"); }
+    document.body.classList.add("run-on");
+    runGlowTargets().forEach(function (n) { n.classList.add("run-glow"); });
+    if (runTimer) clearInterval(runTimer);
+    runTimer = setInterval(runPaint, 250);
+    runPaint();
+  }
+
+  /* 一次操作可能连发好几个请求（两评讨论要 3 个以上）：
+     由最外层负责拉出与收起，内层只改文案，避免状态条一闪一闪。 */
+  function runOwn(label) {
+    if (runLive) { runPhase(label); return false; }
+    runBegin(label);
+    return true;
+  }
+
+  function runRelease(owned) {
+    if (owned) runEnd();
+  }
+
+  function runPhase(label) {
+    if (!runLive) return;
+    var e = runNodes();
+    if (e.text && label) e.text.textContent = label;
+    runPaint();
+  }
+
+  function runCount(n) {
+    if (!runLive) return;
+    runChars = n || 0;
+    runPaint();
+  }
+
+  /* 结束：先撤流光，再把状态条淡出；出错、停止、正常结束都走这里 */
+  function runEnd() {
+    runLive = false;
+    if (runTimer) { clearInterval(runTimer); runTimer = null; }
+    var e = runNodes();
+    if (e.bar) {
+      e.bar.classList.remove("on");
+      setTimeout(function () { if (!runLive && e.bar) e.bar.hidden = true; }, 260);
+    }
+    document.body.classList.remove("run-on");
+    document.querySelectorAll(".run-glow").forEach(function (n) { n.classList.remove("run-glow"); });
+  }
+
+
   function setBusy(busy) {
     els.startBtn.disabled = busy;
     els.sendBtn.disabled = busy;
@@ -3689,9 +3781,13 @@
     controller = new AbortController();
     fullText = "";
     setBusy(true);
+    var runOwned = runOwn("连接中");
+    var runSawText = false;
 
     function onChunk(d) {
       fullText += d;
+      if (fullText && !runSawText) { runSawText = true; runPhase("输出中"); }
+      if (fullText) runCount(fullText.length);
       if (opts.onProgress) opts.onProgress(fullText);
       else updateOutput(true);
     }
@@ -3730,6 +3826,7 @@
         var msg = j.choices && j.choices[0] && j.choices[0].message;
         fullText = (msg && msg.content) || "";
         got = true;
+        runPhase("整理中");
         onChunk("");
       }
 
@@ -3766,6 +3863,7 @@
     } finally {
       controller = null;
       setBusy(false);
+      runRelease(runOwned);
       syncCreditsUI();
     }
   }
@@ -3919,6 +4017,7 @@
     var c = currentConfig();
     controller = new AbortController();
     setBusy(true);
+    var runOwned = runOwn("连接中");
     try {
       var res = await fetch(endpoint(c), {
         method: "POST",
@@ -3936,10 +4035,12 @@
         signal: controller.signal
       });
       if (!res.ok) throw new Error(friendlyError(res, await res.text()));
+      runPhase("等回复");
       var j = await res.json();
       if (j.error) throw new Error(j.error.message || "接口返回错误");
       var msg = j.choices && j.choices[0] && j.choices[0].message;
       var content = (msg && msg.content) || "";
+      if (content) { runPhase("整理中"); runCount(content.length); }
       if (!content.trim()) throw new Error("接口没有返回内容，换一个模型或检查额度。");
       return content;
     } catch (e) {
@@ -3949,6 +4050,7 @@
     } finally {
       controller = null;
       setBusy(false);
+      runRelease(runOwned);
       syncCreditsUI();
     }
   }
@@ -5372,6 +5474,7 @@
     var sysReplyA = sysA + (window.WY_CRITIC_A_REPLY || "");
     debateLog = [];
     setDocHint("两评讨论：约 " + debateCost() + " 次调用，甲评完乙复核再定稿");
+    var runOwned = runOwn("评改中 · 甲初评");
 
     try {
       // 第 0 步：甲方初评
@@ -5384,12 +5487,14 @@
 
       // 逐轮：乙挑错 → 甲表态并改定稿
       for (var r = 1; r <= debateRounds; r++) {
+        runPhase("第 " + r + "/" + debateRounds + " 轮 · 乙复核");
         els.criticStat.textContent = "第 " + r + "/" + debateRounds + " 轮：复核方正在挑错…";
         var bB = addAssistantBubble("评卷乙");
         bB.textContent = "正在复核第 " + r + " 轮…";
         var bObj = parseDebateB(await fetchAnnotation(sysB, composeDebateBUser(review, r)));
         bB.textContent = debateBText(bObj);
 
+        runPhase("第 " + r + "/" + debateRounds + " 轮 · 甲回应");
         els.criticStat.textContent = "第 " + r + "/" + debateRounds + " 轮：主评正在逐条回应…";
         var bR = addAssistantBubble("评卷甲");
         bR.textContent = "正在逐条回应乙方的质疑…";
@@ -5402,6 +5507,7 @@
       }
 
       // 定稿：判哪些坐实
+      runPhase("统一定稿");
       var last = debateLog.length ? debateLog[debateLog.length - 1] : null;
       var open = markDebateSettled(review, last ? last.b : null, last ? last.replies : []);
       showCriticReview(review);
@@ -5433,6 +5539,7 @@
     } finally {
       renderDebateLog();
       syncCriticApply();
+      runRelease(runOwned);
     }
   }
 
@@ -5463,6 +5570,7 @@
     if (debateRounds > 0) { await runCriticDebate(); return; }
     var bubble = addAssistantBubble("评改");
     bubble.textContent = "正在按评分标准打分，并逐句判好坏与 AI 味…";
+    var runOwnedOne = runOwn("评改中 · 打分");
 
     try {
       var sysCritic = window.WY_CRITIC;
@@ -5505,6 +5613,8 @@
       }
       bubble.textContent = "评改失败：" + msg;
       els.criticStat.textContent = "评改失败：" + msg;
+    } finally {
+      runRelease(runOwnedOne);
     }
   }
 
@@ -5666,6 +5776,7 @@
 
     var best = null;
     var finalLabel = "";
+    var runOwnedFlow = runOwn("流程作文 · 准备");
     try {
       if (!docBody.trim()) {
         flowStep("写正文");
@@ -5721,6 +5832,7 @@
       syncFlowCost();
       syncFlowDock();
       renderAnnotated();
+      runRelease(runOwnedFlow);
     }
   }
 
