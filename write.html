@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文 AI 写作工作台：选类别与文体、定题目、设字数、挑评分标准，先拟可改的大纲，再写正文并用红笔逐条批改。生成需登录。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
-<link rel="stylesheet" href="assets/css/style.css?v=20261113T">
-<link rel="stylesheet" href="assets/css/write.css?v=20261113T">
-<link rel="stylesheet" href="assets/css/mobile.css?v=20261113T">
+<link rel="stylesheet" href="assets/css/style.css?v=20261114U">
+<link rel="stylesheet" href="assets/css/write.css?v=20261114U">
+<link rel="stylesheet" href="assets/css/mobile.css?v=20261114U">
 </head>
 <body>
 
@@ -245,7 +245,8 @@
         <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
         <button class="btn-outline" id="undoRewriteBtn" hidden>恢复上一版</button>
         <button class="btn-outline" id="diffBtn" hidden>改动对照</button>
-        <button class="btn-outline" id="criticBtn">AI 评改</button>
+        <button class="btn-outline" id="scoreBtn">AI 评分</button>
+        <button class="btn-outline" id="criticBtn">AI 讨论</button>
         <button class="btn-outline" id="flowBtn">流程作文</button>
         <button class="btn-outline" id="copyBtn">复制</button>
         <button class="btn-outline" id="downloadBtn">下载 txt</button>
@@ -269,9 +270,9 @@
           </div>
           <div class="chat-foot">
             <div class="chat-mode" id="chatMode">
-              <button type="button" class="chat-mode-btn active" data-mode="annotate">整篇重写</button>
+              <button type="button" class="chat-mode-btn active" data-mode="annotate">讨论改稿</button>
               <button type="button" class="chat-mode-btn" data-mode="explain">只问不改</button>
-              <span class="chat-mode-hint" id="chatModeHint">提要求后从头写一版完整新稿</span>
+              <span class="chat-mode-hint" id="chatModeHint">说一句就是发起一次讨论，改不改由 AI 定</span>
             </div>
             <textarea class="chat-input-area" id="chatInput" rows="2"
               placeholder="例：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的话"></textarea>
@@ -377,7 +378,7 @@
     <aside class="work-drawer" id="workDrawer" aria-label="工作窗" hidden>
       <div class="drawer-head">
         <div class="drawer-tabs" id="drawerTabs">
-          <button class="drawer-tab active" data-drawer="critic" type="button">AI 评卷<i class="drawer-dot" id="drawerDotCritic" hidden></i></button>
+          <button class="drawer-tab active" data-drawer="critic" type="button">AI 讨论<i class="drawer-dot" id="drawerDotCritic" hidden></i></button>
           <button class="drawer-tab" data-drawer="notes" type="button">旁批<i class="drawer-dot" id="drawerDotNotes" hidden></i></button>
           <button class="drawer-tab" data-drawer="flow" type="button">流程作文<i class="drawer-dot" id="drawerDotFlow" hidden></i></button>
           <button class="drawer-tab" data-drawer="score" type="button">评分标准</button>
@@ -392,32 +393,32 @@
           <!-- 两评讨论：甲主评、乙复核，逐轮谈完再定稿；只有两边都认的条目算坐实 -->
           <div class="debate-setup" id="debateSetup">
             <div class="debate-row">
-              <label for="debateRounds">讨论轮数</label>
-              <input class="input debate-rounds" id="debateRounds" type="number" min="0" max="9" step="1"
+              <label for="debateRounds">轮数上限</label>
+              <input class="input debate-rounds" id="debateRounds" type="number" min="0" max="12" step="1"
                 value="1" inputmode="numeric" spellcheck="false" aria-describedby="debateCost">
               <span class="debate-cost" id="debateCost"></span>
             </div>
-            <label class="debate-auto"><input type="checkbox" id="debateAutoApply" checked> 谈妥后直接改稿，并存成一个新版本</label>
-            <p class="debate-tip">填 0 只评不改；填几就谈几轮。甲先评一遍，乙拿着甲的结论挑错，甲逐条表态（坚持、撤回或折中），只有两边都认的条目算坐实，坐实的直接改。改完在「历史版本」里逐段挑着留。</p>
+            <label class="debate-auto"><input type="checkbox" id="debateAutoApply" checked> 讨论完由 AI 自己定改不改、改多大（关掉＝只讨论不动稿）</label>
+            <p class="debate-tip">评分和讨论是两步：只想看分就点顶部「AI 评分」，只打分给评语，一个字不动。讨论里甲方也会先给分（那是起点）：乙复核、甲逐条表态并交定稿，最后甲自己定「不改 / 小改 / 大改」。轮数是上限不是任务，乙挑不出东西就提前收工；稿子立得住就不动，连片硬伤就重搭。改完在「历史版本」里逐段挑着留。</p>
           </div>
           <div class="debate-log" id="debateLog" hidden></div>
           <div class="critic-dock" id="criticDock" hidden>
             <div class="critic-dock-head">
-              <span class="critic-dock-title">AI 评卷</span>
+              <span class="critic-dock-title">AI 讨论</span>
               <span class="critic-stat" id="criticStat">按所选评分标准给分、逐句判好坏，谈妥的问题直接改稿。</span>
               <button class="critic-dock-send" id="criticApplyBtn" type="button" disabled>按认可的问题重写整篇</button>
               <button class="critic-dock-btn" id="criticDockClose" type="button">收起</button>
             </div>
             <div class="critic-score" id="criticScore" hidden></div>
           </div>
-          <p class="drawer-empty" id="criticEmpty">还没有评改结果。点顶部「AI 评改」：甲先评、乙挑错、谈几轮就填几，谈妥的条目会自动改稿并存成一版；逐句评语在「旁批」页。</p>
+          <p class="drawer-empty" id="criticEmpty">还没有结果。点顶部「AI 评分」只打分给评语、不动稿；在对话框里说一句或点「AI 讨论」则发起一次讨论：甲评分、乙复核、甲定稿并自己决定改不改、改多大。逐句评语在「旁批」页。</p>
         </section>
 
         <!-- 旁批：手机端不再挂在稿纸下方，统一收进抽屉；桌面端稿纸右栏仍是原来的对齐旁批 -->
         <section class="drawer-pane" id="drawerPaneNotes" hidden>
           <p class="drawer-notes-tip" id="drawerNotesTip">逐句评语在这里。点卡片可跳到稿纸里的原句；认可后可让 AI 按这些重写整篇。</p>
           <div class="drawer-note-list" id="drawerNoteList"></div>
-          <p class="drawer-empty" id="drawerNoteEmpty">还没有旁批。点顶部「AI 评改」后，逐句评语会出现在这里；提修改要求会直接从头重写整篇。</p>
+          <p class="drawer-empty" id="drawerNoteEmpty">还没有旁批。点顶部「AI 讨论」后，逐句评语会出现在这里；提修改要求会直接从头重写整篇。</p>
         </section>
 
         <!-- 流程作文：轮次随时可改（运行中改也生效），进度与停止都在这里 -->
@@ -513,8 +514,8 @@
   </div>
 </div>
 
-<script src="assets/js/prompt.js?v=20261113T"></script>
-<script src="assets/js/write.js?v=20261113T"></script>
-<script src="assets/js/auth.js?v=20261113T"></script>
+<script src="assets/js/prompt.js?v=20261114U"></script>
+<script src="assets/js/write.js?v=20261114U"></script>
+<script src="assets/js/auth.js?v=20261114U"></script>
 </body>
 </html>

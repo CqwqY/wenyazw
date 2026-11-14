@@ -90,7 +90,7 @@
 
     scoreToggle: $("scoreToggle"), scoreChips: $("scoreChips"),
     scoreCaret: $("scoreCaret"), scoreTables: $("scoreTables"),
-    criticBtn: $("criticBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
+    criticBtn: $("criticBtn"), scoreBtn: $("scoreBtn"), criticStat: $("criticStat"), criticList: $("criticList"),
     criticScore: $("criticScore"),
     criticDock: $("criticDock"), criticDockClose: $("criticDockClose"),
     criticApplyBtn: $("criticApplyBtn"), criticEmpty: $("criticEmpty"),
@@ -182,7 +182,8 @@
 
   /* ---------------- 历史版本：存下每一次更改 ----------------
      每次生成初稿、整篇重写、流程迭代、恢复上一版、恢复历史版本都存一版快照。
-     按 compositionId 持久化到 localStorage，刷新后仍在；不同作文（不同云端 id）互不串。 */
+     版本账本跟「这一篇」走：登录后按云端 essayId 分账，没登录按本机 compositionId 分账，
+     换一篇作文就换一份账本，互不串。 */
   var VER_PREFIX = "wy.versions.v1.";
   var COMP_KEY = "wy.compositionId.v1";
   var compositionId = null;
@@ -201,7 +202,9 @@
     }
     return compositionId;
   }
-  function versionKey() { return VER_PREFIX + compId(); }
+  // 之前只认 compositionId，打开另一篇存档还读同一份历史，列表里就窜出别的作文
+  function verOwnerId() { return currentEssayId ? ("e" + currentEssayId) : compId(); }
+  function versionKey() { return VER_PREFIX + verOwnerId(); }
   function loadVersions() {
     try {
       var a = JSON.parse(localStorage.getItem(versionKey()) || "[]");
@@ -212,6 +215,16 @@
     try { localStorage.setItem(versionKey(), JSON.stringify(versions)); } catch (e) { /* 隐私模式忽略 */ }
   }
   function resetVersions() { versions = []; persistVersions(); }
+  // 本机草稿第一次存到云端：把草稿阶段攒的版本搬到这篇 essay 名下，别丢
+  function adoptVersionsForEssay(id) {
+    if (!id || !versions.length) return;
+    var to = VER_PREFIX + "e" + id;
+    try {
+      var old = JSON.parse(localStorage.getItem(to) || "[]");
+      if (Array.isArray(old) && old.length) return;   // 云上已经有一份，不覆盖
+      localStorage.setItem(to, JSON.stringify(versions));
+    } catch (e) { /* 存不下就只在内存里留着 */ }
+  }
   function plainLen(t) { return String(t || "").replace(/\s/g, "").length; }
   function criticScoresSummary() {
     return (criticScores || []).map(function (s) { return s.province + " " + s.total + "/" + s.full; }).join(" · ");
@@ -1301,7 +1314,7 @@
   /* 站内模式下，凡是会扣分的按钮都挂一个角标（CSS 画，避免改 textContent 时被清掉） */
   var COST_BTN_KEYS = [
     "startBtn", "outlineAiBtn", "outlineRetryBtn", "writeEssayBtn",
-    "sendBtn", "criticBtn", "criticApplyBtn", "flowBtn", "flowRerunBtn", "testBtn"
+    "sendBtn", "criticBtn", "scoreBtn", "criticApplyBtn", "flowBtn", "flowRerunBtn", "testBtn"
   ];
   function syncCostBadges() {
     var site = els.preset.value === "site";
@@ -3326,7 +3339,11 @@
         body: JSON.stringify(essayPayload())
       });
       var j = await res.json();
-      if (res.ok && j && j.ok && j.id) currentEssayId = j.id;
+      if (res.ok && j && j.ok && j.id) {
+        currentEssayId = j.id;
+        adoptVersionsForEssay(j.id);   // 版本账本从草稿改名到这篇 essay
+        if (els.historyList) renderHistoryList();
+      }
     } catch (e) { /* 离线或后端异常时静默降级，作文仍在本机 */ }
   }
 
@@ -4289,7 +4306,10 @@
   function applyResumedEssay(data) {
     if (!data) return false;
 
+    var prevId = currentEssayId;
     currentEssayId = data.id || null;
+    // 版本账本按 essayId 分：换了一篇就重新读自己那份，别把上一篇的版本摆在列表里
+    if (String(prevId || "") !== String(currentEssayId || "")) loadVersions();
     var parsedCat = parseCategoryStore(data.category);
     activeCat = parsedCat.cat || "";
     activeGenre = parsedCat.genre;
@@ -4324,7 +4344,10 @@
     prevAcceptedTexts = [];
     criticItems = [];
     criticScores = [];
+    debateLog = [];                  // 上一篇的讨论记录不许跟过来
+    undoStack = []; syncUndoBtn();
     if (els.criticList) els.criticList.innerHTML = "";
+    if (els.debateLog) { els.debateLog.innerHTML = ""; els.debateLog.hidden = true; }
     els.criticStat.textContent = "逐句判好坏与 AI 味，不给总分的空头评价。";
     syncAnnotTools();
     setChatMode("annotate");
@@ -4470,6 +4493,10 @@
     annotations = []; annotSeq = 0; annotPanelEl = null;
     prevAcceptedTexts = [];
     currentEssayId = null;
+    resetComposition();          // 新作文换一份版本账本，别接着上一篇的历史往下写
+    loadVersions();
+    if (els.historyList) renderHistoryList();
+    updateDiffBtn();
     criticItems = [];
     criticScores = [];
     outline = { title: "", thesis: "", points: [], note: "" };
@@ -4603,8 +4630,8 @@
       els.chatModeHint.textContent = "只讲不改：不动一个字，不出批注";
       els.chatInput.placeholder = "例：为什么结尾这句算空泛？我该怎么想这一段";
     } else {
-      els.chatModeHint.textContent = "整篇重写：提要求后从头写一版完整新稿，可恢复上一版";
-      els.chatInput.placeholder = "例：把开头再写细一点 / 控制在 600 字 / 结尾加一句老师傅的原话";
+      els.chatModeHint.textContent = "讨论改稿：说一句就是发起一次讨论，两评选完由 AI 定改不改";
+      els.chatInput.placeholder = "例：把开头再写细一点 / 结尾这句是不是空泛 / 控制在 600 字";
     }
   }
 
@@ -4630,7 +4657,10 @@
       await askExplain(req, "你说了不让动稿，这次只讲不改。");
       return;
     }
-    await rewriteEssay(req);
+    // 手批模式：说一句话就是发起一次讨论。先评分、再两评互挑、谈完由 AI 定改不改、改多大。
+    addUserBubble(summarizeAsk(req));
+    els.chatInput.value = "";
+    await runCritic(req, { fromChat: true });
   }
 
   /* 大纲阶段提问：只改大纲 */
@@ -4741,10 +4771,12 @@
 
     var ok = await runStream(sys, composeRewriteUser(req), { mode: "essay" });
     var plain = function (t) { return String(t || "").replace(/\s/g, "").length; };
+    // 大改允许重搭结构，字数掉得多一点不拦；小改还是按住 0.6 的线
+    var minRatio = typeof opts.minRatio === "number" ? opts.minRatio : 0.6;
     var reason = "";
     if (!ok || !docBody.trim()) reason = "没拿到完整新稿";
     else if (docBody === snap.body) reason = "新稿和原稿完全一样";
-    else if (plain(docBody) < plain(snap.body) * 0.6) reason = "新稿字数掉得太多";
+    else if (plain(docBody) < plain(snap.body) * minRatio) reason = "新稿字数掉得太多";
     else if (snap.locked.length) {
       // 用改前的快照做基准：稿纸重绘会顺手把对不上的锁句清掉，不能用当前 lockedTexts
       var flat = normLock(docBody);
@@ -5058,18 +5090,30 @@
     renderAnnotated();
   }
 
-  // 把学生认可的评改意见拼成一次修改要求，交给整篇重写
-  function criticReqText() {
+  // 把讨论定下的结论拼成一次修改要求，交给整篇重写。幅度由 AI 定：小改只动坐实那几句，大改允许重搭
+  function criticReqText(mode, revision) {
+    revision = revision || lastRevision || {};
+    var big = mode === "大改" || revision.action === "大改";
     var picked = criticItems.filter(function (x) { return x.agreed === "yes"; });
-    if (!picked.length) return "";
-    var lines = ["下面这些是我认可的评改问题，一共 " + picked.length + " 条（两评讨论过、坐实的）。请照它们从头重写一版完整作文：把这些地方改到位，其余段落尽量沿用原文写住的句子。",
-      "只解决这 " + picked.length + " 条，不要顺手把没问题的句子改一遍，也不要另找问题凑数。"];
+    if (!picked.length && !big) return "";
+    var lines = [];
+    if (big) {
+      lines.push("这次讨论的结论是这篇要大改" + (revision.why ? "：" + revision.why : "。") +
+        "请从头重写一版完整作文，允许调整段落顺序、重写整段、换开头结尾、合并或拆分段。");
+      if (revision.scope) lines.push("要动的部分：" + revision.scope + "。上面没点到的部分也别整段照抄，该动就动。");
+      lines.push("必须做到：结构立得住、题意不走、删掉空泛与套话与口号式升华、把坐实的问题逐条解决。");
+      lines.push("不许丢的：原文里具体的人、物件、场景、动作、数字要带过去，别换成空词；主题与文体不变；字数不低于原来的七成。");
+    } else {
+      lines.push("下面这些是讨论里坐实的问题，一共 " + picked.length + " 条。请照它们从头重写一版完整作文：把这些地方改到位，其余段落尽量沿用原文写住的句子。");
+      lines.push("只解决这 " + picked.length + " 条，不要顺手把没问题的句子改一遍，也不要另找问题凑数。");
+    }
     if (criticScores.length) {
-      lines.push("上一轮评卷给分：" + criticScores.map(function (s) {
+      lines.push("这一版评卷给分：" + criticScores.map(function (s) {
         return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "") +
           (s.why ? "，失分在：" + s.why : "");
       }).join("；") + "。先解决失分最多的地方，分数才能上来。");
     }
+    if (picked.length) lines.push("要改的地方：");
     picked.forEach(function (it, i) {
       lines.push((i + 1) + ". 原句：" + it.sentence);
       if (it.reason) lines.push("   问题：" + it.reason);
@@ -5080,30 +5124,36 @@
     return lines.join("\n");
   }
 
-  /* ---------------- 两评讨论：甲主评 / 乙复核，谈拢了再改 ----------------
-     一轮 = 乙挑错 + 甲逐条表态并交定稿。定稿里"甲坚持、乙仍反对"的条目算未坐实，
-     未坐实的不许点认可，也就进不了重写。轮数可选 0（关闭）到 3。 */
+  /* ---------------- 讨论 + 评分：一个流程跑完 ----------------
+     一次讨论 = 甲评分 → 乙复核 → 甲表态定稿（含改稿幅度） → 按幅度改或不改。
+     轮数只是「最多谈几轮」，乙挑不出东西就当轮收工，不必硬凑到上限。
+     改不改、改多大由甲在定稿里自己定，不由程序卡死条数。 */
 
-  var DEBATE_MAX = 9;                       // 轮数不再固定几档，输入框里填多少谈多少
+  var DEBATE_MAX = 12;                      // 上限放宽，谈得动就谈，谈不动提前收
   var DEBATE_AUTO_STORE = "wy.debate.auto.v1";
-  var debateAutoApply = true;               // 谈妥后是否直接改稿并落成新版本
+  var debateAutoApply = true;               // 总开关：允许 AI 讨论完自己决定要不要动稿
+  var runningAsk = "";                      // 这一轮触发的作者原话，拼进三条提示词
+  var lastRevision = null;                  // 甲定稿时给的改稿幅度 {action, why, scope}
+  var discussNo = 0;                        // 这篇作文谈过几次
 
   function debateCost() {
+    // 每轮最多 2 次；乙当轮挑不出东西就少一次
     return debateRounds > 0 ? (1 + debateRounds * 2) : 1;
   }
 
   /* 评改按钮上的积分角标：轮数一改就变成真实的调用次数，别一直写死 1 */
   function syncCriticCostBadge() {
     if (els.criticBtn) els.criticBtn.setAttribute("data-cost", String(debateCost()));
+    if (els.scoreBtn) els.scoreBtn.setAttribute("data-cost", "1");
     if (els.criticApplyBtn) els.criticApplyBtn.setAttribute("data-cost", "1");
   }
 
   function syncDebateCost() {
-    if (els.debateCost) {
-      els.debateCost.textContent = debateRounds > 0
-        ? ("共约 " + debateCost() + " 次调用，每次 1 积分" + (debateAutoApply ? "；谈妥直接改稿" : "；只评不改"))
-        : (debateAutoApply ? "单评一次，评完直接改稿" : "单评一次，不讨论也不改");
-    }
+    if (!els.debateCost) return;
+    var auto = debateAutoApply ? "，改不改由 AI 定" : "，只讨论不动稿";
+    els.debateCost.textContent = debateRounds > 0
+      ? ("最多 " + debateCost() + " 次调用，每次 1 积分" + auto + "；乙挑不出就提前收")
+      : "单评一次，只给分不改稿（要改就填 1 以上）";
   }
 
   function setDebateRounds(n, silent) {
@@ -5195,8 +5245,17 @@
           fix: trim(m && m.fix)
         };
       }).filter(function (m) { return m.sentence; }),
-      scoreNote: trim(o.scoreNote)
+      scoreNote: trim(o.scoreNote),
+      reviseNote: trim(o.reviseNote)
     };
+  }
+
+  // 改稿幅度：AI 自己定，只认三个值；给了别的（或没给）按「小改」兜底
+  function parseRevision(raw) {
+    var r = raw && typeof raw === "object" ? raw : {};
+    var a = trim(r.action);
+    if (a !== "不改" && a !== "小改" && a !== "大改") a = "";
+    return { action: a, why: trim(r.why), scope: trim(r.scope) };
   }
 
   function parseDebateA(raw) {
@@ -5204,6 +5263,7 @@
     var reps = Array.isArray(o.replies) ? o.replies : [];
     return {
       review: criticFromObject(o),
+      revision: parseRevision(o.revision),
       replies: reps.slice(0, 10).map(function (r) {
         var st = trim(r && r.stance);
         if (st !== "坚持" && st !== "撤回" && st !== "折中") st = "折中";
@@ -5299,12 +5359,12 @@
 
   function debateBText(b) {
     var n = (b.disputes || []).length, m = (b.missed || []).length;
-    if (!n && !m) return "复核完了，这版没有异议。" + (b.scoreNote ? " " + b.scoreNote : "");
+    var tail = (b.reviseNote ? " 对幅度的意见：" + b.reviseNote : "") + (b.scoreNote ? " " + b.scoreNote : "");
+    if (!n && !m) return "复核完了，这版没有异议。" + tail;
     var out = "复核：" + b.stance + "。";
     if (n) out += "对 " + n + " 条有意见。";
     if (m) out += "另外认为漏了 " + m + " 句。";
-    if (b.scoreNote) out += " " + b.scoreNote;
-    return out;
+    return out + tail;
   }
 
   function debateAText(replies) {
@@ -5333,7 +5393,7 @@
     var head = document.createElement("div");
     head.className = "debate-head";
     // 已经按结论改过稿的话，条目会随正文一起清掉，这时只报轮数，别谎报「坐实 0 条」
-    head.textContent = "两评讨论 " + debateLog.length + " 轮" +
+    head.textContent = "这次讨论 " + debateLog.length + " 轮" +
       (criticItems.length
         ? (" · 坐实 " + settledCnt + " 条" + (open ? " · 仍有分歧 " + open + " 条" : ""))
         : " · 结论已用于改稿");
@@ -5417,55 +5477,85 @@
     switchPane("paper");
   }
 
-  /* 谈妥就改：坐实的条目直接交给整篇重写，改完落成一个带分数的历史版本。
-     开关关掉时不自动动手，只把可改的条目勾好，等用户自己点。 */
-  async function autoApplySettled() {
+  /* 讨论完按甲定下的幅度落地：
+     不改 —— 稿子一个字不动，只留评语；
+     小改 —— 只把坐实的几句交去重写；
+     大改 —— 允许重搭结构、换开头结尾，字数护栏也放宽。
+     debateAutoApply 关掉时只讨论不动笔，把条目勾好让学生自己点。 */
+  async function autoApplySettled(revision) {
+    revision = revision || lastRevision || {};
+    var act = revision.action || "小改";
     var ready = criticItems.filter(function (it) {
       return it.verdict === "坏" && it.settled !== false && !it.soft;
     });
-    if (!ready.length) {
-      setDocHint(debateAutoApply ? "这轮没有坐实的问题，稿子不动" : "这轮没有可改的条目");
-      return false;
-    }
+
     if (!debateAutoApply) {
+      if (!ready.length) { setDocHint("这轮没有坐实的问题，稿子不动"); return false; }
       ready.forEach(function (it) { it.agreed = "yes"; });
       renderCritic();
       setDocHint("已把 " + ready.length + " 条坐实问题勾好，点「按认可的 " + ready.length + " 条重写整篇」就改");
       return false;
     }
+
+    if (act === "不改") {
+      criticItems.forEach(function (it) { it.agreed = ""; });
+      renderCritic();
+      var nb = addAssistantBubble("结论");
+      nb.textContent = "这轮讨论的结论是：稿子不动。" + (revision.why || "") +
+        (criticItems.length ? " 评语留在「旁批」页，想改哪条自己勾。" : "");
+      setDocHint("讨论结论：不改 · 评语已留在旁批");
+      if (els.criticStat) {
+        els.criticStat.textContent = "讨论结论：不改。" + (revision.why || "") +
+          " 分数与逐句评语仍可看，想动手就在旁批里勾条目。";
+      }
+      return false;
+    }
+
+    var big = act === "大改";
+    if (!ready.length && !big) {
+      setDocHint("这轮没有坐实的问题，稿子不动");
+      return false;
+    }
     ready.forEach(function (it) { it.agreed = "yes"; });
-    var req = criticReqText();
-    if (!req) return false;
+    var req = criticReqText(act, revision);
+    if (!req) { setDocHint("这轮没拼出修改要求，稿子不动"); return false; }
 
     var scoreTxt = criticScores.map(function (sc) {
       return sc.province + " " + sc.total + "/" + sc.full + (sc.band ? "（" + sc.band + "）" : "");
     }).join(" · ");
     var scoreKeep = criticScoresSummary();
     var bubble = addAssistantBubble("改稿");
-    bubble.textContent = "坐实 " + ready.length + " 条，按它们从头改一版完整新稿…";
+    bubble.textContent = big
+      ? ("讨论结论是这篇要大改" + (revision.scope ? "（动 " + revision.scope + "）" : "") + "，正在重搭一版完整新稿…")
+      : ("坐实 " + ready.length + " 条，只动这几处，正在改一版完整新稿…");
 
     var ok = await rewriteEssay(req, {
       silentBubble: true,
-      versionLabel: "评改改写 · " + ready.length + " 条",
-      versionScore: scoreKeep
+      versionLabel: big ? "讨论改写 · 大改" : ("讨论改写 · " + ready.length + " 条"),
+      versionScore: scoreKeep,
+      minRatio: big ? 0.45 : 0.6
     });
     if (!ok) {
-      bubble.textContent = "改稿没成，评改结果还留在稿纸上，可以自己点「按认可的 " + ready.length + " 条重写整篇」。";
+      bubble.textContent = "改稿没成，讨论结论还留在稿纸上，可以自己点「按认可的 " + ready.length + " 条重写整篇」。";
       return false;
     }
-    bubble.textContent = "已按 " + ready.length + " 条坐实问题改好一版（" + plainLen(docBody) + " 字）" +
-      (scoreTxt ? "，改前 " + scoreTxt : "") + "。「历史版本」里能逐段挑着留。";
+    bubble.textContent = (big ? "大改完了" : ("已按 " + ready.length + " 条坐实问题改好一版")) +
+      "（" + plainLen(docBody) + " 字）" + (scoreTxt ? "，改前 " + scoreTxt : "") +
+      "。「历史版本」里能逐段挑着留。";
     if (els.criticStat) {
-      els.criticStat.textContent = "评改并改稿完成：坐实 " + ready.length + " 条已改" +
-        (scoreTxt ? "，改前 " + scoreTxt : "") + "。改了什么去「历史版本」逐段看，可以只留想要的那几段。";
+      els.criticStat.textContent = (big ? "大改" : "小改") +
+        "完成：" + ready.length + " 条坐实问题已改" + (scoreTxt ? "，改前 " + scoreTxt : "") +
+        "。改了什么去「历史版本」逐段看，可以只留想要的那几段。";
     }
-    setDocHint("评改改写已存成一版 · 去「历史版本」逐段取舍");
+    setDocHint((big ? "大改" : "讨论改写") + "已存成一版 · 去「历史版本」逐段取舍");
     // 不硬切抽屉：讨论记录还留在评卷页，历史版本只点个红点提醒
     if (els.drawerDotHistory) els.drawerDotHistory.hidden = false;
     switchPane("paper");
     return true;
   }
 
+  /* 一次讨论：甲评分 → 乙复核 → 甲表态定稿（连同改稿幅度） → 按幅度改或不改。
+     轮数是上限，不是任务：乙这轮挑不出东西就提前收，不用把上限填满。 */
   async function runCriticDebate() {
     var sysA = window.WY_CRITIC || "";
     var gr = genreRule();
@@ -5473,11 +5563,13 @@
     var sysB = (window.WY_CRITIC_B || "") + (gr ? "\n\n" + gr : "");
     var sysReplyA = sysA + (window.WY_CRITIC_A_REPLY || "");
     debateLog = [];
-    setDocHint("两评讨论：约 " + debateCost() + " 次调用，甲评完乙复核再定稿");
-    var runOwned = runOwn("评改中 · 甲初评");
+    lastRevision = null;
+    var cap = Math.max(1, debateRounds);
+    setDocHint("讨论开始：最多 " + debateCost() + " 次调用，甲先评分，乙复核，谈不动就提前收");
+    var runOwned = runOwn("讨论中 · 甲评分");
 
     try {
-      // 第 0 步：甲方初评
+      // 第 0 步：甲方评分（评分本身就是讨论的第一步，不再单列）
       var bA = addAssistantBubble("评卷甲");
       bA.textContent = "先按评分标准打一遍分，逐句判好坏与 AI 味。";
       var rawA = await fetchAnnotation(sysA, composeCriticUser());
@@ -5485,57 +5577,77 @@
       showCriticReview(review);
       bA.textContent = "初评：" + (review.overall || "已出第一版") + "。等乙方复核。";
 
-      // 逐轮：乙挑错 → 甲表态并改定稿
-      for (var r = 1; r <= debateRounds; r++) {
-        runPhase("第 " + r + "/" + debateRounds + " 轮 · 乙复核");
-        els.criticStat.textContent = "第 " + r + "/" + debateRounds + " 轮：复核方正在挑错…";
+      // 逐轮：乙挑错 → 甲表态并改定稿；乙无异议就停
+      for (var r = 1; r <= cap; r++) {
+        runPhase("第 " + r + "/" + cap + " 轮 · 乙复核");
+        els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：复核方正在挑错…";
         var bB = addAssistantBubble("评卷乙");
         bB.textContent = "正在复核第 " + r + " 轮…";
         var bObj = parseDebateB(await fetchAnnotation(sysB, composeDebateBUser(review, r)));
         bB.textContent = debateBText(bObj);
 
-        runPhase("第 " + r + "/" + debateRounds + " 轮 · 甲回应");
-        els.criticStat.textContent = "第 " + r + "/" + debateRounds + " 轮：主评正在逐条回应…";
+        // 乙挑不出东西：这版就定了，不再多花一次调用硬走流程
+        if (!bObj.disputes.length && !bObj.missed.length) {
+          debateLog.push({ round: r, b: bObj, replies: [] });
+          bB.textContent += "（无异议，讨论到此收工）";
+          break;
+        }
+
+        runPhase("第 " + r + "/" + cap + " 轮 · 甲回应");
+        els.criticStat.textContent = "第 " + r + "/" + cap + " 轮：主评正在逐条回应…";
         var bR = addAssistantBubble("评卷甲");
         bR.textContent = "正在逐条回应乙方的质疑…";
         var aObj = parseDebateA(await fetchAnnotation(sysReplyA, composeDebateAUser(review, bObj, r)));
-        bR.textContent = debateAText(aObj.replies);
+        bR.textContent = debateAText(aObj.replies) +
+          (aObj.revision && aObj.revision.action ? " 幅度：" + aObj.revision.action + "。" : "");
 
         debateLog.push({ round: r, b: bObj, replies: aObj.replies });
         review = aObj.review;
+        if (aObj.revision && aObj.revision.action) lastRevision = aObj.revision;
         showCriticReview(review);       // 每轮谈完就更新稿纸标记与旁批
       }
 
-      // 定稿：判哪些坐实
+      // 定稿：判哪些坐实，再看甲定的改稿幅度
       runPhase("统一定稿");
       var last = debateLog.length ? debateLog[debateLog.length - 1] : null;
       var open = markDebateSettled(review, last ? last.b : null, last ? last.replies : []);
       showCriticReview(review);
+      if (!lastRevision) {
+        // 乙一轮就没异议、或模型没给幅度：按有没有坐实硬伤自己判
+        var anyBad = criticItems.filter(function (it) { return it.verdict === "坏" && it.settled !== false && !it.soft; }).length;
+        lastRevision = { action: anyBad ? "小改" : "不改", why: anyBad ? "" : "两评都挑不出必须改的硬伤。", scope: "" };
+      }
+      discussNo++;
 
       var scoreTxt = criticScores.map(function (s) {
         return s.province + " " + s.total + "/" + s.full + (s.band ? "（" + s.band + "）" : "");
       }).join("，");
       var settledCnt = criticItems.filter(function (it) { return it.settled !== false; }).length;
+      var act = lastRevision.action || "小改";
       els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
-        "两评谈了 " + debateLog.length + " 轮，坐实 " + settledCnt + " 条" +
-        (open ? "，另有 " + open + " 条仍未谈拢（标灰、不给改）" : "") + "。";
-      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "坐实 " + settledCnt + " 条" +
-        (open ? " / 分歧 " + open + " 条" : "") + "，逐条看「旁批」页");
-      var out = addAssistantBubble("评改");
-      out.textContent = "两评定稿：" + (review.overall || "") +
-        (scoreTxt ? " 得分 " + scoreTxt + "。" : "") +
-        "坐实 " + settledCnt + " 条" + (open ? "，还有 " + open + " 条两评没谈拢，已标灰不给改。" : "。") +
-        "逐句评语在「旁批」页。";
-      await autoApplySettled();
+        "第 " + discussNo + " 次讨论（" + debateLog.length + " 轮），坐实 " + settledCnt + " 条" +
+        (open ? "，另有 " + open + " 条没谈拢（标灰、不改）" : "") +
+        "，结论：" + act + "。";
+      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "讨论 " + debateLog.length + " 轮 · 结论 " + act +
+        "，逐条看「旁批」页");
+      renderDebateLog();
+      // 结论单独一条，学生扫一眼就知道这次动没动稿
+      var concl = addAssistantBubble("讨论结论");
+      concl.textContent = "第 " + discussNo + " 次讨论谈完（" + debateLog.length + " 轮）：" +
+        (review.overall || "") + (scoreTxt ? " 得分 " + scoreTxt + "。" : "") +
+        " 结论是「" + act + "」" + (lastRevision.why ? "：" + lastRevision.why : "。") +
+        (open ? " 另有 " + open + " 条没谈拢，已标灰不给改。" : "") +
+        " 逐句评语在「旁批」页。";
+      await autoApplySettled(lastRevision);
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
         msg = "请求发不出去：多为浏览器跨域被拦或网络不通。";
       }
-      els.criticStat.textContent = "两评讨论中断：" + msg;
-      setDocHint("两评讨论中断，可再点一次");
-      var eb = addAssistantBubble("评改");
-      eb.textContent = "两评讨论中断：" + msg + (criticItems.length ? "（已经拿到的这一版仍留在稿纸上）" : "");
+      els.criticStat.textContent = "讨论中断：" + msg;
+      setDocHint("讨论中断，可再点一次");
+      var eb = addAssistantBubble("讨论");
+      eb.textContent = "讨论中断：" + msg + (criticItems.length ? "（已经拿到的这一版仍留在稿纸上）" : "");
     } finally {
       renderDebateLog();
       syncCriticApply();
@@ -5543,34 +5655,37 @@
     }
   }
 
-  async function runCritic() {
-    if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇再评改。"); return; }
+  /* ---------------- 单独一步：AI 评分 ----------------
+     只做「打分 + 逐句判好坏」，不谈、不改。顶栏「AI 评分」直接走这里；
+     讨论里的甲初评也复用同一个提示词，但那是讨论的第一步，不从这里进。 */
+  async function scoreOnce(opts) {
+    opts = opts || {};
+    var fromChat = !!opts.fromChat;
+    runningAsk = trim(opts.ask || "");
+    if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇再评分。"); runningAsk = ""; return; }
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
-      // 评改没配置就静默早返回，用户会以为"高亮没出"；这里把原因摆到抽屉里，移动端也一眼可见
       var needLogin = (c.preset === "site");
       setDrawer(true, "critic");
       els.criticStat.textContent = needLogin
-        ? "请先登录再评改（站内模型需要登录后消耗积分）。"
+        ? "请先登录再评分（站内模型需要登录后消耗积分）。"
         : "接口未配置：先回工作台填好 Base URL / API Key / 模型名。";
       setDocHint(needLogin ? "请先登录" : "请先配置接口");
+      runningAsk = "";
       return;
     }
 
-    els.criticStat.textContent = debateRounds > 0 ? "两评讨论中：甲方先评…" : "正在打分并逐句判…";
+    if (!fromChat) setDrawer(true, "critic");
     if (els.criticList) els.criticList.innerHTML = "";
     if (els.criticScore) { els.criticScore.innerHTML = ""; els.criticScore.hidden = true; }
     criticItems = [];
     criticScores = [];
-    debateLog = [];                  // 单评重跑时别把上一轮讨论记录留在抽屉里
-    setDrawer(true, "critic");       // 评改一开始就把抽屉拉出来，进度与结果都在里面
-    syncCriticDock(true);            // 正在打分也要看得见，别只留空态
-    switchPane("paper");
+    els.criticStat.textContent = "正在按评分标准打分，逐句判好坏与 AI 味…";
     syncCriticDock(true);
-    if (debateRounds > 0) { await runCriticDebate(); return; }
-    var bubble = addAssistantBubble("评改");
+    switchPane("paper");
+    var bubble = addAssistantBubble("评分");
     bubble.textContent = "正在按评分标准打分，并逐句判好坏与 AI 味…";
-    var runOwnedOne = runOwn("评改中 · 打分");
+    var runOwnedOne = runOwn("评分中");
 
     try {
       var sysCritic = window.WY_CRITIC;
@@ -5591,31 +5706,81 @@
       }).join("，");
 
       if (!criticItems.length && !criticScores.length) {
-        els.criticStat.textContent = "这轮没拿到分数也没挑出句子，可再点一次。";
-        bubble.textContent = "这轮没有结果，再点一次「AI 评改」试试。";
+        els.criticStat.textContent = "这次没拿到分数也没挑出句子，可再点一次。";
+        bubble.textContent = "这次没有结果，再点一次「AI 评分」试试。";
         return;
       }
       if (!criticItems.length) {
         els.criticStat.textContent = scoreTxt + " ｜ 没挑出可定位的句子";
-        bubble.textContent = (obj.overall ? obj.overall + " " : "") + "得分：" + scoreTxt + "。可再点一次评改取逐句批注。";
+        bubble.textContent = (obj.overall ? obj.overall + " " : "") + "得分：" + scoreTxt + "。稿子一个字没动。";
+        setDocHint((scoreTxt ? scoreTxt + " · " : "") + "只评分，未改稿");
         return;
       }
       var bad = criticItems.filter(function (x) { return x.verdict === "坏"; }).length;
       bubble.textContent = (obj.overall ? obj.overall + " " : "") +
         (scoreTxt ? "得分 " + scoreTxt + "；" : "") +
-        "评改完成：" + criticItems.length + " 句（坏 " + bad + " 句），逐句评语在工作窗「旁批」页，点卡片跳到原句。";
-      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评改 " + criticItems.length + " 条在「旁批」页");
-      await autoApplySettled();
+        "评分完成：" + criticItems.length + " 句（坏 " + bad + " 句），逐句评语在工作窗「旁批」页。稿子没动。";
+      setDocHint((scoreTxt ? scoreTxt + " · " : "") + "评分 " + criticItems.length + " 条在「旁批」页 · 未改稿");
+      if (els.criticStat) {
+        els.criticStat.textContent = (scoreTxt ? scoreTxt + " ｜ " : "") +
+          "只评分，未讨论也未改稿。想让它判要不要改，就说一句话发起讨论。";
+      }
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
         msg = "请求发不出去：多为浏览器跨域被拦或网络不通。";
       }
-      bubble.textContent = "评改失败：" + msg;
-      els.criticStat.textContent = "评改失败：" + msg;
+      bubble.textContent = "评分失败：" + msg;
+      els.criticStat.textContent = "评分失败：" + msg;
     } finally {
+      runningAsk = "";
       runRelease(runOwnedOne);
     }
+  }
+
+  function runScore() {
+    return scoreOnce({});
+  }
+
+  /* 讨论入口：手动点按钮跟学生直接说话走同一条流程。
+     userReq 是这一轮学生说的话（可为空），opts.fromChat 表示从对话框触发，不抢抽屉。 */
+  async function runCritic(userReq, opts) {
+    opts = opts || {};
+    var fromChat = !!opts.fromChat;
+    runningAsk = trim(userReq || "");
+    if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇再聊。"); runningAsk = ""; return; }
+    var c = currentConfig();
+    if (!c.base || !c.key || !c.model) {
+      // 没配置就静默早返回，用户会以为"高亮没出"；这里把原因摆到抽屉里，移动端也一眼可见
+      var needLogin = (c.preset === "site");
+      setDrawer(true, "critic");
+      els.criticStat.textContent = needLogin
+        ? "请先登录再讨论（站内模型需要登录后消耗积分）。"
+        : "接口未配置：先回工作台填好 Base URL / API Key / 模型名。";
+      setDocHint(needLogin ? "请先登录" : "请先配置接口");
+      runningAsk = "";
+      return;
+    }
+
+    els.criticStat.textContent = debateRounds > 0 ? "讨论中：甲方先评分…" : "正在打分并逐句判…";
+    if (els.criticList) els.criticList.innerHTML = "";
+    if (els.criticScore) { els.criticScore.innerHTML = ""; els.criticScore.hidden = true; }
+    criticItems = [];
+    criticScores = [];
+    // 从对话框触发时抽屉不抢镜：讨论过程本来就摆在对话里，抽屉只点个红点
+    if (!fromChat) setDrawer(true, "critic");
+    else if (els.drawerDotCritic) els.drawerDotCritic.hidden = false;
+    syncCriticDock(true);            // 正在打分也要看得见，别只留空态
+    switchPane("paper");
+    syncCriticDock(true);
+    if (debateRounds > 0) {
+      try { await runCriticDebate(); }
+      finally { runningAsk = ""; }
+      return;
+    }
+    // 轮数填 0：只评分，不讨论也不改稿
+    runningAsk = "";
+    await scoreOnce({});
   }
 
   /* ---------------- 流程作文：写 → 评 → 只改硬伤 → 复评 ----------------
@@ -5733,7 +5898,7 @@
     criticItems.forEach(function (it) { it.agreed = hards.indexOf(it) >= 0 ? "yes" : ""; });
     renderCritic();
     flowSetStat("正在按 " + hards.length + " 条硬伤重写整篇…");
-    var ok = await rewriteEssay(criticReqText(), { silentBubble: true });
+    var ok = await rewriteEssay(criticReqText("小改", {}), { silentBubble: true });   // 流程里只照坐实条目改，不跟着上次的大改幅度走
     if (flowAbort) return false;
     if (!ok) {
       flowStep("这轮没拿到合格新稿，已恢复改前版本", "warn");
@@ -5967,6 +6132,11 @@
     // 手机端先切到稿纸视图，评改标记才落在可见的稿纸上
     if (isMobile()) setMView("paper");
     runCritic();
+  });
+  // 评分是单独一步：只打分给评语，不动稿也不谈
+  on(els.scoreBtn, "click", function () {
+    if (isMobile()) setMView("paper");
+    runScore();
   });
 
   on(els.flowBtn, "click", function () {
