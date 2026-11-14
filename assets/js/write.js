@@ -87,6 +87,7 @@
     chatMode: $("chatMode"), chatModeHint: $("chatModeHint"),
     paperTitle: $("paperTitle"), paperBody: $("paperBody"),
     paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
+    posterBtn: $("posterBtn"),
     acceptAllBtn: $("acceptAllBtn"), ignoreAllBtn: $("ignoreAllBtn"),
 
     scoreToggle: $("scoreToggle"), scoreChips: $("scoreChips"),
@@ -6130,6 +6131,24 @@
     setPaperHint("已下载为 txt。");
   }
 
+  /* 工作台里的稿子已经在内存里，直接交给海报模块，不用再回云端取详情 */
+  function openPoster() {
+    if (!window.WY_POSTER) { setPaperHint("海报组件没加载，刷新页面再试。"); return; }
+    var body = String(docBody || "").trim();
+    if (!body) { setPaperHint("稿纸还是空的，先写一篇或录入一篇再做海报。"); return; }
+    window.WY_POSTER.open({
+      title: docTitle || lastTitle || "无题",
+      body: body,
+      category: activeCat ? (activeCat + " · " + activeGenre) : "",
+      province: (activeProvinces || []).join("、"),
+      genre: activeGenre,
+      stage: stageNow(),
+      wordCount: Array.from(body.replace(/\s/g, "")).length,
+      date: null
+    });
+    setPaperHint("海报已开始生成。");
+  }
+
   /* ---------------- 测试连接 ---------------- */
 
   async function testConnection() {
@@ -6179,6 +6198,7 @@
   on(els.testBtn, "click", testConnection);
   on(els.copyBtn, "click", copyText);
   on(els.downloadBtn, "click", downloadText);
+  on(els.posterBtn, "click", openPoster);
 
   on(els.acceptAllBtn, "click", function () { applyAll("accept"); });
   on(els.ignoreAllBtn, "click", function () { applyAll("ignore"); });

@@ -386,6 +386,34 @@ body.home { background-color: var(--canvas); }
 .auth-msg.ok { color: var(--g-700); }
 .auth-msg.error { color: var(--danger); }
 
+/* 作文海报预览：深绿抬头 + 浅绿底托住竖版 PNG */
+.poster-modal { max-width: 420px; }
+.poster-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  max-height: 56vh;
+  overflow: hidden;
+  padding: 10px;
+  background: var(--g-50);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.poster-preview img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 52vh;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+.poster-loading { color: var(--ink-mute); font-size: 13px; }
+.poster-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.poster-tip { color: var(--ink-mute); font-size: 12px; }
+.poster-modal .app-msg { min-height: 18px; margin-top: 8px; font-size: 12.5px; }
+
 /* ============ 写作工作台 ============ */
 
 .tool-head h1 { color: var(--g-900); }
@@ -577,6 +605,16 @@ body.home { background-color: var(--canvas); }
     border-color: rgba(242, 249, 243, .36);
     color: var(--on-green);
   }
+
+  /* 手机端弹层是贴底抽屉，卡片内边距变成 18px；抬头负边距要跟着改，
+     否则深绿抬头会左右冒出卡片之外。海报预览也收矮一点，给按钮留位置。 */
+  .modal-head {
+    margin: -18px -18px 16px;
+    padding: 14px 18px;
+    border-radius: 20px 20px 0 0;
+  }
+  .poster-preview { max-height: 44vh; }
+  .poster-preview img { max-height: 40vh; }
 
   .m-tabs {
     background: linear-gradient(100deg, var(--g-900), var(--g-800));

@@ -64,11 +64,19 @@
 
   async function api(path, options) {
     var opt = options || {};
-    var res = await fetch(API + path, {
-      method: opt.method || "GET",
-      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token() },
-      body: opt.body === undefined ? undefined : JSON.stringify(opt.body)
-    });
+    var res;
+    try {
+      res = await fetch(API + path, {
+        method: opt.method || "GET",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token() },
+        body: opt.body === undefined ? undefined : JSON.stringify(opt.body)
+      });
+    } catch (e) {
+      /* CORS 预检被拒、DNS、断网都会让 fetch 抛 TypeError，
+         直接把 "Failed to fetch" 甩给用户看不懂，统一翻成人话，原错留控制台排查。 */
+      console.warn("[wenyazw] 请求未能发出：", path, e);
+      throw new Error("暂时连不上账号服务，请检查网络后重试。");
+    }
     var j = {};
     try { j = await res.json(); } catch (e) { /* 忽略非 JSON 响应 */ }
     if (!res.ok || !j.ok) throw new Error(j.error || ("请求失败（HTTP " + res.status + "）"));
@@ -314,6 +322,13 @@
       prm.addEventListener("click", function () { openParams(r); });
       acts.appendChild(prm);
 
+      var pst = document.createElement("button");
+      pst.type = "button";
+      pst.className = "btn-outline";
+      pst.textContent = "作文海报";
+      pst.addEventListener("click", function () { openPoster(r); });
+      acts.appendChild(pst);
+
       var del = document.createElement("button");
       del.type = "button";
       del.className = "btn-outline";
@@ -346,6 +361,37 @@
       handoff(j.essay);
     } catch (e) {
       setMsg(els.essayMsg, "打开失败：" + ((e && e.message) || "未知错误"), "error");
+    }
+  }
+
+  /* 列表卡片只有摘要，海报要正文，所以先取详情再交给海报模块 */
+  function posterData(essay) {
+    var p = parseParams(essay.params, essay);
+    return {
+      title: essay.title || "无题",
+      body: essay.body || "",
+      category: essay.category || "",
+      province: essay.province || "",
+      genre: p.genre,
+      stage: p.stage,
+      wordCount: essay.word_count || p.words || words(essay.body),
+      date: essay.updated_at || essay.created_at
+    };
+  }
+
+  async function openPoster(row) {
+    if (!window.WY_POSTER) {
+      setMsg(els.essayMsg, "海报组件没加载，刷新页面再试。", "error");
+      return;
+    }
+    setMsg(els.essayMsg, "正在取这篇作文的正文…");
+    try {
+      var j = await api("/api/essays/" + encodeURIComponent(row.id));
+      if (!j.essay) throw new Error("没有取到内容");
+      setMsg(els.essayMsg, "");
+      window.WY_POSTER.open(posterData(j.essay));
+    } catch (e) {
+      setMsg(els.essayMsg, "海报打开失败：" + ((e && e.message) || "未知错误"), "error");
     }
   }
 
