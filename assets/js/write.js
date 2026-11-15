@@ -127,7 +127,7 @@
     outlineRetryBtn: $("outlineRetryBtn"),
     flowAuto: $("flowAuto"), flowRounds: $("flowRounds"), flowCostHint: $("flowCostHint"),
     scoreBtn: $("scoreBtn"), flowDock: $("flowDock"), flowStat: $("flowStat"),
-    flowSteps: $("flowSteps"), flowStopBtn: $("flowStopBtn"),
+    flowSteps: $("flowSteps"), flowStopBtn: $("flowStopBtn"), flowPhases: $("flowPhases"),
     flowRoundsDrawer: $("flowRoundsDrawer"), flowCostDrawer: $("flowCostDrawer"),
     flowRerunBtn: $("flowRerunBtn"), flowSetupNote: $("flowSetupNote"),
     flowEmpty: $("flowEmpty"),
@@ -3263,6 +3263,33 @@
     "文芽": "role-ai"
   };
 
+  /* 长内容默认折叠遮罩：超过阈值（字数多或有分段）时，先显示淡出预览 + 查看按钮，点开才露全文。
+     覆盖用户长要求与 AI 长回复；正文生成不走气泡，不受影响。 */
+  function wrapMask(el, text) {
+    if (!el || el.dataset.masked) return;
+    if (typeof text !== "string") text = el.textContent || "";
+    var long = text.length > 220 || (text.match(/\n\s*\n/g) || []).length >= 1;
+    if (!long) return;
+    el.dataset.masked = "1";
+    el.textContent = "";
+    var box = document.createElement("div");
+    box.className = "bubble-mask";
+    var pv = document.createElement("div");
+    pv.className = "mask-preview";
+    pv.textContent = text;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mask-toggle";
+    btn.textContent = "查看全文";
+    box.appendChild(pv);
+    box.appendChild(btn);
+    el.appendChild(box);
+    on(btn, "click", function () {
+      var open = box.classList.toggle("is-open");
+      btn.textContent = open ? "收起" : "查看全文";
+    });
+  }
+
   function addUserBubble(text, role) {
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     var b = document.createElement("div");
@@ -3273,6 +3300,7 @@
     var t = document.createElement("div");
     t.className = "bubble-text";
     t.textContent = text;
+    wrapMask(t, text);
     b.appendChild(label);
     b.appendChild(t);
     els.contextList.appendChild(b);
@@ -3325,7 +3353,10 @@
       return;
     }
     var parts = splitTwo(fullText);
-    if (assistantReplyEl) assistantReplyEl.textContent = parts.reply || "（已生成回应）";
+    if (assistantReplyEl) {
+      assistantReplyEl.textContent = parts.reply || "（已生成回应）";
+      wrapMask(assistantReplyEl, parts.reply || "");
+    }
     render(parts.comp, streaming, true);
   }
 
@@ -6008,6 +6039,20 @@
     setDocHint(text);
   }
 
+  var FLOW_PHASE_ORDER = ["draft", "score", "revise", "review", "done"];
+
+  // 阶段进度条：把当前进行到的阶段点亮，之前的全标完成
+  function flowPhase(key) {
+    if (!els.flowPhases) return;
+    var idx = FLOW_PHASE_ORDER.indexOf(key);
+    if (idx < 0) return;
+    Array.prototype.forEach.call(els.flowPhases.children, function (li, i) {
+      li.classList.remove("active", "passed");
+      if (i < idx) li.classList.add("passed");
+      else if (i === idx) li.classList.add("active");
+    });
+  }
+
   function flowStep(text, kind) {
     if (!els.flowSteps) return;
     var d = document.createElement("div");
@@ -6117,11 +6162,13 @@
     var runOwnedFlow = runOwn("流程作文 · 准备");
     try {
       if (!docBody.trim()) {
+        flowPhase("draft");
         flowStep("写正文");
         await generateEssay();
         if (flowAbort) { flowStep("已停止，保留当前稿纸", "warn"); return; }
         if (!docBody.trim()) throw new Error("正文没生成出来，流程停下。");
       }
+      flowPhase("score");
       flowStep("开始 · 当前 " + flowRoundLimit() + " 轮上限");
       var first = await flowScoreOnce("初评");
       best = { title: docTitle, body: docBody, pct: first.pct, label: first.label };
@@ -6130,8 +6177,10 @@
       // 循环条件每轮重新读：抽屉里改了轮次，下一步立刻按新上限继续或收住
       for (var r = 1; r <= flowRoundLimit() && !flowAbort; r++) {
         flowSetStat("第 " + r + " 轮 / 上限 " + flowRoundLimit() + " 轮（可改）");
+        flowPhase("revise");
         var revised = await flowReviseOnce();
         if (!revised || flowAbort) break;
+        flowPhase("review");
         var after = await flowScoreOnce("第 " + r + " 轮复评");
         finalLabel = after.label;
         if (after.pct > best.pct) {
@@ -6153,6 +6202,7 @@
         flowStep("已停止流程 · 保留当前最高分版本", "warn");
         flowSetStat("已停止 · " + finalLabel);
       } else {
+        flowPhase("done");
         flowStep("完成 · 初评 " + first.label + " → 终稿 " + finalLabel, "done");
         flowSetStat("流程结束 · 终稿 " + finalLabel);
       }

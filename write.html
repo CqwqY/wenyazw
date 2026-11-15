@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css?v=20261116N">
-<link rel="stylesheet" href="assets/css/write.css?v=20261116O">
+<link rel="stylesheet" href="assets/css/write.css?v=20261116P">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116N">
 </head>
@@ -453,6 +453,13 @@
               <span class="flow-stat" id="flowStat">准备中…</span>
               <button class="flow-dock-btn" id="flowStopBtn" type="button">停止流程</button>
             </div>
+            <ol class="flow-phases" id="flowPhases">
+              <li class="flow-phase" data-phase="draft"><span class="fp-dot"></span>生成初稿</li>
+              <li class="flow-phase" data-phase="score"><span class="fp-dot"></span>AI 评分</li>
+              <li class="flow-phase" data-phase="revise"><span class="fp-dot"></span>改硬伤</li>
+              <li class="flow-phase" data-phase="review"><span class="fp-dot"></span>复评</li>
+              <li class="flow-phase" data-phase="done"><span class="fp-dot"></span>定稿</li>
+            </ol>
             <div class="flow-steps" id="flowSteps"></div>
           </div>
           <p class="drawer-empty" id="flowEmpty">还没跑过流程作文。设好轮次，点顶部「流程作文」或上面的「按当前轮次重跑」。</p>
@@ -570,7 +577,7 @@
 
 <script src="assets/js/rules.js?v=20261116N"></script>
 <script src="assets/js/poster.js?v=20261116N"></script>
-<script src="assets/js/write.js?v=20261116T"></script>
+<script src="assets/js/write.js?v=20261116U"></script>
 <script src="assets/js/auth.js?v=20261116N"></script>
 </body>
 </html>
