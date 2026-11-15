@@ -5119,7 +5119,11 @@
       : (smallOp ? "小范围改稿 · 只动你点到的地方" : "整篇重写中 · 改好会整张稿纸一起换"));
     switchPane("paper");
 
-    var ok = await runStream("rewrite", criticVars({ req: req, smallEdit: smallOp, polish: polish }), { mode: "essay" });
+    var rewriteVars = { req: req, smallEdit: smallOp, polish: polish };
+    // 讨论完再点「按认可条目重写」时 runningAsk 已经清了，把作者那句原话补回来，
+    // 让服务端把它挂进 system 最末【作者这次提的问题】，重写这一步也不会失忆。
+    if (opts.askNow) rewriteVars.askNow = trim(opts.askNow);
+    var ok = await runStream("rewrite", criticVars(rewriteVars), { mode: "essay" });
     var plain = function (t) { return String(t || "").replace(/\s/g, "").length; };
     // 大改允许重搭结构，字数掉得多一点不拦；小改还是按住 0.6 的线
     var minRatio = typeof opts.minRatio === "number" ? opts.minRatio : 0.6;
@@ -5560,6 +5564,7 @@
   var debateNoLimit = false;                // 关掉轮数上限：谈得动就一直谈，谈不动自己收
   var debateAutoApply = true;               // 总开关：允许 AI 讨论完自己决定要不要动稿
   var runningAsk = "";                      // 这一轮触发的作者原话，拼进三条提示词
+  var lastDebateAsk = "";                   // 讨论收尾后 runningAsk 会被清掉，留一份给「按认可条目重写」用
   var lastRevision = null;                  // 甲定稿时给的改稿幅度 {action, why, scope}
   var discussNo = 0;                        // 这篇作文谈过几次
 
@@ -6289,8 +6294,9 @@
      userReq 是这一轮学生说的话（可为空），opts.fromChat 表示从对话框触发，不抢抽屉。 */
   async function runCritic(userReq, opts) {
     opts = opts || {};
-    var fromChat = !!opts.fromChat;
+    var     fromChat = !!opts.fromChat;
     runningAsk = trim(userReq || "");
+    lastDebateAsk = runningAsk;
     if (!docBody.trim()) { setPaperHint("还没有正文，先按大纲写一篇再聊。"); runningAsk = ""; return; }
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
@@ -6822,7 +6828,7 @@
     var req = criticReqText();
     if (!req) { setDocHint("先在「旁批」页里点「认可」，再按这些重写整篇。"); return; }
     if (!docBody.trim()) { setDocHint("正文是空的，改不了。"); return; }
-    rewriteEssay(req, { small: false });
+    rewriteEssay(req, { small: false, askNow: lastDebateAsk });
   });
 
   on(els.undoRewriteBtn, "click", function () {
