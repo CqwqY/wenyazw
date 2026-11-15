@@ -285,6 +285,18 @@
         out.push({ card: true, task: b.getAttribute("data-task") || "", open: b.classList.contains("is-open"), segs: segs });
         return;
       }
+      if (b.classList.contains("step")) {
+        var stx = b.querySelector(".step-text");
+        var stxt = stx ? stx.textContent : "";
+        if (!trim(stxt)) return;
+        out.push({
+          step: true,
+          role: b.getAttribute("data-role") || "",
+          text: stxt,
+          open: b.classList.contains("is-open")
+        });
+        return;
+      }
       if (!b.classList.contains("bubble")) return;
       var lab = b.querySelector(".bubble-label"), tx2 = b.querySelector(".bubble-text");
       var txt = tx2 ? tx2.textContent : "";
@@ -393,10 +405,20 @@
   function paintChat(list) {
     if (!els.contextList || !list || !list.length) return;
     els.contextList.innerHTML = "";
-    flowCards = {};
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     list.forEach(function (m) {
       if (!m) return;
+      if (m.step) {
+        var st = buildStepRow(m.role || "");
+        var stt = document.createElement("div");
+        stt.className = "step-text";
+        stt.textContent = m.text || "";
+        st.body.appendChild(stt);
+        st.row.setAttribute("data-state", "done");
+        st.meta.textContent = stepDigest(m.text) || (stepChars(m.text) + " 字");
+        if (!m.open) { st.row.classList.remove("is-open"); st.caret.textContent = "▾"; }
+        return;
+      }
       if (m.card) {
         // 旧存档里的流程卡片：拆成普通气泡还原，保证文字一定看得见
         (m.segs || []).forEach(function (s) {
@@ -3375,182 +3397,71 @@
     "文芽": "role-ai"
   };
 
-  /* 任务流程胶囊：每个任务（讨论 / 评分 / 讲评 / 列提纲 …）汇总成一颗胶囊，
-     收起时显示「谁 · 正在干什么 + 字数」，点开在下方展开全文。 */
-  var FLOW_TASK = {
-    "评卷甲": "讨论流程", "评卷乙": "讨论流程", "甲·改法": "讨论流程",
-    "乙·挑方案": "讨论流程", "甲·定改法": "讨论流程", "讨论": "讨论流程", "改稿": "讨论流程",
-    "大纲助教": "列提纲流程",
-    "讲评老师": "讲评流程",
-    "文芽": "写作流程",
-    "批改老师": "改写流程",
-    "结论": "讨论结论", "讨论结论": "讨论结论",
-    "评分": "评分流程"
-  };
-  var FLOW_ACTION = {
-    "评卷甲": "讨论", "评卷乙": "讨论", "甲·改法": "讨论", "乙·挑方案": "讨论", "甲·定改法": "讨论",
+  /* ---------------- 任务步骤行 ----------------
+     一条过程回复占一行，像命令行 agent 的执行记录：状态图标 + 做什么 + 附加信息（字数/摘要），
+     点开在下面看全文。进行中自动展开让流式文字可见，停笔 2.4 秒自动收起成一行。
+     最终回答（讨论结论 / 评分结果）不走这里，直接普通气泡常显。 */
+
+  var STEP_ACTION = {
+    "评卷甲": "讨论 · 甲", "评卷乙": "讨论 · 乙",
+    "甲·改法": "讨论 · 甲定改法", "乙·挑方案": "讨论 · 乙挑方案", "甲·定改法": "讨论 · 甲定改法",
     "讨论": "讨论", "改稿": "改稿",
     "大纲助教": "列提纲",
     "讲评老师": "讲评",
     "文芽": "写作",
     "批改老师": "改写",
     "评分": "评分",
-    "结论": "定结论", "讨论结论": "定结论"
+    "结论": "结论", "讨论结论": "结论"
   };
-  var flowCards = {};   // 任务名 -> 胶囊对象；同一任务的过程回复合并到一颗胶囊
 
-  function flowTaskName(role) {
-    return FLOW_TASK[role] || (role ? (role + "流程") : "流程");
+  function stepAction(role) {
+    return STEP_ACTION[role] || (role ? String(role) : "处理");
   }
 
-  function flowActionOf(role) {
-    return FLOW_ACTION[role] || "处理";
-  }
-
-  function flowCount(text) {
+  function stepChars(text) {
     return Array.from(String(text || "")).length;
   }
 
-  function buildFlowCard(task, open, pin) {
-    var card = document.createElement("div");
-    card.className = "flow-card" + (open ? " is-open" : "");
-    card.setAttribute("data-task", task);
-    card.setAttribute("data-state", "run");
+  function stepDigest(text) {
+    var one = String(text || "").replace(/\s+/g, " ").trim();
+    if (!one) return "";
+    return one.length > 34 ? one.slice(0, 34) + "…" : one;
+  }
+
+  function buildStepRow(role) {
+    var row = document.createElement("div");
+    row.className = "step is-open";
+    row.setAttribute("data-state", "run");
+    row.setAttribute("data-role", role || "");
     var head = document.createElement("button");
     head.type = "button";
-    head.className = "flow-head";
-    var dot = document.createElement("span");
-    dot.className = "flow-dot";
-    var who = document.createElement("span");
-    who.className = "flow-who";
-    who.textContent = task.replace(/流程$/, "");
-    var act = document.createElement("span");
-    act.className = "flow-act";
-    act.textContent = "准备中";
+    head.className = "step-head";
+    var ico = document.createElement("span");
+    ico.className = "step-ico";
+    var ttl = document.createElement("span");
+    ttl.className = "step-title";
+    ttl.textContent = stepAction(role);
     var meta = document.createElement("span");
-    meta.className = "flow-meta";
+    meta.className = "step-meta";
     var caret = document.createElement("span");
-    caret.className = "flow-caret";
-    caret.textContent = open ? "收起" : "展开";
-    head.appendChild(dot);
-    head.appendChild(who);
-    head.appendChild(act);
+    caret.className = "step-caret";
+    caret.textContent = "▴";
+    head.appendChild(ico);
+    head.appendChild(ttl);
     head.appendChild(meta);
     head.appendChild(caret);
     var body = document.createElement("div");
-    body.className = "flow-body";
-    card.appendChild(head);
-    card.appendChild(body);
-    if (pin) card.setAttribute("data-pin", "1");    // 最终回答：一直展开，不被自动收起
+    body.className = "step-body";
+    row.appendChild(head);
+    row.appendChild(body);
+    els.contextList.appendChild(row);
+    var st = { row: row, head: head, body: body, ttl: ttl, meta: meta, caret: caret };
     on(head, "click", function () {
-      setFlowOpen(fc, !card.classList.contains("is-open"));
+      var open = row.classList.toggle("is-open");
+      caret.textContent = open ? "▴" : "▾";
       scheduleSessionSave();
     });
-    els.contextList.appendChild(card);
-    var fc = { card: card, body: body, caret: caret, who: who, act: act, meta: meta, dot: dot };
-    return fc;
-  }
-
-  function setFlowOpen(fc, open) {
-    if (!fc || !fc.card) return;
-    fc.card.classList.toggle("is-open", !!open);
-    if (fc.caret) fc.caret.textContent = open ? "收起" : "展开";
-  }
-
-  /* 正在写的那颗胶囊自动展开，其余过程胶囊自动收起（最终回答不收起） */
-  function focusFlowCard(fc) {
-    Object.keys(flowCards).forEach(function (k) {
-      var o = flowCards[k];
-      if (o !== fc && !o.card.getAttribute("data-pin")) {
-        setFlowOpen(o, false);
-        if (o.card.getAttribute("data-state") === "run") o.card.setAttribute("data-state", "done");
-      }
-    });
-    if (!fc.card.classList.contains("is-open")) setFlowOpen(fc, true);
-    els.contextList.scrollTop = els.contextList.scrollHeight;
-  }
-
-  function flowDoneText(action) {
-    return action === "定结论" ? "结论已出" : action + "完成";
-  }
-
-  function flowDigest(text) {
-    var one = String(text || "").replace(/\s+/g, " ").trim();
-    return one ? (one.length > 22 ? one.slice(0, 22) + "…" : one) : "";
-  }
-
-  /* 胶囊文案：谁 + 正在干什么 / 干完了 + 字数或摘要 */
-  function flowMeta(fc, role, text, running) {
-    if (!fc) return;
-    var name = role || "";
-    if (name) fc.who.textContent = name;
-    var action = flowActionOf(name);
-    var n = flowCount(text);
-    if (fc.card.getAttribute("data-pin")) {
-      fc.act.textContent = "已给出";
-      fc.card.setAttribute("data-state", "done");
-      fc.meta.textContent = n ? (n + " 字") : "";
-      return;
-    }
-    if (running) {
-      fc.act.textContent = "正在" + action;
-      fc.card.setAttribute("data-state", "run");
-      fc.meta.textContent = n ? (n + " 字") : "";
-      // 流停顿 2.6 秒视为这一轮写完，胶囊从「正在…」切成「…完成」
-      if (fc.timer) clearTimeout(fc.timer);
-      fc.timer = setTimeout(function () {
-        fc.timer = null;
-        if (fc.card.getAttribute("data-pin")) return;
-        fc.card.setAttribute("data-state", "done");
-        fc.act.textContent = flowDoneText(action);
-        fc.meta.textContent = flowDigest(text);
-        scheduleSessionSave();
-      }, 2600);
-      return;
-    }
-    if (fc.timer) { clearTimeout(fc.timer); fc.timer = null; }
-    fc.act.textContent = flowDoneText(action);
-    fc.card.setAttribute("data-state", "done");
-    fc.meta.textContent = flowDigest(text);
-  }
-
-  function getFlowCard(task) {
-    if (flowCards[task]) return flowCards[task];
-    var fc = buildFlowCard(task, false);
-    flowCards[task] = fc;
-    return fc;
-  }
-
-  // 把一条回复作为胶囊里的一段；proxy 为真时返回可复写的文本节点（代理 textContent）
-  function appendFlowSeg(fc, role, text, proxy) {
-    var seg = document.createElement("div");
-    seg.className = "flow-seg";
-    var lab = document.createElement("div");
-    lab.className = "flow-seg-label";
-    lab.textContent = role || "";
-    var tx = document.createElement("div");
-    tx.className = "flow-seg-text";
-    seg.appendChild(lab);
-    seg.appendChild(tx);
-    fc.body.appendChild(seg);
-    if (proxy) {
-      var store = "";
-      Object.defineProperty(tx, "textContent", {
-        configurable: true,
-        get: function () { return store; },
-        set: function (v) {
-          store = String(v == null ? "" : v);
-          tx.replaceChildren(document.createTextNode(store));
-          flowMeta(fc, role, store, true);
-          if (!fc.card.getAttribute("data-pin")) focusFlowCard(fc);
-        }
-      });
-      if (text) tx.textContent = text;
-    } else {
-      tx.textContent = text || "";
-      flowMeta(fc, role, text, false);
-    }
-    return tx;
+    return st;
   }
 
   function addUserBubble(text, role) {
@@ -3571,19 +3482,61 @@
     return t;
   }
 
-  function addAssistantBubble(role) {
+  function addAssistantBubble(role, opts) {
     var name = role || "文芽";
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
-    var b = document.createElement("div");
-    b.className = "bubble ai " + (ROLE_CLASS[name] || "role-ai");
-    var label = document.createElement("div");
-    label.className = "bubble-label";
-    label.textContent = name;
+    var finalReply = !!(opts && opts.noMask);
+
+    // 最终回答：普通气泡，整段常显，不参与折叠
+    if (finalReply) {
+      var b = document.createElement("div");
+      b.className = "bubble ai " + (ROLE_CLASS[name] || "role-ai");
+      var label = document.createElement("div");
+      label.className = "bubble-label";
+      label.textContent = name;
+      var bt = document.createElement("div");
+      bt.className = "bubble-text";
+      b.appendChild(label);
+      b.appendChild(bt);
+      els.contextList.appendChild(b);
+      els.contextList.scrollTop = els.contextList.scrollHeight;
+      noteChatReply();
+      scheduleSessionSave();
+      return bt;
+    }
+
+    // 过程回复：一行步骤
+    var st = buildStepRow(name);
     var t = document.createElement("div");
-    t.className = "bubble-text";
-    b.appendChild(label);
-    b.appendChild(t);
-    els.contextList.appendChild(b);
+    t.className = "step-text";
+    st.body.appendChild(t);
+    var store = "";
+    var timer = null;
+    Object.defineProperty(t, "textContent", {
+      configurable: true,
+      get: function () { return store; },
+      set: function (v) {
+        store = String(v == null ? "" : v);
+        t.replaceChildren(document.createTextNode(store));
+        var n = stepChars(store);
+        st.row.setAttribute("data-state", "run");
+        st.meta.textContent = n ? ("进行中 · " + n + " 字") : "进行中";
+        if (!st.row.classList.contains("is-open")) {
+          st.row.classList.add("is-open");
+          st.caret.textContent = "▴";
+        }
+        els.contextList.scrollTop = els.contextList.scrollHeight;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(function () {
+          timer = null;
+          st.row.setAttribute("data-state", "done");
+          st.meta.textContent = stepDigest(store) || (stepChars(store) + " 字");
+          st.row.classList.remove("is-open");
+          st.caret.textContent = "▾";
+          scheduleSessionSave();
+        }, 2400);
+      }
+    });
     els.contextList.scrollTop = els.contextList.scrollHeight;
     noteChatReply();
     scheduleSessionSave();
@@ -4673,7 +4626,6 @@
 
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
-    flowCards = {};
 
     // 这篇以前写过的话，把对话/评改/旁批/锁句接回来（本机没有就用云端随稿存的那份）
     if (hydrateEssaySession(data.session) && criticItems.length) renderCritic();
@@ -4807,7 +4759,6 @@
     syncAnnotTools();
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
-    flowCards = {};
 
     var summary = "类别：" + selectedCat + " ｜ 文体：" + activeGenre + " ｜ 题目：" + els.topic.value.trim().slice(0, 30) +
       (els.topic.value.trim().length > 30 ? "…" : "") + " ｜ 约 " + wordCount + " 字 ｜ " + activeProvinces.join("、");

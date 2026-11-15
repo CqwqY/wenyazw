@@ -2923,67 +2923,85 @@ table.score-table .score-table-key {
 .bubble.role-critic-b .bubble-label { color: #2f5a6f; background: #e4eef3; border-color: #cddde4; }
 .bubble.role-critic-b .bubble-text { background: #f3f7f9; border-color: #cddde4; border-left-color: #3f7c97; }
 
-/* 任务流程胶囊：一颗胶囊说明「谁 · 正在干什么」，点开在下方展开全文 */
-.flow-card {
-  flex: 0 0 auto;            /* 关键：作为 flex 子项不被压扁（否则 overflow:hidden 会塌成一条线） */
-  align-self: flex-start;
-  max-width: 100%;
-  min-height: 0;
+/* ---------- 任务步骤行：agent 式执行记录，一行一条 ---------- */
+.step {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
-.flow-head {
-  display: inline-flex;
+.step + .step { margin-top: -8px; }   /* 相邻步骤挨紧一点，像一串执行记录 */
+.step-head {
+  display: flex;
   align-items: center;
-  gap: 7px;
-  max-width: 100%;
-  padding: 6px 12px;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px 4px 2px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
   font-family: var(--sans);
   font-size: 12.5px;
-  line-height: 1.5;
-  color: #1d7048;
-  background: rgba(29, 112, 72, .07);
-  border: 1px solid rgba(29, 112, 72, .2);
-  border-radius: 999px;
-  cursor: pointer;
-  user-select: none;
+  line-height: 1.6;
+  color: var(--ink-soft, #4a4a45);
   text-align: left;
-  transition: background .16s ease, border-color .16s ease;
+  cursor: pointer;
 }
-.flow-head:hover { background: rgba(29, 112, 72, .12); border-color: rgba(29, 112, 72, .32); }
-.flow-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #9bb3a6;
+.step-head:hover { background: rgba(29, 112, 72, .06); }
+.step-ico {
   flex: none;
+  width: 12px;
+  height: 12px;
+  margin-left: 3px;
+  border-radius: 50%;
+  border: 1.5px solid #9bb3a6;
+  box-sizing: border-box;
+  position: relative;
 }
-.flow-card[data-state="run"] .flow-dot {
-  background: #2f9e68;
-  animation: flowPulse 1.3s ease-in-out infinite;
+.step[data-state="run"] .step-ico {
+  border-color: #2f9e68;
+  border-top-color: transparent;
+  animation: stepSpin .85s linear infinite;
 }
-@keyframes flowPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 104, .38); }
-  50% { box-shadow: 0 0 0 4px rgba(47, 158, 104, 0); }
+@keyframes stepSpin { to { transform: rotate(360deg); } }
+.step[data-state="done"] .step-ico { border-color: #2f9e68; background: #2f9e68; }
+.step[data-state="done"] .step-ico::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0.5px;
+  width: 4px;
+  height: 7px;
+  border-right: 1.5px solid #fff;
+  border-bottom: 1.5px solid #fff;
+  transform: rotate(42deg);
 }
-.flow-who { font-weight: 600; white-space: nowrap; }
-.flow-act { color: #2b6b4c; white-space: nowrap; }
-.flow-card[data-state="done"] .flow-act { color: var(--ink-mute); }
-.flow-meta {
-  color: var(--ink-mute);
-  font-size: 11.5px;
-  white-space: nowrap;
+.step-title { flex: none; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.step-meta {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 30vw;
+  white-space: nowrap;
+  color: var(--ink-mute);
+  font-size: 11.5px;
 }
-.flow-meta:not(:empty)::before { content: "·"; margin-right: 5px; opacity: .55; }
-.flow-card.is-open .flow-meta { display: none; }
-.flow-caret { color: var(--ink-mute); font-size: 11.5px; white-space: nowrap; }
-.flow-body { display: none; margin: 8px 0 0 10px; padding-left: 12px; border-left: 2px solid rgba(29, 112, 72, .16); }
-.flow-card.is-open .flow-body { display: block; }
-.flow-seg { padding: 7px 0; }
-.flow-seg + .flow-seg { border-top: 1px dashed var(--line); }
-.flow-seg-label { font-size: 11.5px; font-weight: 600; color: #1d7048; margin-bottom: 3px; }
-.flow-seg-text { font-size: 14px; line-height: 1.72; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.step-caret { flex: none; font-size: 10.5px; color: var(--ink-mute); opacity: .8; }
+.step-body {
+  display: none;
+  margin: 1px 0 2px 29px;
+  padding-left: 11px;
+  border-left: 1.5px solid rgba(29, 112, 72, .16);
+}
+.step.is-open .step-body { display: block; }
+.step-text {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--ink-soft, #45453f);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 
 /* ---------- 对话框下方的模型切换 ---------- */
 
