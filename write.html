@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
-<link rel="stylesheet" href="assets/css/write.css?v=20261116AC">
+<link rel="stylesheet" href="assets/css/write.css?v=20261116AE">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
@@ -252,6 +252,7 @@
         <button class="btn-outline" id="undoRewriteBtn" hidden>恢复上一版</button>
         <button class="btn-outline" id="diffBtn" hidden>改动对照</button>
         <button class="btn-outline" id="paperDiffBtn" hidden>对照上一版</button>
+        <button class="btn-outline" id="editDocBtn">直接改写</button>
         <button class="btn-outline" id="scoreBtn">AI 评分</button>
         <a class="btn-outline" href="index.html#account" target="_blank" rel="noopener">我的文风</a>
         <button class="btn-outline" id="copyBtn">复制</button>
@@ -339,7 +340,7 @@
 
             <!-- 稿纸 pane -->
             <div class="paper" id="paperPane" hidden>
-              <div class="paper-inner">
+              <div class="paper-inner" id="paperInner">
                 <div class="paper-title" id="paperTitle">作文稿纸</div>
                 <div class="paper-cols">
                   <div class="paper-main">
@@ -349,11 +350,32 @@
                   <aside class="paper-notes" id="paperNotes" aria-label="旁批"></aside>
                 </div>
               </div>
+
+              <!-- 直接改写：标题 + 正文都能手动改，保存后写回稿纸、云端与历史版本 -->
+              <div class="paper-edit" id="paperEdit" hidden>
+                <div class="pe-head">
+                  <span class="pe-tag">直接改写</span>
+                  <span class="pe-tip">标题与正文随便改；保存后旧批注、旧评分会对不上的自动清掉，可用「恢复上一版」退回</span>
+                </div>
+                <label class="pe-label" for="peTitle">标题</label>
+                <input class="pe-title" id="peTitle" type="text" maxlength="80" placeholder="给这篇作文起个标题" autocomplete="off">
+                <div class="pe-row">
+                  <label class="pe-label" for="peBody">正文</label>
+                  <span class="pe-count" id="peCount">0 字</span>
+                </div>
+                <textarea class="pe-body" id="peBody" spellcheck="false" placeholder="一段一段写，空行分段。改完点「保存修改」。"></textarea>
+                <div class="pe-foot">
+                  <span class="pe-hint" id="peHint"></span>
+                  <button type="button" class="btn-outline" id="peCancelBtn">取消</button>
+                  <button type="button" class="btn btn-primary" id="peSaveBtn">保存修改</button>
+                </div>
+              </div>
             </div>
 
-            <!-- 选中正文后浮出的「锁住这句」 -->
+            <!-- 选中正文后浮出：锁住这句 / 让 AI 只改这一段 -->
             <div class="lock-pop" id="lockPop" hidden>
               <button type="button" id="lockApplyBtn">锁住这句</button>
+              <button type="button" class="ai-edit" id="aiEditApplyBtn">让 AI 改</button>
             </div>
 
           </div>
@@ -581,7 +603,7 @@
 
 <script src="assets/js/rules.js?v=20261116N"></script>
 <script src="assets/js/poster.js?v=20261116N"></script>
-<script src="assets/js/write.js?v=20261116AJ"></script>
+<script src="assets/js/write.js?v=20261116AK"></script>
 <script src="assets/js/auth.js?v=20261116O"></script>
 </body>
 </html>

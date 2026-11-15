@@ -88,6 +88,10 @@
     polishAllBtn: $("polishAllBtn"),
     chatMode: $("chatMode"),
     paperTitle: $("paperTitle"), paperBody: $("paperBody"),
+    paperInner: $("paperInner"), paperEdit: $("paperEdit"),
+    peTitle: $("peTitle"), peBody: $("peBody"), peCount: $("peCount"),
+    peHint: $("peHint"), peSaveBtn: $("peSaveBtn"), peCancelBtn: $("peCancelBtn"),
+    editDocBtn: $("editDocBtn"), aiEditApplyBtn: $("aiEditApplyBtn"),
     paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
     posterBtn: $("posterBtn"),
     acceptAllBtn: $("acceptAllBtn"), ignoreAllBtn: $("ignoreAllBtn"),
@@ -1636,6 +1640,95 @@
     document.addEventListener("keydown", dialogEsc);
     try { ok.focus(); } catch (e) {}
     return mask;
+  }
+
+  /* 带输入框的弹窗：让作者写「这一处怎么改」。返回 Promise，取消 / Esc 为 null。
+     独立于 wyAlert 的 dialogEl，避免两个弹窗抢同一套关闭逻辑。 */
+  var promptCleanup = null;
+  function wyPrompt(opt) {
+    var o = typeof opt === "string" ? { message: opt } : (opt || {});
+    if (promptCleanup) { try { promptCleanup(); } catch (e) {} }
+    closeDialog();
+    return new Promise(function (resolve) {
+      var done = false;
+      var mask = document.createElement("div");
+      mask.className = "wy-mask is-info";
+      var box = document.createElement("div");
+      box.className = "wy-dialog";
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+
+      var tag = document.createElement("div");
+      tag.className = "wy-dialog-tag";
+      tag.textContent = o.tag || "填一句要求";
+      box.appendChild(tag);
+      if (o.title) {
+        var ttl = document.createElement("div");
+        ttl.className = "wy-dialog-title";
+        ttl.textContent = o.title;
+        box.appendChild(ttl);
+      }
+      var body = document.createElement("div");
+      body.className = "wy-dialog-body";
+      body.textContent = o.message || "";
+      box.appendChild(body);
+      if (o.detail) {
+        var det = document.createElement("div");
+        det.className = "wy-dialog-detail";
+        det.textContent = o.detail;
+        box.appendChild(det);
+      }
+      var input = document.createElement("textarea");
+      input.className = "wy-dialog-input";
+      input.rows = 3;
+      input.placeholder = o.placeholder || "";
+      input.value = o.value || "";
+      box.appendChild(input);
+
+      var foot = document.createElement("div");
+      foot.className = "wy-dialog-foot is-split";
+      var cost = document.createElement("span");
+      cost.className = "wy-dialog-cost";
+      cost.textContent = o.cost || "";
+      foot.appendChild(cost);
+      var acts = document.createElement("div");
+      acts.className = "wy-dialog-actions";
+      var cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "btn-outline";
+      cancel.textContent = "取消";
+      var ok = document.createElement("button");
+      ok.type = "button";
+      ok.className = "btn btn-primary";
+      ok.textContent = o.okText || "确定";
+      acts.appendChild(cancel);
+      acts.appendChild(ok);
+      foot.appendChild(acts);
+      box.appendChild(foot);
+      mask.appendChild(box);
+      document.body.appendChild(mask);
+      requestAnimationFrame(function () { mask.classList.add("is-in"); });
+
+      function finish(val) {
+        if (done) return;
+        done = true;
+        promptCleanup = null;
+        document.removeEventListener("keydown", onKey, true);
+        mask.classList.remove("is-in");
+        setTimeout(function () { if (mask.parentNode) mask.parentNode.removeChild(mask); }, 160);
+        resolve(val);
+      }
+      function onKey(e) {
+        if (e.key === "Escape") { e.preventDefault(); finish(null); }
+        else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); finish(input.value.trim()); }
+      }
+      on(ok, "click", function () { finish(input.value.trim()); });
+      on(cancel, "click", function () { finish(null); });
+      on(mask, "click", function (e) { if (e.target === mask) finish(null); });
+      document.addEventListener("keydown", onKey, true);
+      promptCleanup = function () { finish(null); };
+      setTimeout(function () { try { input.focus(); } catch (e) {} }, 40);
+    });
   }
 
   /* ---------------- 向导：类别 ---------------- */
@@ -3329,10 +3422,303 @@
     renderMarginNotes();
   }
 
+  /* ---------------- 直接改写：标题 + 正文 ----------------
+     打开时把带格子的渲染层换成输入框；输入实时同步到内存里的稿件，
+     所以复制 / 下载 / 海报 / 后续 AI 操作拿到的都是最新稿。保存才记一版历史，
+     取消按打开时的快照整体还原（连批注、锁句、评分一起）。 */
+  var paperEditing = false;
+  var editSnapshot = null;
+
+  function peWordCount() {
+    return Array.from(String((els.peBody && els.peBody.value) || "").replace(/\s/g, "")).length;
+  }
+
+  function paintPeCount() {
+    if (els.peCount) els.peCount.textContent = peWordCount() + " 字";
+  }
+
+  function cleanBodyText(t) {
+    return String(t || "").replace(/\r\n?/g, "\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .replace(/^\n+|\n+$/g, "")
+      .trim();
+  }
+
+  function syncPaperEditLive() {
+    if (!paperEditing) return;
+    var t = trim(els.peTitle.value) || "作文";
+    var b = cleanBodyText(els.peBody.value);
+    docTitle = t;
+    docBody = b;
+    currentComposition = t + "\n\n" + b;
+    outline.title = t;                       // 大纲标题跟着走，免得下次重写把标题改回旧的
+    if (els.outlineTitle) els.outlineTitle.value = t;
+    lastTitle = t;
+    paintPeCount();
+    renderStudioMeta();
+    scheduleEssaySave();
+  }
+
+  function openPaperEdit() {
+    if (paperEditing) return;
+    if (!docBody.trim()) { setPaperHint("还没有正文，先写一篇或录入一篇。"); return; }
+    if (els.sendBtn && els.sendBtn.disabled) { setPaperHint("还有任务在跑，等它结束再改稿。"); return; }
+    if (paperDiffMode) exitPaperDiff();
+    hideLockPop(); clearSel();
+    switchPane("paper");
+    editSnapshot = essaySnapshot();
+    paperEditing = true;
+    els.peTitle.value = docTitle || "作文";
+    els.peBody.value = docBody;
+    paintPeCount();
+    if (els.peHint) { els.peHint.textContent = "边改边自动保存；点「完成改写」记一版历史。"; els.peHint.className = "pe-hint"; }
+    if (els.paperInner) els.paperInner.hidden = true;
+    if (els.paperEdit) els.paperEdit.hidden = false;
+    if (els.editDocBtn) { els.editDocBtn.textContent = "完成改写"; els.editDocBtn.classList.add("edit-on"); }
+    setDocHint("直接改写中 · 标题和正文都能改");
+    try { els.peBody.focus(); } catch (e) {}
+  }
+
+  function closePaperEditUI() {
+    paperEditing = false;
+    if (els.paperEdit) els.paperEdit.hidden = true;
+    if (els.paperInner) els.paperInner.hidden = false;
+    if (els.editDocBtn) { els.editDocBtn.textContent = "直接改写"; els.editDocBtn.classList.remove("edit-on"); }
+    if (els.peHint) els.peHint.textContent = "";
+  }
+
+  function savePaperEdit(silent) {
+    if (!paperEditing) return;
+    syncPaperEditLive();
+    if (!docBody.trim()) {
+      if (!silent) {
+        setPaperHint("正文不能是空的。");
+        if (els.peHint) {
+          els.peHint.textContent = "正文不能是空的，写点什么再保存。";
+          els.peHint.className = "pe-hint is-warn";
+        }
+      }
+      return;
+    }
+    var snap = editSnapshot || essaySnapshot();
+    var changed = docTitle !== snap.title || docBody !== snap.body;
+    closePaperEditUI();
+    editSnapshot = null;
+    if (changed) {
+      undoStack.push(snap);
+      if (undoStack.length > 5) undoStack.shift();
+      syncUndoBtn();
+    }
+    renderAnnotated();          // 顺带清掉对不上的旧旁批 / 旧评分
+    renderStudioMeta();
+    if (changed) {
+      commitVersion("手动改写", "");
+      if (els.criticStat) els.criticStat.textContent = "正文你手动改过了，旧评分已作废；需要请重新评分。";
+    }
+    saveEssayToCloud();
+    scheduleEssaySave();
+    if (!silent) setPaperHint(changed ? "已保存你的修改 · 可用「恢复上一版」退回" : "稿子没改动");
+    setDocHint(changed ? "已保存手动改写" : "");
+  }
+
+  function cancelPaperEdit() {
+    if (!paperEditing) return;
+    var snap = editSnapshot;
+    closePaperEditUI();
+    editSnapshot = null;
+    if (snap) restoreEssaySnapshot(snap);
+    setPaperHint("已放弃这次改写，稿子恢复原样。");
+  }
+
   function replaceOnce(src, a, b) {
     var i = src.indexOf(a);
     if (i < 0) return null;
     return src.slice(0, i) + b + src.slice(i + a.length);
+  }
+
+  /* ---------------- 框选「让 AI 改」：只替换选中的这一段 ----------------
+     稿纸把正文逐字渲染成 .ch 字格（段落之间只丢换行、空白段不渲染），
+     所以能反算出选区在 docBody 里的精确下标，不用拿片段文本去全文猜位置，
+     也不会因为「这句话在别处也出现过」而改错地方。
+     模型只交回「替换的那一段纯文本」，全文其它地方一个字都不动。 */
+  function bodyCharMap() {
+    var map = [];
+    var src = docBody || "";
+    var re = /[^\n]+/g, m;
+    while ((m = re.exec(src))) {
+      var seg = m[0];
+      if (!seg.trim()) continue;                  // renderAnnotated 会丢掉空白段
+      for (var k = 0; k < seg.length; k++) map.push(m.index + k);
+    }
+    return map;
+  }
+
+  function selBodyRange() {
+    var r = selRange();
+    if (!r) return null;
+    var src = docBody || "";
+    var map = bodyCharMap();
+    if (r.a >= map.length || r.b >= map.length) return null;
+    var start = map[r.a], end = map[r.b] + 1;
+    var span = src.slice(start, end);
+    var rendered = r.text.replace(/\u00a0/g, " ");   // 字格把半角空格换成了 nbsp
+    if (rendered.replace(/\s/g, "") !== span.replace(/\s/g, "")) return null;
+    return {
+      start: start, end: end, span: span,
+      before: src.slice(Math.max(0, start - 120), start),
+      after: src.slice(end, end + 120)
+    };
+  }
+
+  // 模型偶尔还是会裹一层代码块、加个「修改后：」或把整段用引号包起来，这里只做外壳清理
+  function cleanSpotText(raw) {
+    var t = String(raw || "").replace(/\r\n?/g, "\n").trim();
+    t = t.replace(/^```[a-zA-Z0-9]*\s*/i, "").replace(/\s*```\s*$/, "").trim();
+    t = t.replace(/^(?:修改后|改写后|改后|替换文本|替换片段|替换内容|新句|答案|结果|输出|以下是|如下)\s*[:：,，]?\s*/i, "").trim();
+    var pairs = [["“", "”"], ["「", "」"], ["『", "』"], ["\"", "\""], ["'", "'"], ["《", "》"]];
+    for (var i = 0; i < pairs.length; i++) {
+      var a = pairs[i][0], b = pairs[i][1];
+      if (t.length > 2 && t.charAt(0) === a && t.charAt(t.length - 1) === b &&
+          t.indexOf(b, 1) === t.length - 1) {
+        t = t.slice(1, -1).trim();
+        break;
+      }
+    }
+    var lines = t.split("\n");
+    while (lines.length > 1) {
+      var last = lines[lines.length - 1].trim();
+      if (last.length > 2 && /^(?:建议|说明|备注|注|以上|希望|这样写|修改说明)\s*[:：]?/.test(last)) lines.pop();
+      else break;
+    }
+    return lines.join("\n").trim();
+  }
+
+  async function aiEditSelection() {
+    if (els.sendBtn && els.sendBtn.disabled) { setPaperHint("还有任务在跑，等它结束再改这一处。"); return; }
+    if (paperEditing) { setPaperHint("先点「完成改写」收起输入框，再框选让 AI 改。"); return; }
+    var range = selBodyRange();
+    var r = selRange();
+    var span = range ? range.span : (r ? r.text.replace(/\u00a0/g, " ") : "");
+    if (!span || span.replace(/\s/g, "").length < 2) {
+      hideLockPop(); clearSel();
+      setPaperHint("先在正文里框出一小段，再点「让 AI 改」。");
+      return;
+    }
+    if (span.replace(/\s/g, "").length > 400) {
+      setPaperHint("一次最多改 400 字；选太长就分开改，或者直接在下面提要求重写整篇。");
+      return;
+    }
+    if (isLocked(span)) {
+      hideLockPop(); clearSel();
+      setPaperHint("这一段里有你锁住的句子，AI 不许动。要改先点正文里的锁句解锁。");
+      return;
+    }
+    var c = currentConfig();
+    if (!c.base || !c.key || !c.model) {
+      hideLockPop(); clearSel();
+      wyAlert({
+        kind: "info", tag: "还不能用", title: "先登录或填好接口",
+        message: c.preset === "site"
+          ? "站内模型要先登录，这次操作消耗 1 积分。"
+          : "自填接口还缺 Base URL / API Key / 模型名，先去「接口配置」补上。"
+      });
+      return;
+    }
+
+    var bodyBefore = docBody;
+    var before = range ? range.before : "";
+    var after = range ? range.after : "";
+    hideLockPop();
+    clearSel();
+
+    var req = await wyPrompt({
+      tag: "让 AI 改这一处",
+      title: "只改框选的 " + span.replace(/\s/g, "").length + " 个字",
+      message: "原句：{" + span.slice(0, 160) + (span.length > 160 ? "…" : "") + "}",
+      detail: "写清楚想怎么改，比如「换个动作，别写心理」「压短一点」「补一个具体的物件」。AI 只交回替换这一段的文字，全文其它地方不动。",
+      placeholder: "这一处怎么改？",
+      cost: isSiteMode(c) ? "站内模型 · 本次消耗 1 积分" : "自填接口 · 不扣站内积分",
+      okText: "交给 AI"
+    });
+    if (req === null) return;                       // 取消 / Esc / 点遮罩
+    if (!req) req = "把这一处写得更好，意思和篇幅沿用原文。";
+
+    setPaperHint("正在改这一处…");
+    var raw;
+    try {
+      raw = await fetchAnnotation("spotEdit", criticVars({
+        req: req, span: span, before: before, after: after,
+        askNow: "", asks: [], history: []
+      }));
+    } catch (e) {
+      if (e && e.name === "AbortError") { setPaperHint("已停止，稿子没动。"); return; }
+      wyAlert({
+        kind: "error", tag: "改稿失败", message: (e && e.message) || "请求失败",
+        detail: "框选的这段原样保留，可以再试一次。"
+      });
+      setPaperHint("这一处没改成，原文保持不动。");
+      return;
+    }
+
+    var replacement = cleanSpotText(raw);
+    if (!replacement || replacement === span) {
+      setPaperHint("AI 交回来的和原文一样，稿子不动。");
+      return;
+    }
+    // 选区停在标点前很常见：原文那个点还在，新句自己也带一个，拼起来就是「。。」
+    var last = replacement.charAt(replacement.length - 1);
+    if (after && /[，。、；：？！,.;:?!]/.test(last) && last === after.charAt(0)) {
+      replacement = replacement.slice(0, -1).trimEnd();
+    }
+    if (!replacement || replacement === span) {
+      setPaperHint("AI 交回来的和原文一样，稿子不动。");
+      return;
+    }
+    // 模型跑偏：把整篇作文 / JSON / 一大段点评交回来了，宁可不写也别毁稿
+    var spanLen = span.replace(/\s/g, "").length;
+    if (/^\s*[{[]/.test(replacement) ||
+        replacement.replace(/\s/g, "").length > Math.max(500, spanLen * 4 + 200)) {
+      wyAlert({
+        kind: "error", tag: "没写回去", title: "AI 交回的不是这一小段",
+        message: "模型返回的内容明显超出框选片段，稿纸保持原样，没有写进去。",
+        detail: "返回开头：" + replacement.slice(0, 160)
+      });
+      setPaperHint("这一处没改成，原文保持不动。");
+      return;
+    }
+
+    var idx = range ? range.start : -1;
+    var end = range ? range.end : -1;
+    if (docBody !== bodyBefore || idx < 0 || docBody.slice(idx, end) !== span) {
+      // 等回复时正文变了：按文本重新定位，且必须唯一，否则不落笔
+      idx = docBody.indexOf(span);
+      end = idx + span.length;
+      if (idx < 0 || docBody.indexOf(span, idx + span.length) >= 0) {
+        wyAlert({
+          kind: "error", tag: "没写回去", title: "正文在等待期间变了",
+          message: "这段原话已经找不到或不再唯一，AI 改好的文字没有写进稿纸。",
+          detail: "改后：" + replacement.slice(0, 200)
+        });
+        return;
+      }
+    }
+
+    var snap = essaySnapshot();
+    docBody = docBody.slice(0, idx) + replacement + docBody.slice(end);
+    currentComposition = (docTitle || "作文") + "\n\n" + docBody;
+    undoStack.push(snap);
+    if (undoStack.length > 5) undoStack.shift();
+    syncUndoBtn();
+    renderAnnotated();                 // 顺带清掉对不上的旧旁批 / 旧评分
+    renderStudioMeta();
+    commitVersion("局部改稿", "");
+    saveEssayToCloud();
+    scheduleEssaySave();
+    setPaperHint("已改这一处 · 可用「恢复上一版」退回");
+    setDocHint("局部改稿已保存");
+    var bubble = addAssistantBubble("局部改稿", { noMask: true });
+    bubble.textContent = "原：" + span + "\n改：" + replacement;
   }
 
   function applyMarkAction(id, action) {
@@ -3919,6 +4305,9 @@
 
 
   function setBusy(busy) {
+    // 直接改写还开着就发起模型任务：先把输入框里的稿子落盘并收起编辑态，
+    // 否则 AI 写回来的新正文会在稍后点「保存修改」时被旧 textarea 内容盖掉。
+    if (busy && paperEditing) savePaperEdit(true);
     els.startBtn.disabled = busy;
     els.sendBtn.disabled = busy;
     els.stopBtn2.disabled = !busy;
@@ -4094,7 +4483,8 @@
 
   var TASK_PURPOSE = {
     essay: "生成作文", rewrite: "改稿", outline: "拟大纲", outlineEdit: "改大纲",
-    explain: "讲评", criticA: "讨论·主评", criticB: "讨论·复核", criticAReply: "讨论·定稿", score: "AI 评分"
+    explain: "讲评", criticA: "讨论·主评", criticB: "讨论·复核", criticAReply: "讨论·定稿", score: "AI 评分",
+    spotEdit: "局部改稿"
   };
 
   /* 自填接口：先向本站取回这一次要发的两条消息（模板不下发），再直连用户自己的接口 */
@@ -4577,6 +4967,7 @@
 
   function switchPane(name) {
     var paper = name === "paper";
+    if (paperEditing && !paper) savePaperEdit(true);   // 切去大纲前先收好改动
     els.outlinePane.hidden = paper;
     els.paperPane.hidden = !paper;
     // 评卷卡片已经在右侧抽屉里，切大纲不该把结果藏掉
@@ -6711,6 +7102,28 @@
   on(els.downloadBtn, "click", downloadText);
   on(els.posterBtn, "click", openPoster);
 
+  /* 直接改写：标题与正文都能手动改。
+     输入时实时同步到 docTitle / docBody / currentComposition，所以复制、下载、
+     海报、云保存、后续 AI 操作拿到的都是最新稿；只有点保存才记一版历史。 */
+  on(els.editDocBtn, "click", function () {
+    if (paperEditing) savePaperEdit(); else openPaperEdit();
+  });
+  on(els.peSaveBtn, "click", function () { savePaperEdit(); });
+  on(els.peCancelBtn, "click", cancelPaperEdit);
+  on(els.peTitle, "input", syncPaperEditLive);
+  on(els.peBody, "input", syncPaperEditLive);
+  on(els.paperEdit, "keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S" || e.key === "Enter")) {
+      e.preventDefault();
+      savePaperEdit();
+      return;
+    }
+    if (e.key === "Escape" && !document.querySelector(".wy-mask")) {
+      e.preventDefault();
+      cancelPaperEdit();
+    }
+  });
+
   on(els.acceptAllBtn, "click", function () { applyAll("accept"); });
   on(els.ignoreAllBtn, "click", function () { applyAll("ignore"); });
 
@@ -7034,6 +7447,11 @@
       lockApplyBtn.textContent = already ? "这句已锁住" : "锁住这句";
       lockApplyBtn.disabled = already;
     }
+    if (els.aiEditApplyBtn) {
+      // 锁住的段落不许交给 AI 改；先解锁再框选
+      els.aiEditApplyBtn.disabled = already;
+      els.aiEditApplyBtn.title = already ? "这段里锁了句子，先解锁再让 AI 改" : "只让 AI 改框选的这一段";
+    }
   }
 
   function settleSel() {
@@ -7047,7 +7465,7 @@
     var rect = selRect();
     if (!rect) { hideLockPop(); return; }
     showLockPop(r.text, rect);
-    setPaperHint("已选 " + r.text.length + " 字，点「锁住这句」交给 AI，或继续拖动调整");
+    setPaperHint("已选 " + r.text.length + " 字，点「锁住这句」保护它，或点「让 AI 改」只改这一段；也能继续拖动调整");
   }
 
   function detachSelDrag() {
@@ -7169,6 +7587,21 @@
     on(lockApplyBtn, "pointerup", function (e) {
       // 有些浏览器 pointerdown 后不派发 click，这里补一次（click 先到就已被清空，不会重复锁）
       setTimeout(function () { if (pendingLockText) applyLock(e); }, 0);
+    });
+  }
+
+  /* 「让 AI 改」：和锁句共用同一段选区浮层。
+     aiEditSelection 里第一件事就是 hideLockPop()（会清空 pendingLockText），
+     所以下面 pointerup 的兜底不会重复触发；万一刚拖完选、click 被 swallowClick 吃掉，
+     pointerup 这一路还能把弹窗拉起来。 */
+  if (els.aiEditApplyBtn) {
+    on(els.aiEditApplyBtn, "pointerdown", function (e) { e.stopPropagation(); });
+    on(els.aiEditApplyBtn, "click", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      aiEditSelection();
+    });
+    on(els.aiEditApplyBtn, "pointerup", function () {
+      setTimeout(function () { if (pendingLockText) aiEditSelection(); }, 0);
     });
   }
   // 点锁句解锁：直接挂在稿纸上兜一层，避免拖动选择的 preventDefault 把 click 吞掉
