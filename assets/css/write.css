@@ -2923,53 +2923,67 @@ table.score-table .score-table-key {
 .bubble.role-critic-b .bubble-label { color: #2f5a6f; background: #e4eef3; border-color: #cddde4; }
 .bubble.role-critic-b .bubble-text { background: #f3f7f9; border-color: #cddde4; border-left-color: #3f7c97; }
 
-/* 任务流程卡片：每个 AI 任务汇总成一张可展开的卡片（讨论流程 / 评分流程 / 列提纲流程 …） */
-.bubble.flow-card {
-  width: 100%;
-  padding: 0;
-  gap: 0;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--brand);
-  border-radius: 14px;
-  background: var(--paper-2);
-  overflow: hidden;
+/* 任务流程胶囊：一颗胶囊说明「谁 · 正在干什么」，点开在下方展开全文 */
+.flow-card {
+  flex: 0 0 auto;            /* 关键：作为 flex 子项不被压扁（否则 overflow:hidden 会塌成一条线） */
+  align-self: flex-start;
+  max-width: 100%;
+  min-height: 0;
 }
 .flow-head {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 11px 14px;
+  gap: 7px;
+  max-width: 100%;
+  padding: 6px 12px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #1d7048;
+  background: rgba(29, 112, 72, .07);
+  border: 1px solid rgba(29, 112, 72, .2);
+  border-radius: 999px;
   cursor: pointer;
   user-select: none;
+  text-align: left;
+  transition: background .16s ease, border-color .16s ease;
 }
-.flow-preview {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 12px;
-  line-height: 1.5;
+.flow-head:hover { background: rgba(29, 112, 72, .12); border-color: rgba(29, 112, 72, .32); }
+.flow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9bb3a6;
+  flex: none;
+}
+.flow-card[data-state="run"] .flow-dot {
+  background: #2f9e68;
+  animation: flowPulse 1.3s ease-in-out infinite;
+}
+@keyframes flowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 158, 104, .38); }
+  50% { box-shadow: 0 0 0 4px rgba(47, 158, 104, 0); }
+}
+.flow-who { font-weight: 600; white-space: nowrap; }
+.flow-act { color: #2b6b4c; white-space: nowrap; }
+.flow-card[data-state="done"] .flow-act { color: var(--ink-mute); }
+.flow-meta {
   color: var(--ink-mute);
+  font-size: 11.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 30vw;
 }
-.flow-card.is-open .flow-preview { display: none; }
-.flow-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #3fae74;
-  flex: none;
-  transition: box-shadow .18s ease;
-}
-.flow-card.is-open .flow-dot { box-shadow: 0 0 0 3px rgba(63, 174, 116, .18); }
-.flow-title { font-weight: 600; font-size: 14px; color: var(--ink); }
-.flow-caret { margin-left: auto; font-size: 12px; color: var(--ink-mute); }
-.flow-body { display: none; padding: 0 14px 12px; }
+.flow-meta:not(:empty)::before { content: "·"; margin-right: 5px; opacity: .55; }
+.flow-card.is-open .flow-meta { display: none; }
+.flow-caret { color: var(--ink-mute); font-size: 11.5px; white-space: nowrap; }
+.flow-body { display: none; margin: 8px 0 0 10px; padding-left: 12px; border-left: 2px solid rgba(29, 112, 72, .16); }
 .flow-card.is-open .flow-body { display: block; }
-.flow-seg { padding: 9px 0; border-top: 1px dashed var(--line); }
-.flow-seg:first-child { border-top: 0; }
-.flow-seg-label { font-size: 12px; font-weight: 600; color: #1d7048; margin-bottom: 3px; }
-.flow-seg-text { font-size: 14px; line-height: 1.7; color: var(--ink); white-space: pre-wrap; }
+.flow-seg { padding: 7px 0; }
+.flow-seg + .flow-seg { border-top: 1px dashed var(--line); }
+.flow-seg-label { font-size: 11.5px; font-weight: 600; color: #1d7048; margin-bottom: 3px; }
+.flow-seg-text { font-size: 14px; line-height: 1.72; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
 
 /* ---------- 对话框下方的模型切换 ---------- */
 
