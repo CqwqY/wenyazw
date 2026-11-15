@@ -200,6 +200,7 @@
 
   function setView(name, noHash) {
     if (!els.views[name]) name = "essays";
+    var changed = currentView !== name;
     currentView = name;
     Object.keys(els.views).forEach(function (k) { els.views[k].hidden = (k !== name); });
     Array.prototype.forEach.call(els.sideItems, function (b) {
@@ -213,13 +214,18 @@
     }
     if (name === "essays" && loggedIn()) loadEssays();
     if (name === "account" && loggedIn()) { loadAccount(); loadStyle(); }
-    window.scrollTo(0, 0);
+    // 只有真的换了视图才回到顶部，重复渲染同一视图不动滚动位置
+    if (changed) window.scrollTo(0, 0);
   }
 
   function viewFromHash() {
     var h = (location.hash || "").replace("#", "");
     return els.views[h] ? h : "essays";
   }
+
+  /* 只把「换没换人」记下来：积分刷新也会走 onChange 广播，
+     每次都重新 setView 会把它自己拉回顶部，还会和 loadAccount 互相递归。 */
+  var shellOn = null;
 
   function syncShell() {
     var on = loggedIn();
@@ -233,7 +239,9 @@
         ? "已登录。进工作台后直接写，模型由站内直连。"
         : "生成需要登录：密码登录，或邮箱验证码登录后补设密码。";
     }
-    if (on) setView(viewFromHash(), true);
+    // 只有从未登录变为已登录（或首次进来）才切视图；单纯的积分更新不动滚动位置
+    if (on && shellOn !== true) setView(viewFromHash(), true);
+    shellOn = on;
   }
 
   /* ---------------- 视图一：我的作文 ---------------- */
