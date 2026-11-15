@@ -14,6 +14,147 @@
 
   var lastToken = "";
 
+  /* ---------- 充值（爱发电） ---------- */
+  var pay = {
+    panel: $("payPanel"), tiers: $("payTiers"), tag: $("payTag"),
+    remark: $("payRemarkId"), input: $("claimInput"),
+    btn: $("claimBtn"), msg: $("claimMsg")
+  };
+  var myName = "";
+
+  function setClaim(t, kind) {
+    if (!pay.msg) return;
+    pay.msg.textContent = t || "";
+    pay.msg.className = "credit-msg" + (kind ? " " + kind : "");
+  }
+
+  function remarkId() {
+    return "wy_" + (myName || "你的用户名");
+  }
+
+  function syncRemark() {
+    if (!pay.remark) return;
+    pay.remark.textContent = remarkId();
+    pay.remark.title = myName ? "点一下复制" : "用户名还没读到，刷新一下页面";
+  }
+
+  function renderPlans(j) {
+    if (!pay.tiers) return;
+    pay.tiers.innerHTML = "";
+    var list = (j && j.plans) || [];
+    if (!list.length) {
+      var e = document.createElement("div");
+      e.className = "credit-empty";
+      e.textContent = "充值档位还没配置，先用兑换码。";
+      pay.tiers.appendChild(e);
+      return;
+    }
+    list.forEach(function (p) {
+      var card = document.createElement("div");
+      card.className = "pay-tier" + (p.amount === 18 ? " is-hot" : "");
+
+      var amount = document.createElement("div");
+      amount.className = "pay-amount";
+      amount.innerHTML = p.amount + "<small> 元</small>";
+
+      var credits = document.createElement("div");
+      credits.className = "pay-credits";
+      credits.textContent = p.credits + " 积分";
+
+      var per = document.createElement("div");
+      per.className = "pay-per";
+      per.textContent = "每元约 " + p.perYuan + " 分";
+
+      card.appendChild(amount);
+      card.appendChild(credits);
+      card.appendChild(per);
+
+      var go = document.createElement("a");
+      go.className = "btn btn-primary pay-go";
+      if (j.enabled && j.pageUrl) {
+        go.href = j.pageUrl;
+        go.target = "_blank";
+        go.rel = "noopener";
+        go.textContent = "去赞助";
+      } else {
+        go.href = "#";
+        go.textContent = "通道配置中";
+        go.className += " is-off";
+        go.addEventListener("click", function (ev) { ev.preventDefault(); });
+      }
+      card.appendChild(go);
+      pay.tiers.appendChild(card);
+    });
+    if (!j.enabled) {
+      setClaim("充值通道还在配置（爱发电主页/密钥没填好），现在可以用兑换码。", "warn");
+    }
+  }
+
+  async function loadPlans() {
+    if (!pay.tiers) return;
+    try {
+      var res = await fetch(API + "/api/pay/plans");
+      var j = await res.json();
+      renderPlans(j);
+    } catch (e) {
+      pay.tiers.innerHTML = "";
+      var bad = document.createElement("div");
+      bad.className = "credit-empty error";
+      bad.textContent = "档位读取失败，先用兑换码。";
+      pay.tiers.appendChild(bad);
+    }
+  }
+
+  async function loadMe() {
+    try {
+      var j = await api("/api/auth/me");
+      myName = j.user || "";
+      syncRemark();
+    } catch (e) { /* 拿不到用户名就显示占位，不影响兑换 */ }
+  }
+
+  async function claim() {
+    if (!pay.input || !pay.btn) return;
+    var no = String(pay.input.value || "").replace(/\s/g, "");
+    if (!no) { setClaim("先填爱发电订单号", "error"); pay.input.focus(); return; }
+    pay.btn.disabled = true;
+    pay.btn.textContent = "查询中…";
+    setClaim("", "");
+    try {
+      var j = await api("/api/pay/claim", { method: "POST", body: { orderNo: no } });
+      if (j.already) {
+        setClaim("这笔订单之前已经充过了，当前余额 " + j.credits + " 分。", "warn");
+      } else {
+        setClaim("到账成功，加 " + j.added + " 积分，现在共 " + j.credits + " 分。", "ok");
+      }
+      pay.input.value = "";
+      els.balance.textContent = String(j.credits);
+      if (window.WY_AUTH && window.WY_AUTH.setCredits) window.WY_AUTH.setCredits(j.credits);
+      try { renderLog((await api("/api/credits")).log); } catch (e2) { /* ignore */ }
+    } catch (e) {
+      setClaim((e && e.message) || "认领失败", "error");
+    } finally {
+      pay.btn.disabled = false;
+      pay.btn.textContent = "认领";
+    }
+  }
+
+  function copyRemark() {
+    if (!pay.remark || !myName) { syncRemark(); return; }
+    var text = remarkId();
+    var done = function () {
+      pay.remark.classList.add("copied");
+      pay.remark.textContent = "已复制 " + text;
+      setTimeout(function () { pay.remark.classList.remove("copied"); syncRemark(); }, 1400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { done(); });
+    } else {
+      done();
+    }
+  }
+
+
   function token() { return (window.WY_AUTH && window.WY_AUTH.token()) || ""; }
 
   function setMsg(t, kind) {
@@ -142,6 +283,9 @@
       lastToken = t;
       setMsg("", "");
       load();
+      loadPlans();
+      loadMe();
+      syncRemark();
     }
   }
 
@@ -153,6 +297,13 @@
 
   els.form.addEventListener("submit", redeem);
   els.refresh.addEventListener("click", load);
+  if (pay.btn) pay.btn.addEventListener("click", claim);
+  if (pay.input) {
+    pay.input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); claim(); }
+    });
+  }
+  if (pay.remark) pay.remark.addEventListener("click", copyRemark);
   els.openLogin.addEventListener("click", function () {
     if (window.WY_AUTH && window.WY_AUTH.open) { window.WY_AUTH.open("login"); return; }
     var btn = document.querySelector("#accountArea button");

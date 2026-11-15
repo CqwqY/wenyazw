@@ -195,3 +195,107 @@
   .credit-hero { padding: 18px; }
   .credit-hero-num #creditBalance { font-size: 36px; }
 }
+
+/* ---------- 充值（爱发电） ---------- */
+
+.pay-panel { margin-bottom: 16px; }
+
+.pay-tag {
+  flex: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: #1d7048;
+  background: rgba(29, 112, 72, .09);
+  border: 1px solid rgba(29, 112, 72, .2);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.pay-id {
+  font: inherit;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  color: #1d7048;
+  background: rgba(29, 112, 72, .1);
+  border: 1px dashed rgba(29, 112, 72, .35);
+  border-radius: 6px;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+.pay-id:hover { background: rgba(29, 112, 72, .16); }
+.pay-id.copied { background: #1d7048; color: #fff; border-color: #1d7048; }
+
+.pay-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pay-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+}
+
+.pay-tier.is-hot {
+  border-color: rgba(29, 112, 72, .34);
+  background: rgba(29, 112, 72, .05);
+}
+
+.pay-amount {
+  font-family: var(--sans);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #1d7048;
+}
+.pay-amount small { font-size: 13px; font-weight: 500; margin-left: 2px; }
+
+.pay-credits {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.pay-per {
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+
+.pay-go {
+  margin-top: 10px;
+  text-align: center;
+}
+.pay-go.is-off {
+  color: var(--ink-mute);
+  background: var(--paper);
+  border: 1px dashed var(--line-strong);
+  cursor: default;
+  pointer-events: none;
+}
+
+.pay-claim { margin-top: 16px; }
+
+.pay-claim-label {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin-bottom: 8px;
+}
+
+.pay-claim-row { display: flex; gap: 10px; }
+.pay-claim-row .input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  letter-spacing: .04em;
+}
+.pay-claim-row .btn { flex: none; }
+
+@media (max-width: 720px) {
+  .pay-tiers { grid-template-columns: 1fr; }
+}
