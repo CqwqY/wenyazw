@@ -236,6 +236,45 @@
   function criticScoresSummary() {
     return (criticScores || []).map(function (s) { return s.province + " " + s.total + "/" + s.full; }).join(" · ");
   }
+
+  /* 顶部这一行只放两件此刻最要紧的事：AI 给的分、稿子写到多少字。
+     类别/文体/题目这些在开写前已经确认过一遍，没必要一直占着最显眼的位置。 */
+  function renderStudioMeta(count) {
+    if (!els.studioMeta) return;
+    var n = typeof count === "number" ? count : plainLen(docBody);
+    var target = parseInt(wordCount, 10) || 600;
+    els.studioMeta.innerHTML = "";
+
+    var scores = criticScores || [];
+    if (scores.length) {
+      var wrap = document.createElement("span");
+      wrap.className = "sm-score";
+      scores.slice(0, 2).forEach(function (s, i) {
+        if (i) {
+          var sep = document.createElement("i");
+          sep.textContent = " / ";
+          wrap.appendChild(sep);
+        }
+        var b = document.createElement("b");
+        b.textContent = String(s.total);
+        var f = document.createElement("em");
+        f.textContent = "/" + s.full;
+        wrap.appendChild(b);
+        wrap.appendChild(f);
+      });
+      els.studioMeta.appendChild(wrap);
+
+      var gap = document.createElement("span");
+      gap.className = "sm-gap";
+      gap.textContent = "·";
+      els.studioMeta.appendChild(gap);
+    }
+
+    var w = document.createElement("span");
+    w.className = "sm-words" + (n >= target * 0.9 ? " is-ok" : "");
+    w.innerHTML = "<b>" + n + "</b> 字<em>目标 " + target + " 字</em>";
+    els.studioMeta.appendChild(w);
+  }
   function commitVersion(label, score) {
     if (!docTitle.trim() && !docBody.trim()) return;
     versions.push({
@@ -2168,7 +2207,9 @@
     }
 
     var count = Array.from(parts.body.replace(/\s/g, "")).length;
-    els.paperStat.textContent = count ? ("字数 " + count + (streaming ? " · 生成中" : " 字")) : "";
+    /* 字数已经挪到顶部那一行常显，这里只留给「生成中」「对照结果」这类临时状态 */
+    els.paperStat.textContent = streaming ? ("生成中 " + count + " 字") : "";
+    renderStudioMeta(count);
 
     // 段落高度取整格：流式期间每来一个字就量一遍太贵，收尾再对齐
     if (streaming) {
@@ -4611,13 +4652,7 @@
     els.studio.removeAttribute("hidden");
     document.body.classList.add("studio-mode");
 
-    els.studioMeta.textContent = [
-      activeCat ? "类别：" + activeCat : "",
-      "文体：" + activeGenre,
-      "题目：" + (docTitle || "作文"),
-      activeProvinces.join("、"),
-      "已存档"
-    ].filter(Boolean).join(" ｜ ");
+    renderStudioMeta();
 
     renderScoreTables();
     setScoreOpen(false);
@@ -4760,9 +4795,10 @@
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
 
-    var summary = "类别：" + selectedCat + " ｜ 文体：" + activeGenre + " ｜ 题目：" + els.topic.value.trim().slice(0, 30) +
-      (els.topic.value.trim().length > 30 ? "…" : "") + " ｜ 约 " + wordCount + " 字 ｜ " + activeProvinces.join("、");
-    els.studioMeta.textContent = summary;
+    var topicText = trim(els.topic.value);
+    var summary = "《" + (topicText || "未命题") + "》" +
+      (selectedCat ? " · " + selectedCat : "") + " · " + activeGenre + " · " + wordCount + " 字";
+    renderStudioMeta();
 
     els.wizard.setAttribute("hidden", "");
     els.studio.removeAttribute("hidden");
@@ -5269,6 +5305,7 @@
   }
 
   function renderCriticScores() {
+    renderStudioMeta();
     if (!els.criticScore) return;
     els.criticScore.innerHTML = "";
     if (!criticScores.length) { els.criticScore.hidden = true; return; }

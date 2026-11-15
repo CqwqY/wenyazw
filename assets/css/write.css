@@ -603,12 +603,61 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
 .studio-meta {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
   font-size: 13.5px;
-  color: var(--ink-soft);
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 这一行坐在深绿工具条上，所以分数用近白色压住、字数用浅绿，
+   达标时再点亮成彩色，深浅两级一眼分得开 */
+.studio-meta .sm-score {
+  display: inline-flex;
+  align-items: baseline;
+  flex: none;
+  color: #fffdf8;
+}
+.studio-meta .sm-score b {
+  font-family: var(--sans);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -.01em;
+}
+.studio-meta .sm-score em,
+.studio-meta .sm-score i {
+  font-style: normal;
+  font-size: 12.5px;
+  color: rgba(242, 249, 243, .62);
+}
+.studio-meta .sm-gap {
+  flex: none;
+  font-size: 12px;
+  color: rgba(242, 249, 243, .34);
+}
+.studio-meta .sm-words {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  flex: none;
+  font-size: 13px;
+  color: var(--on-green-mute);
+}
+.studio-meta .sm-words b {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fffdf8;
+}
+.studio-meta .sm-words em {
+  font-style: normal;
+  font-size: 12px;
+  color: rgba(242, 249, 243, .55);
+  margin-left: 6px;
+}
+.studio-meta .sm-words.is-ok b { color: #8fe3b0; }
+.studio-meta .sm-words.is-ok em { color: rgba(242, 249, 243, .55); }
 
 .studio-tools { display: flex; gap: 8px; align-items: center; }
 
