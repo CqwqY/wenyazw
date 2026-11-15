@@ -14,7 +14,10 @@
     viewClose: $("viewClose"), viewClose2: $("viewClose2"),
     viewCopy: $("viewCopy"), viewDownload: $("viewDownload"), viewResume: $("viewResume"),
     authMask: $("authMask"),
-    creditBalance: $("creditBalance")
+    creditBalance: $("creditBalance"),
+    styleBlock: $("styleBlock"), styleDims: $("styleDims"), styleMarkList: $("styleMarkList"),
+    styleAddMark: $("styleAddMark"), styleSave: $("styleSave"), styleMsg: $("styleMsg"),
+    styleScan: $("styleScan"), styleReport: $("styleReport")
   };
 
   var current = null;   // 当前打开的作文
@@ -249,6 +252,216 @@
     }
   }
 
+  /* ---------------- 我的文风 ----------------
+     数据全在服务端：这里只管收集和展示。未登录时不渲染，也不联网。 */
+  var sty = { dims: [], prefs: {}, marks: [], anchors: [], auto: null, dirty: false, loaded: false };
+
+  function stySetMsg(t, kind) {
+    els.styleMsg.textContent = t || "";
+    els.styleMsg.className = "style-msg" + (kind ? " " + kind : "");
+  }
+
+  function renderDims() {
+    els.styleDims.innerHTML = "";
+    sty.dims.forEach(function (d) {
+      var row = document.createElement("div");
+      row.className = "style-dim";
+
+      var lab = document.createElement("div");
+      lab.className = "style-dim-label";
+      var nm = document.createElement("strong");
+      nm.textContent = d.label;
+      lab.appendChild(nm);
+      if (d.hint) {
+        var hi = document.createElement("span");
+        hi.textContent = d.hint;
+        lab.appendChild(hi);
+      }
+
+      var box = document.createElement("div");
+      box.className = "style-opts";
+      d.opts.forEach(function (o) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "style-opt" + (sty.prefs[d.key] === o.v ? " is-on" : "");
+        b.textContent = o.name;
+        b.addEventListener("click", function () {
+          // 再点一次取消：不选就是「按默认写法」，这是合法状态，不是漏填
+          sty.prefs[d.key] = sty.prefs[d.key] === o.v ? "" : o.v;
+          if (!sty.prefs[d.key]) delete sty.prefs[d.key];
+          sty.dirty = true;
+          renderDims();
+          stySetMsg("改完记得保存", "");
+        });
+        box.appendChild(b);
+      });
+
+      row.appendChild(lab);
+      row.appendChild(box);
+      els.styleDims.appendChild(row);
+    });
+  }
+
+  function renderMarks() {
+    els.styleMarkList.innerHTML = "";
+    sty.marks.forEach(function (t, i) {
+      var row = document.createElement("div");
+      row.className = "style-mark-row";
+      var inp = document.createElement("input");
+      inp.type = "text";
+      inp.className = "style-mark-input";
+      inp.maxLength = 60;
+      inp.placeholder = "例：结尾别喊口号";
+      inp.value = t;
+      inp.addEventListener("input", function () {
+        sty.marks[i] = inp.value;
+        sty.dirty = true;
+      });
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "style-mark-del";
+      del.setAttribute("aria-label", "删除这条");
+      del.textContent = "×";
+      del.addEventListener("click", function () {
+        sty.marks.splice(i, 1);
+        sty.dirty = true;
+        renderMarks();
+        stySetMsg("改完记得保存", "");
+      });
+      row.appendChild(inp);
+      row.appendChild(del);
+      els.styleMarkList.appendChild(row);
+    });
+    els.styleAddMark.disabled = sty.marks.length >= 6;
+  }
+
+  function renderReport() {
+    var a = sty.auto;
+    els.styleReport.innerHTML = "";
+    if (!a || !a.n) {
+      els.styleReport.hidden = true;
+      return;
+    }
+    els.styleReport.hidden = false;
+
+    var head = document.createElement("div");
+    head.className = "style-report-head";
+    head.textContent = a.enough
+      ? "从你 " + a.n + " 篇稿子里量出来的"
+      : "暂时只量到 " + a.n + " 篇，样本太少，读数仅供参考";
+    els.styleReport.appendChild(head);
+
+    if (a.enough && a.insights && a.insights.length) {
+      var grid = document.createElement("div");
+      grid.className = "style-insights";
+      a.insights.forEach(function (it) {
+        var card = document.createElement("div");
+        card.className = "style-insight";
+        var top = document.createElement("div");
+        top.className = "si-top";
+        var k = document.createElement("span");
+        k.className = "si-k";
+        k.textContent = it.k;
+        var v = document.createElement("strong");
+        v.textContent = it.v;
+        var tag = document.createElement("em");
+        tag.textContent = it.tag;
+        top.appendChild(k);
+        top.appendChild(v);
+        top.appendChild(tag);
+        card.appendChild(top);
+        if (it.note) {
+          var p = document.createElement("p");
+          p.textContent = it.note;
+          card.appendChild(p);
+        }
+        grid.appendChild(card);
+      });
+      els.styleReport.appendChild(grid);
+    }
+
+    if (sty.anchors && sty.anchors.length) {
+      var an = document.createElement("div");
+      an.className = "style-anchors";
+      var t = document.createElement("div");
+      t.className = "style-anchors-tip";
+      t.textContent = "语感样本：下面几句是你自己写的，写作时只让 AI 学这个口气，内容不许搬";
+      an.appendChild(t);
+      sty.anchors.slice(0, 3).forEach(function (x) {
+        var q = document.createElement("div");
+        q.className = "style-anchor";
+        q.textContent = "「" + x + "」";
+        an.appendChild(q);
+      });
+      els.styleReport.appendChild(an);
+    }
+
+    var note = document.createElement("p");
+    note.className = "style-report-note";
+    note.textContent = "这些读数只用来看清自己现在的写法，也让评分别把「你一贯的短句」当成内容单薄。它不会让 AI 照着你现在的水平写 —— 上面勾的那几项才是要写成的样子。";
+    els.styleReport.appendChild(note);
+  }
+
+  async function loadStyle() {
+    if (!token()) return;
+    try {
+      var j = await api("/api/style");
+      sty.dims = j.dims || [];
+      sty.prefs = j.prefs || {};
+      sty.marks = (j.marks || []).slice(0, 6);
+      sty.anchors = j.anchors || [];
+      sty.auto = j.auto || null;
+      sty.dirty = false;
+      sty.loaded = true;
+      renderDims();
+      renderMarks();
+      renderReport();
+      stySetMsg("", "");
+      // 从写作台点「我的文风」过来时，直接滚到这一块
+      if (location.hash === "#style" && els.styleBlock) {
+        setTimeout(function () { els.styleBlock.scrollIntoView({ behavior: "smooth", block: "start" }); }, 120);
+      }
+    } catch (e) {
+      stySetMsg("文风设置没取到：" + ((e && e.message) || "网络错误"), "error");
+    }
+  }
+
+  async function saveStyle() {
+    if (!token()) return;
+    var marks = sty.marks.map(function (x) { return String(x || "").trim(); }).filter(Boolean);
+    els.styleSave.disabled = true;
+    stySetMsg("正在保存…", "");
+    try {
+      await api("/api/style", { method: "PUT", body: { prefs: sty.prefs, marks: marks } });
+      sty.marks = marks;
+      sty.dirty = false;
+      renderMarks();
+      stySetMsg("已保存，下次写作生效", "ok");
+    } catch (e) {
+      stySetMsg("保存失败：" + ((e && e.message) || "网络错误"), "error");
+    }
+    els.styleSave.disabled = false;
+  }
+
+  async function scanStyle() {
+    if (!token()) return;
+    els.styleScan.disabled = true;
+    els.styleScan.textContent = "分析中…";
+    try {
+      var j = await api("/api/style/scan", { method: "POST", body: {} });
+      sty.auto = j.auto || null;
+      sty.anchors = j.anchors || [];
+      renderReport();
+      if (!sty.auto) stySetMsg("还没有保存过的作文，先写一篇再分析", "");
+      else if (!sty.auto.enough) stySetMsg("量到 " + sty.auto.n + " 篇，攒到 3 篇再看得更准", "");
+      else stySetMsg("分析完成", "ok");
+    } catch (e) {
+      stySetMsg("分析失败：" + ((e && e.message) || "网络错误"), "error");
+    }
+    els.styleScan.disabled = false;
+    els.styleScan.textContent = "从我的稿子分析";
+  }
+
   function syncAccount() {
     var t = token();
     if (!t) {
@@ -261,10 +474,23 @@
     els.logged.removeAttribute("hidden");
     els.email.textContent = (window.WY_AUTH && window.WY_AUTH.email()) || "";
     els.user.textContent = (window.WY_AUTH && window.WY_AUTH.user()) || "";
-    if (t !== lastToken) { lastToken = t; loadList(); }
+    if (t !== lastToken) {
+      lastToken = t;
+      loadList();
+      if (els.styleDims) loadStyle();
+    }
   }
 
   els.refresh.addEventListener("click", loadList);
+  if (els.styleSave) els.styleSave.addEventListener("click", saveStyle);
+  if (els.styleScan) els.styleScan.addEventListener("click", scanStyle);
+  if (els.styleAddMark) els.styleAddMark.addEventListener("click", function () {
+    if (sty.marks.length >= 6) return;
+    sty.marks.push("");
+    sty.dirty = true;
+    renderMarks();
+    stySetMsg("改完记得保存", "");
+  });
   els.openLogin.addEventListener("click", function () {
     // auth.js 会在 accountArea 里渲染登录按钮；这里直接触发弹窗 DOM
     var loginBtn = document.querySelector("#accountArea button");

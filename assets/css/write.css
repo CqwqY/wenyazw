@@ -3416,3 +3416,11 @@ body.run-on .studio-meta { opacity: .22; transition: opacity .2s ease; }
   border-radius: 10px;
 }
 .wy-dialog-foot { margin-top: 16px; display: flex; justify-content: flex-end; }
+
+/* 工具栏里的「我的文风」是链接不是按钮：补上 a 的盒模型，
+   否则 height 对行内元素不生效，整条会顶偏、基线也对不齐 */
+.studio-tools a.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}

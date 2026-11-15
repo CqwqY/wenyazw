@@ -14,9 +14,9 @@
 <meta name="description" content="文芽作文账户控制台：查看与管理保存在云端的作文。">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
-<link rel="stylesheet" href="assets/css/write.css?v=20261116Y">
+<link rel="stylesheet" href="assets/css/write.css?v=20261116Z">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
-<link rel="stylesheet" href="assets/css/account.css?v=20261116N">
+<link rel="stylesheet" href="assets/css/account.css?v=20261116O">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
 <body class="page-stick">
@@ -65,6 +65,35 @@
       <a class="btn-outline" href="credits.html">积分与兑换</a>
     </div>
     <div class="account-msg" id="accountMsg"></div>
+
+    <section class="style-block" id="styleBlock">
+      <div class="style-head">
+        <div>
+          <h2>我的文风</h2>
+          <p class="style-sub">定下这几项，以后写和改都按你的习惯来。不填也行，默认平实写法。</p>
+        </div>
+        <button class="btn-outline" id="styleScan" type="button">从我的稿子分析</button>
+      </div>
+
+      <div class="style-dims" id="styleDims"></div>
+
+      <div class="style-marks">
+        <div class="style-marks-head">
+          <span>我的要求</span>
+          <span class="style-marks-tip">最多 6 条，一句一条，原话交给 AI，优先级最高</span>
+        </div>
+        <div class="style-mark-list" id="styleMarkList"></div>
+        <button class="style-add" id="styleAddMark" type="button">加一条</button>
+      </div>
+
+      <div class="style-foot">
+        <button class="btn btn-primary" id="styleSave" type="button">保存偏好</button>
+        <span class="style-msg" id="styleMsg"></span>
+      </div>
+
+      <div class="style-report" id="styleReport" hidden></div>
+    </section>
+
     <div class="essay-list" id="essayList"></div>
   </section>
 </main>
@@ -181,6 +210,6 @@
 </div>
 
 <script src="assets/js/auth.js?v=20261116N"></script>
-<script src="assets/js/account.js?v=20261116N"></script>
+<script src="assets/js/account.js?v=20261116O"></script>
 </body>
 </html>
