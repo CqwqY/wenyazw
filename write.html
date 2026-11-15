@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
-<link rel="stylesheet" href="assets/css/write.css?v=20261116Z">
+<link rel="stylesheet" href="assets/css/write.css?v=20261116AA">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
@@ -47,7 +47,7 @@
     <div class="tool-head">
       <div>
         <h1>创建作文工作台<span class="badge-new">核心功能</span></h1>
-        <p>五步定好类别、文体与题目，挑一个评分标准，再进入 AI 生成与修改界面。</p>
+        <p>按步骤定好类别、文体与题目，挑一个评分标准，再进入 AI 生成与修改界面。</p>
       </div>
       <button class="btn btn-ghost" id="toggleConfig" aria-expanded="false">接口配置</button>
     </div>
@@ -120,17 +120,19 @@
 
     <!-- 步骤条 -->
     <ol class="wizard-steps" id="wizardSteps">
-      <li class="done" data-step="1"><span class="dot">1</span>选择类别</li>
-      <li class="done" data-step="2"><span class="dot">2</span>选择文体</li>
-      <li data-step="3"><span class="dot">3</span>输入题目</li>
-      <li data-step="4"><span class="dot">4</span>选择字数</li>
-      <li data-step="5"><span class="dot">5</span>额外要求</li>
+      <li data-step="1"><span class="dot">1</span>类别</li>
+      <li data-step="2"><span class="dot">2</span>文体</li>
+      <li data-step="3"><span class="dot">3</span>题目</li>
+      <li data-step="4"><span class="dot">4</span>字数</li>
+      <li data-step="5"><span class="dot">5</span>要求</li>
+      <li data-step="6"><span class="dot">6</span>评分</li>
+      <li data-step="7"><span class="dot">7</span>流程</li>
     </ol>
 
-    <div class="wizard-body">
+    <div class="wizard-body" id="wizardBody" data-step-mode="on">
 
       <!-- 步骤 1：类别 -->
-      <div class="wstep">
+      <div class="wstep" data-screen="1">
         <div class="wstep-head"><span class="wstep-no">1</span><h2>选择类别</h2></div>
         <div class="cat-grid" id="catGrid">
           <button class="cat-card" data-cat="命题">
@@ -150,14 +152,14 @@
       </div>
 
       <!-- 步骤 2：文体（决定整篇的结构与语气，卡片由 WY_GENRE 动态生成） -->
-      <div class="wstep">
+      <div class="wstep" data-screen="2">
         <div class="wstep-head"><span class="wstep-no">2</span><h2>选择文体</h2></div>
         <div class="genre-grid" id="genreGrid"></div>
         <p class="wstep-tip" id="genreTip">散文、议论文与记叙文的写法差别很大，选错文体 AI 会按错的骨架写。</p>
       </div>
 
       <!-- 步骤 3：题目（标题/提示/示例随类别动态切换） -->
-      <div class="wstep">
+      <div class="wstep" data-screen="3">
         <div class="wstep-head"><span class="wstep-no">3</span><h2 id="topicStepTitle">输入题目</h2></div>
         <div class="chat-box">
           <textarea class="chat-input-area" id="topic" rows="3"
@@ -168,7 +170,7 @@
       </div>
 
       <!-- 步骤 3：字数 -->
-      <div class="wstep">
+      <div class="wstep" data-screen="4">
         <div class="wstep-head"><span class="wstep-no">4</span><h2>选择字数</h2></div>
         <div class="word-roller">
           <button class="roller-btn" id="wordMinus" aria-label="减少">−</button>
@@ -183,7 +185,7 @@
       </div>
 
       <!-- 步骤 4：额外要求 -->
-      <div class="wstep">
+      <div class="wstep" data-screen="5">
         <div class="wstep-head"><span class="wstep-no">5</span><h2>额外要求</h2><span class="wstep-opt">选填</span></div>
         <div class="chat-box">
           <textarea class="chat-input-area" id="extra" rows="3"
@@ -193,7 +195,7 @@
       </div>
 
       <!-- 评分标准（可多选） -->
-      <div class="wstep">
+      <div class="wstep" data-screen="6">
         <div class="wstep-head"><span class="wstep-no">6</span><h2>评分标准（可多选）</h2><span class="wstep-opt">表格注入 AI</span></div>
         <div class="stage-head"><span class="stage-label">学段</span><span class="stage-tip" id="stageTip">决定字数、文体和立意深度的默认尺度。</span></div>
         <div class="stage-grid" id="stageGrid"></div>
@@ -202,7 +204,7 @@
       </div>
 
       <!-- 流程作文（自动迭代） -->
-      <div class="wstep">
+      <div class="wstep" data-screen="7">
         <div class="wstep-head"><span class="wstep-no">7</span><h2>流程作文</h2><span class="wstep-opt">自动写→评→改→评</span></div>
         <label class="flow-toggle"><input type="checkbox" id="flowAuto"> 开启：大纲拟好后自动写正文、评分、只改硬伤、再评分</label>
         <div class="flow-row">
@@ -220,7 +222,10 @@
       </div>
 
       <div class="wizard-actions">
-        <button class="btn btn-primary btn-lg" id="startBtn">开始生成</button>
+        <button class="btn-outline" id="wstepPrev" type="button">上一步</button>
+        <span class="wstep-count" id="wstepCount">第 1 步 / 共 7 步</span>
+        <button class="btn btn-primary" id="wstepNext" type="button">下一步</button>
+        <button class="btn btn-primary btn-lg" id="startBtn" hidden>开始生成</button>
         <div class="status-line" id="wizardStatus" role="status"></div>
       </div>
 
@@ -576,7 +581,7 @@
 
 <script src="assets/js/rules.js?v=20261116N"></script>
 <script src="assets/js/poster.js?v=20261116N"></script>
-<script src="assets/js/write.js?v=20261116AG"></script>
+<script src="assets/js/write.js?v=20261116AH"></script>
 <script src="assets/js/auth.js?v=20261116N"></script>
 </body>
 </html>

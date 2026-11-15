@@ -79,6 +79,8 @@
     scoringGrid: $("scoringGrid"), scoringTip: $("scoringTip"),
     stageGrid: $("stageGrid"), stageTip: $("stageTip"),
     wizardStatus: $("wizardStatus"), startBtn: $("startBtn"),
+    wizardBody: $("wizardBody"), wstepPrev: $("wstepPrev"), wstepNext: $("wstepNext"),
+    wstepCount: $("wstepCount"),
 
     backBtn: $("backBtn"), studioMeta: $("studioMeta"),
     contextList: $("contextList"), contextEmpty: $("contextEmpty"),
@@ -1638,20 +1640,74 @@
 
   /* ---------------- 向导：类别 ---------------- */
 
-  function updateSteps() {
-    var steps = els.wizardSteps.querySelectorAll("li");
-    steps.forEach(function (s) { s.classList.remove("done", "active"); });
-    // 1 类别 / 2 文体 / 3 题目 / 4 字数 / 5 额外要求
-    if (selectedCat) steps[0].classList.add("done");
-    else steps[0].classList.add("active");
-    if (selectedGenre) steps[1].classList.add("done");
-    else steps[1].classList.add("active");
-    if (els.topic.value.trim()) {
-      steps[2].classList.add("done");
-      steps[3].classList.add("done");
-    } else if (selectedCat) {
-      steps[2].classList.add("active");
+  /* ---------------- 分步向导 ----------------
+     七块表单一次只出一屏，进度条可点回看，底部只有「上一步 / 下一步」。
+     判断完成用 wstepNeed()，跟显示分开，两者不会各说各话。 */
+
+  var wstepIdx = 0;
+
+  function wstepList() {
+    return Array.prototype.slice.call(document.querySelectorAll(".wizard-body .wstep"));
+  }
+
+  /* 这一步能不能过。返回 "" 表示过，否则返回一句人话提示 */
+  function wstepNeed(i) {
+    if (i === 0) return selectedCat ? "" : "先选一个类别";
+    if (i === 1) return selectedGenre ? "" : "先选一个文体";
+    if (i === 2) {
+      var t = els.topic.value.trim();
+      if (!t) return selectedCat === "自拟" ? "填一下题材范围，一句话就够" : "把题目填上";
+      return validateTopic(selectedCat, t);
     }
+    return "";
+  }
+
+  /* 最远能点到第几步：前面必须步步通过，不许跳过题目直接去改字数 */
+  function wstepReach() {
+    var list = wstepList();
+    var r = 0;
+    for (var k = 0; k < list.length; k++) {
+      if (wstepNeed(k) !== "") break;
+      r = k + 1;
+    }
+    return Math.min(list.length - 1, r);
+  }
+
+  function showWstep(i) {
+    var list = wstepList();
+    if (!list.length) return;
+    i = Math.max(0, Math.min(list.length - 1, i));
+    wstepIdx = i;
+    list.forEach(function (el, k) { el.classList.toggle("is-current", k === i); });
+    var last = i === list.length - 1;
+    if (els.wstepCount) els.wstepCount.textContent = "第 " + (i + 1) + " 步 / 共 " + list.length + " 步";
+    if (els.wstepPrev) els.wstepPrev.hidden = i === 0;
+    if (els.wstepNext) els.wstepNext.hidden = last;
+    if (els.startBtn) els.startBtn.hidden = !last;
+    setWizardStatus("", "");
+    updateSteps();
+    // 窄屏步骤条是横滑的，当前步可能在屏幕外，切完把它滚进视野中间
+    var cur = els.wizardSteps.querySelector('li[data-step="' + (i + 1) + '"]');
+    if (cur && cur.scrollIntoView) {
+      try { cur.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" }); } catch (e) {}
+    }
+    // 切步后回到这一块顶部，否则还停在上一屏的滚动位置
+    var box = document.getElementById("wizard");
+    if (box && box.getBoundingClientRect().top < -8) {
+      try { box.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { box.scrollIntoView(); }
+    }
+  }
+
+  function updateSteps() {
+    var steps = []
+    els.wizardSteps.querySelectorAll("li").forEach(function (li) { steps.push(li); });
+    steps.forEach(function (s, k) {
+      s.classList.remove("done", "active");
+      // 只把「后面已经走过的步」标成完成：选填步（字数/要求/评分/流程）没走也满足条件，
+      // 按 wstepNeed 判会把第 4 步以后全点亮，看上去像整张表都填完了
+      if (k === wstepIdx) s.classList.add("active");
+      else if (k < wstepIdx && wstepNeed(k) === "") s.classList.add("done");
+    });
   }
 
   // 把该类别的输入引导（标题/placeholder/提示/示例）应用到向导
@@ -7219,7 +7275,27 @@
 
   /* ---------------- 初始化 ---------------- */
 
-  updateSteps();
+  /* 分步导航：进度条点回看，底部只留上一步/下一步 */
+  if (els.wstepNext) {
+    on(els.wstepNext, "click", function () {
+      var bad = wstepNeed(wstepIdx);
+      if (bad) { setWizardStatus(bad, "error"); return; }
+      showWstep(wstepIdx + 1);
+    });
+  }
+  if (els.wstepPrev) {
+    on(els.wstepPrev, "click", function () { showWstep(wstepIdx - 1); });
+  }
+  on(els.wizardSteps, "click", function (e) {
+    var li = e.target.closest("li[data-step]");
+    if (!li) return;
+    var k = parseInt(li.getAttribute("data-step"), 10) - 1;
+    if (isNaN(k)) return;
+    if (k > wstepReach()) { setWizardStatus("先把前面几步填完", "error"); return; }
+    showWstep(k);
+  });
+
+  showWstep(0);
   showEmpty();
   setBusy(false);
   setChatMode("annotate");

@@ -3424,3 +3424,76 @@ body.run-on .studio-meta { opacity: .22; transition: opacity .2s ease; }
   align-items: center;
   text-decoration: none;
 }
+
+/* ============ 分步向导：一次只出一屏 ============
+   七步全平铺时一屏能滚出两米，找「下一步」比填表还累。
+   改成一次一块，进度条可点回看，底部固定上一屏/下一屏。 */
+.wizard-body[data-step-mode="on"] .wstep { display: none; }
+.wizard-body[data-step-mode="on"] .wstep.is-current {
+  display: block;
+  padding-top: 2px;
+  border-bottom: 0;
+  animation: wstepIn .18s ease-out;
+}
+@keyframes wstepIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.wizard-steps li { cursor: pointer; transition: border-color .15s, color .15s; }
+.wizard-steps li:hover { border-color: var(--brand); }
+
+.wizard-actions { gap: 12px; }
+.wstep-count {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+.wizard-actions .btn-lg { flex: 1; }
+
+@media (max-width: 640px) {
+  /* 窄屏：步数单独占一行放最上面，上一步按内容宽，下一步（或开始生成）吃满剩下的 */
+  .wizard-actions { flex-wrap: wrap; }
+  .wstep-count { order: -1; width: 100%; margin: 0; }
+  .wizard-actions #wstepPrev { flex: 0 0 auto; }
+  .wizard-actions #wstepNext { flex: 1; }
+  .wizard-actions .btn-lg { flex: 1; }
+}
+
+/* .btn / .btn-outline 自带 display:inline-flex，会盖掉 [hidden] 的 UA 样式，
+   所以导航里那三个按钮必须显式收一次，否则「开始生成」会跟「下一步」并排出现 */
+.wizard-actions .btn[hidden],
+.wizard-actions .btn-outline[hidden] { display: none; }
+
+/* 当前步要跟"已完成"分得开：光靠边框颜色太弱，补一层淡底 */
+.wizard-steps li.active {
+  background: rgba(29, 112, 72, .08);
+  border-color: var(--brand);
+}
+
+/* 窄屏底部：三行按钮太占地方。主按钮留在中间，上一步降成一行小字，
+   步数摆在最上面居中。移动端本来就是竖排，这里只是把轻重排开。 */
+@media (max-width: 760px) {
+  .wizard-body .wizard-actions { gap: 6px; }
+  .wizard-body .wstep-count {
+    order: 0;
+    width: 100%;
+    margin: 0 0 2px;
+    text-align: center;
+    font-size: 12px;
+  }
+  .wizard-body .wizard-actions #wstepNext,
+  .wizard-body .wizard-actions #startBtn { order: 1; }
+  .wizard-body .wizard-actions #wstepPrev {
+    order: 2;
+    width: auto;
+    height: 30px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    font-size: 13px;
+    color: var(--ink-mute);
+  }
+  .wizard-body .wizard-actions #wstepPrev:hover { color: var(--brand-deep); background: transparent; }
+}
