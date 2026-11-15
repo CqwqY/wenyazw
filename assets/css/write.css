@@ -720,6 +720,21 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
 
 .bubble { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
 
+/* 长期要求被记下时的系统提示：不带 bubble 类，不会被收进对话历史 */
+.memory-note {
+  width: fit-content;
+  max-width: 92%;
+  margin: 6px auto 10px;
+  padding: 7px 13px;
+  border: 1px solid rgba(29, 112, 72, .18);
+  border-radius: 999px;
+  background: rgba(29, 112, 72, .06);
+  color: var(--brand-deep, #1d7048);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .bubble-label {
   font-size: 12px;
   font-weight: 600;

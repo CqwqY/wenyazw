@@ -4986,9 +4986,32 @@
     return /不要改稿|别改稿|不要动稿|别动稿|不用改稿|不许改稿|不要重写|别重写|不需要改|先别改|还是别改|别改了|不要再改|不用改|不要动正文|别动正文|只解释|只说明|只讲|只评|只说|只分析|只点评|只想问|只想知道/.test(s);
   }
 
+  /* 对话里提出「以后每篇都别这么写」的严重意见：交给服务端判定并记进账号。
+     异步做，不打断这一轮讨论；真记上了，在对话流里留一条不进历史的小提示。 */
+  function learnFromAsk(text) {
+    var A = window.WY_AUTH;
+    var t = (A && A.token && A.token()) || "";
+    if (!t) return;
+    var base = (A && A.endpoint && A.endpoint()) || "https://back.wenyazw.top";
+    fetch(String(base).replace(/\/+$/, "") + "/api/style/learn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + t },
+      body: JSON.stringify({ text: text })
+    }).then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (j) {
+        if (!j || !j.ok || !j.saved || !j.rule || !els.contextList) return;
+        var note = document.createElement("div");
+        note.className = "memory-note";
+        note.textContent = "已长期记住：" + j.rule + "（账户设置里可以删）";
+        els.contextList.appendChild(note);
+        els.contextList.scrollTop = els.contextList.scrollHeight;
+      }).catch(function () { /* 记不上不影响这一轮对话 */ });
+  }
+
   async function handleSend() {
     var req = els.chatInput.value.trim();
     if (!req) { setPaperHint("先写下你的问题，再发送。"); els.chatInput.focus(); return; }
+    learnFromAsk(req);
 
     if (stage === "outline") { await askOutline(req); return; }
     if (!currentComposition && !docBody) { setPaperHint("还没有正文，先按大纲写一篇。"); return; }

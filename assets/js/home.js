@@ -26,7 +26,8 @@
     styleVerdict: $("styleVerdict"), styleSummary: $("styleSummary"), styleTags: $("styleTags"),
     styleEmpty: $("styleEmpty"), styleMarkList: $("styleMarkList"), styleAddMark: $("styleAddMark"),
     styleSave: $("styleSave"), styleMsg: $("styleMsg"), styleScan: $("styleScan"),
-    styleReport: $("styleReport")
+    styleReport: $("styleReport"),
+    styleRuleList: $("styleRuleList"), styleRuleEmpty: $("styleRuleEmpty")
   };
 
   var currentView = "essays";
@@ -467,7 +468,7 @@
 
   /* ---------------- 账户设置：我的文风 ----------------
      用户不选，AI 读稿定档；这里只负责展示和纠偏。 */
-  var sty = { dims: [], summary: "", marks: [], anchors: [], auto: null, loaded: false, syncing: false };
+  var sty = { dims: [], summary: "", marks: [], rules: [], anchors: [], auto: null, loaded: false, syncing: false };
 
   function stySetMsg(text, kind) {
     if (!els.styleMsg) return;
@@ -524,6 +525,42 @@
       els.styleMarkList.appendChild(row);
     });
     els.styleAddMark.disabled = sty.marks.length >= 6;
+  }
+
+  /* 长期要求只读展示 + 删除。AI 判定错了、或者这条要求过时了，用户可以自己撤掉。 */
+  function renderRules() {
+    if (!els.styleRuleList) return;
+    els.styleRuleList.innerHTML = "";
+    if (els.styleRuleEmpty) els.styleRuleEmpty.hidden = sty.rules.length > 0;
+    sty.rules.forEach(function (t, i) {
+      var row = document.createElement("div");
+      row.className = "style-rule-row";
+      var tx = document.createElement("span");
+      tx.className = "style-rule-text";
+      tx.textContent = t;
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "style-rule-del";
+      del.setAttribute("aria-label", "忘掉这条");
+      del.title = "忘掉这条";
+      del.textContent = "×";
+      del.addEventListener("click", async function () {
+        var next = sty.rules.filter(function (_, k) { return k !== i; });
+        del.disabled = true;
+        try {
+          var j = await api("/api/style", { method: "PUT", body: { rules: next } });
+          sty.rules = j.rules || next;
+          renderRules();
+          stySetMsg("已忘掉，下一轮起不再生效", "ok");
+        } catch (e) {
+          del.disabled = false;
+          stySetMsg("删除失败：" + ((e && e.message) || "网络错误"), "error");
+        }
+      });
+      row.appendChild(tx);
+      row.appendChild(del);
+      els.styleRuleList.appendChild(row);
+    });
   }
 
   function renderReport() {
@@ -598,10 +635,12 @@
     sty.dims = j.dims || [];
     sty.summary = (j.ai && j.ai.summary) || "";
     sty.marks = (j.marks || []).slice(0, 6);
+    if (j && j.rules) sty.rules = j.rules.slice(0, 6);
     sty.anchors = j.anchors || [];
     sty.auto = j.auto || null;
     renderVerdict();
     renderMarks();
+    renderRules();
     renderReport();
   }
 
