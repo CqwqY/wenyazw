@@ -4678,19 +4678,16 @@
     // 这篇以前写过的话，把对话/评改/旁批/锁句接回来（本机没有就用云端随稿存的那份）
     if (hydrateEssaySession(data.session) && criticItems.length) renderCritic();
 
-    addUserBubble("从控制台打开《" + (docTitle || "作文") + "》继续改", "你");
+    // 打开存档不再伪造一条「你：从控制台打开……」的消息，也不自动发问候，
+    // 只在状态行说清楚现在在哪一步；对话区只显示这篇真实发生过的对话。
     if (stage === "draft") {
       switchPane("paper");
       renderAnnotated();
-      setDocHint("已载入云端稿 · 直接提问就是整篇重写");
-      addAssistantBubble("文芽").textContent =
-        "已载入《" + docTitle + "》。接着改就行：直接提要求会从头重写整篇，选「只问不改」则只讲不动字。";
+      setDocHint("已载入《" + (docTitle || "作文") + "》· 直接提问就是整篇重写");
     } else {
       switchPane("outline");
       showEmpty();
       setDocHint("这篇只存了大纲 · 改完点「确认大纲，开始写正文」");
-      addAssistantBubble("文芽").textContent =
-        "这篇当时只存了大纲，还没写正文。大纲可以继续改，确认后点右下开始写。";
     }
     setPaperHint("");
     return true;
