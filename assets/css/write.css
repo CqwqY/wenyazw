@@ -167,7 +167,9 @@
   padding: 1px 4px;
 }
 
-/* 站内模式：所有会消耗积分的按钮都挂「金币图标 + 1」角标 */
+/* 站内模式：所有会消耗积分的按钮都挂「金币图标 + 1」角标。
+   积分是金色语义，别用朱红——朱红在这套主题里专留给错误 / 批改 / 删改，
+   拿它做扣分红底会让人以为按钮报错或是危险操作。 */
 body.cost-on .cost-btn { position: relative; }
 
 body.cost-on .cost-btn::after {
@@ -185,9 +187,9 @@ body.cost-on .cost-btn::after {
   vertical-align: 1px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  color: #8f2b24;
-  background-color: rgba(168, 50, 42, .09);
-  border: 1px solid rgba(168, 50, 42, .22);
+  color: #8a6321;
+  background-color: rgba(201, 147, 47, .14);
+  border: 1px solid rgba(169, 123, 31, .3);
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6.5' fill='%23d9a441' stroke='%23a97b1f' stroke-width='1'/%3E%3Ccircle cx='8' cy='8' r='2.6' fill='%23fdf3dd'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: 4px center;
@@ -196,7 +198,7 @@ body.cost-on .cost-btn::after {
 
 body.cost-on .btn-primary.cost-btn::after,
 body.cost-on .critic-dock-send.cost-btn::after {
-  color: #fff4ef;
+  color: #fffdf8;
   background-color: rgba(255, 255, 255, .18);
   border-color: rgba(255, 255, 255, .34);
 }
