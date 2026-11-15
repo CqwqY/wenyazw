@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AA">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
-<link rel="stylesheet" href="assets/css/home.css?v=20261116T">
+<link rel="stylesheet" href="assets/css/home.css?v=20261116U">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
 <body class="home">
@@ -45,7 +45,7 @@
 
     <div class="home-actions">
       <button class="btn btn-primary btn-lg" id="homeCta" type="button">开始写作</button>
-      <a class="home-link" href="account.html">我的作文</a>
+      <a class="home-link" href="#essays">我的作文</a>
     </div>
     <p class="home-note" id="heroNote">生成需要登录，邮箱验证码即可，不设密码。</p>
 
@@ -197,13 +197,45 @@
         </div>
         <div class="account-row account-links">
           <a class="btn-outline" href="credits.html">积分与兑换</a>
-          <a class="btn-outline" href="account.html">旧版控制台</a>
         </div>
         <div class="account-row account-links">
           <button class="btn-outline" id="appPassword" type="button">设置 / 修改密码</button>
           <button class="btn-outline" id="appLogout" type="button">退出登录</button>
         </div>
       </div>
+
+      <section class="style-card" id="styleBlock">
+        <div class="style-head">
+          <div>
+            <h2>我的文风</h2>
+            <p class="style-sub">不用你选。AI 读你写过的稿子，自己认出行文习惯，之后写和改都照着这个来。</p>
+          </div>
+          <button class="btn-outline" id="styleScan" type="button">让 AI 读一遍</button>
+        </div>
+
+        <div class="style-verdict" id="styleVerdict" hidden>
+          <p class="style-summary" id="styleSummary"></p>
+          <div class="style-tags" id="styleTags"></div>
+        </div>
+
+        <div class="style-empty" id="styleEmpty">还没读过。写完一篇后点右上角「让 AI 读一遍」，它就从你的稿子里认你的写法。</div>
+
+        <div class="style-marks">
+          <div class="style-marks-head">
+            <span>补充要求</span>
+            <span class="style-marks-tip">AI 判偏了在这里纠正，最多 6 条，原话交给 AI</span>
+          </div>
+          <div class="style-mark-list" id="styleMarkList"></div>
+          <button class="style-add" id="styleAddMark" type="button">加一条</button>
+        </div>
+
+        <div class="style-foot">
+          <button class="btn btn-primary" id="styleSave" type="button">保存补充要求</button>
+          <span class="style-msg" id="styleMsg"></span>
+        </div>
+
+        <div class="style-report" id="styleReport" hidden></div>
+      </section>
     </section>
 
   </div>
@@ -352,7 +384,7 @@
 
 <script src="assets/js/rules.js?v=20261116N"></script>
 <script src="assets/js/poster.js?v=20261116N"></script>
-<script src="assets/js/auth.js?v=20261116N"></script>
-<script src="assets/js/home.js?v=20261116P"></script>
+<script src="assets/js/auth.js?v=20261116O"></script>
+<script src="assets/js/home.js?v=20261116Q"></script>
 </body>
 </html>

@@ -1,5 +1,16 @@
 /* 文芽作文 - 积分页 */
 
+/* 未登录提示卡（旧版控制台退役后，这一块布局挪到这里） */
+.account-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+}
+.account-card[hidden] { display: none; }
+.account-card h2 { font-family: var(--serif); font-size: 19px; margin: 0 0 10px; }
+.account-card > p { color: var(--ink-soft); line-height: 1.8; margin: 0 0 18px; }
+
 .credit-hero {
   display: flex;
   align-items: center;

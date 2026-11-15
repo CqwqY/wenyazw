@@ -121,8 +121,8 @@
     }
     var consoleLink = document.createElement("a");
     consoleLink.className = "account-console";
-    consoleLink.href = "account.html";
-    consoleLink.textContent = "控制台";
+    consoleLink.href = "index.html#account";
+    consoleLink.textContent = "账户";
     els.area.appendChild(consoleLink);
     var name = document.createElement("span");
     name.className = "account-name";
