@@ -84,7 +84,7 @@
     contextList: $("contextList"), contextEmpty: $("contextEmpty"),
     chatInput: $("chatInput"), sendBtn: $("sendBtn"), stopBtn2: $("stopBtn2"),
     polishAllBtn: $("polishAllBtn"),
-    chatMode: $("chatMode"), chatModeHint: $("chatModeHint"),
+    chatMode: $("chatMode"),
     paperTitle: $("paperTitle"), paperBody: $("paperBody"),
     paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
     posterBtn: $("posterBtn"),
@@ -357,6 +357,9 @@
     } catch (e) { return null; }
   }
 
+  // 这些角色是结论性的「最终回答」，恢复历史对话时保持展开、不折叠
+  var FINAL_ROLES = { "讨论结论": 1, "评分": 1, "结论": 1, "改稿": 1, "讨论": 1 };
+
   function paintChat(list) {
     if (!els.contextList || !list || !list.length) return;
     els.contextList.innerHTML = "";
@@ -371,6 +374,7 @@
       var t = document.createElement("div");
       t.className = "bubble-text";
       t.textContent = m.text;
+      wrapMask(t, m.text, !!FINAL_ROLES[m.role]);
       b.appendChild(label);
       b.appendChild(t);
       els.contextList.appendChild(b);
@@ -3265,13 +3269,18 @@
 
   /* 长内容默认折叠遮罩：超过阈值（字数多或有分段）时，先显示淡出预览 + 查看按钮，点开才露全文。
      覆盖用户长要求与 AI 长回复；正文生成不走气泡，不受影响。 */
-  function wrapMask(el, text) {
-    if (!el || el.dataset.masked) return;
-    if (typeof text !== "string") text = el.textContent || "";
-    var long = text.length > 220 || (text.match(/\n\s*\n/g) || []).length >= 1;
-    if (!long) return;
-    el.dataset.masked = "1";
-    el.textContent = "";
+  /* 长内容折叠遮罩：每次重算，幂等。noMask 表示这是「最终回答」，保持展开 */
+  function maskApply(el, text, noMask) {
+    if (!el) return;
+    if (typeof text !== "string") text = "";
+    while (el.firstChild) el.removeChild(el.firstChild);
+    var long = text.length > 220 || /\n\s*\n/.test(text);
+    if (noMask || !long) {
+      el.classList.remove("is-masked");
+      if (text) el.appendChild(document.createTextNode(text));
+      return;
+    }
+    el.classList.add("is-masked");
     var box = document.createElement("div");
     box.className = "bubble-mask";
     var pv = document.createElement("div");
@@ -3288,6 +3297,10 @@
       var open = box.classList.toggle("is-open");
       btn.textContent = open ? "收起" : "查看全文";
     });
+  }
+
+  function wrapMask(el, text, noMask) {
+    maskApply(el, text, !!noMask);
   }
 
   function addUserBubble(text, role) {
@@ -3309,7 +3322,7 @@
     return t;
   }
 
-  function addAssistantBubble(role) {
+  function addAssistantBubble(role, opts) {
     var name = role || "文芽";
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     var b = document.createElement("div");
@@ -3325,6 +3338,17 @@
     els.contextList.scrollTop = els.contextList.scrollHeight;
     noteChatReply();
     scheduleSessionSave();
+    // 讨论 / 列提纲等过程文本默认折叠；传 noMask 的「最终回答」保持展开
+    var noMask = !!(opts && opts.noMask);
+    var store = "";
+    Object.defineProperty(t, "textContent", {
+      configurable: true,
+      get: function () { return store; },
+      set: function (v) {
+        store = String(v == null ? "" : v);
+        maskApply(t, store, noMask);
+      }
+    });
     return t;
   }
 
@@ -3355,7 +3379,6 @@
     var parts = splitTwo(fullText);
     if (assistantReplyEl) {
       assistantReplyEl.textContent = parts.reply || "（已生成回应）";
-      wrapMask(assistantReplyEl, parts.reply || "");
     }
     render(parts.comp, streaming, true);
   }
@@ -4642,13 +4665,10 @@
       b.disabled = stage === "outline";
     });
     if (stage === "outline") {
-      els.chatModeHint.textContent = "大纲阶段：提问会直接改大纲，不会动正文";
       els.chatInput.placeholder = "例：第二段换成徒弟偷偷换釉料；再加一段写验收时老师傅的反应";
     } else if (chatMode === "explain") {
-      els.chatModeHint.textContent = "只讲不改：不动一个字，不出批注";
       els.chatInput.placeholder = "例：为什么结尾这句算空泛？我该怎么想这一段";
     } else {
-      els.chatModeHint.textContent = "讨论改稿：说一句就是一次评改，你说改哪就改哪，你没提的地方才由 AI 定";
       els.chatInput.placeholder = "例：把开头再写细一点 / 结尾这句是不是空泛 / 控制在 600 字";
     }
   }
@@ -5633,7 +5653,7 @@
     if (act === "不改") {
       criticItems.forEach(function (it) { it.agreed = ""; });
       renderCritic();
-      var nb = addAssistantBubble("结论");
+      var nb = addAssistantBubble("结论", { noMask: true });
       nb.textContent = "这轮讨论的结论是：稿子不动。" + (revision.why || "") +
         (criticItems.length ? " 评语留在「旁批」页，想改哪条自己勾。" : "");
       setDocHint("讨论结论：不改 · 评语已留在旁批");
@@ -5655,7 +5675,7 @@
 
     var scoreTxt = scoreText();
     var scoreKeep = criticScoresSummary();
-    var bubble = addAssistantBubble("改稿");
+    var bubble = addAssistantBubble("改稿", { noMask: true });
     bubble.textContent = big
       ? ("讨论结论是这篇要大改" + (revision.scope ? "（动 " + revision.scope + "）" : "") + "，正在重搭一版完整新稿…")
       : (ready.length
@@ -5809,7 +5829,7 @@
         "，逐条看「旁批」页");
       renderDebateLog();
       // 结论单独一条，学生扫一眼就知道这次动没动稿
-      var concl = addAssistantBubble("讨论结论");
+      var concl = addAssistantBubble("讨论结论", { noMask: true });
       concl.textContent = cmdMode
         ? ("两个老师就你这句「" + runningAsk.slice(0, 24) + "」谈了 " + debateLog.length + " 轮，定下改法：" +
           (review.overall || "") + (scoreTxt ? " 改前得分 " + scoreTxt + "。" : "") +
@@ -5830,7 +5850,7 @@
       }
       els.criticStat.textContent = "讨论中断：" + msg;
       setDocHint("讨论中断，可再点一次");
-      var eb = addAssistantBubble("讨论");
+      var eb = addAssistantBubble("讨论", { noMask: true });
       eb.textContent = "讨论中断：" + msg + (criticItems.length ? "（已经拿到的这一版仍留在稿纸上）" : "");
     } finally {
       renderDebateLog();
@@ -5897,7 +5917,7 @@
     els.criticStat.textContent = "正在按评分标准打分，逐项列扣分…";
     syncCriticDock(true);
     switchPane("paper");
-    var bubble = addAssistantBubble("评分");
+    var bubble = addAssistantBubble("评分", { noMask: true });
     bubble.textContent = "正在按评分标准给分，并把扣分项逐条列出来…";
     var runOwnedOne = runOwn("评分中");
 

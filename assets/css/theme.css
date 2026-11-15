@@ -149,7 +149,6 @@ h1, h2, h3, h4 { color: var(--g-900); }
 .input,
 .textarea,
 .select,
-.chat-input-area,
 .import-body {
   background: var(--paper);
   border: 1px solid var(--line-strong);
@@ -158,8 +157,7 @@ h1, h2, h3, h4 { color: var(--g-900); }
 }
 .input:focus,
 .textarea:focus,
-.select:focus,
-.chat-input-area:focus {
+.select:focus {
   border-color: var(--g-600);
   box-shadow: var(--ring);
   outline: none;
