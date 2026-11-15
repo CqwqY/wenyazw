@@ -2979,7 +2979,7 @@ table.score-table .score-table-key {
 }
 .step-title { flex: none; font-weight: 600; color: var(--ink); white-space: nowrap; }
 .step-meta {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2987,7 +2987,8 @@ table.score-table .score-table-key {
   color: var(--ink-mute);
   font-size: 11.5px;
 }
-.step-caret { flex: none; font-size: 10.5px; color: var(--ink-mute); opacity: .8; }
+.step-caret { flex: none; font-size: 12px; line-height: 1; color: #8a9c92; margin-left: 2px; }
+.step-head:hover .step-caret { color: #1d7048; }
 .step-body {
   display: none;
   margin: 1px 0 2px 29px;
