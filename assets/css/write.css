@@ -795,10 +795,14 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
 
 .paper-body p:last-child { margin-bottom: 0; }
 
-/* 自绘选区：落在字格上，不改变任何排版尺寸 */
-.paper-body .ch-sel {
-  background: rgba(168, 50, 42, .14);
-  box-shadow: inset 0 0 0 1.5px rgba(168, 50, 42, .38);
+/* 自绘选区：落在字格上，不改变任何排版尺寸。
+   提到 .ch.ch-sel 并加 outline：批注/黄标/锁句的字格有自己的底色，
+   选择态必须压得过它们，否则拖完看不出选了哪几个字。 */
+.paper-body .ch.ch-sel {
+  background: rgba(168, 50, 42, .18);
+  box-shadow: inset 0 0 0 1.5px rgba(168, 50, 42, .55);
+  outline: 1.5px solid rgba(168, 50, 42, .45);
+  outline-offset: -1px;
   border-radius: 4px;
   color: #8f2b24;
 }

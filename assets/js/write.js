@@ -6762,12 +6762,14 @@
   var pendingLockText = "";
 
   var coarse = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
-  var selChars = [];        // 本次按下时抓的字格快照（DOM 顺序即阅读顺序）
+  var selChars = [];        // 按下时抓的字格快照（DOM 顺序即阅读顺序）
   var selA = -1, selB = -1; // 区间两端下标
   var selDragging = false;
+  var selPressed = false;   // 已按下、还没判断是拖选还是单击
   var selDownX = 0, selDownY = 0;
   var tapAt = 0, tapIdx = -1;   // 上一次「点选」的落点，用来拼成区间
   var selOnMark = false;        // 这次按下落在红笔标记/锁定句上：单击交给标记自己处理
+  var swallowClick = false;     // 刚拖选完，吃掉随后那个 click，别误触标记
 
   function hideLockPop() {
     if (lockPop) lockPop.hidden = true;
@@ -6790,44 +6792,64 @@
     return -1;
   }
 
-  // 坐标 -> 字格下标：先用 elementFromPoint，再用 caretPosition（点进字缝也准），
-  // 最后按几何距离兜底。桌面端拖到行尾/文末留白也能落到最后一个字。
-  function chIndexFromPoint(x, y) {
-    var i = chIndexAt(document.elementFromPoint(x, y));
-    if (i >= 0) return i;
-    try {
-      var pos = null;
-      if (document.caretPositionFromPoint) pos = document.caretPositionFromPoint(x, y);
-      else if (document.caretRangeFromPoint) {
-        var rg = document.caretRangeFromPoint(x, y);
-        pos = rg ? { offsetNode: rg.startContainer } : null;
-      }
-      if (pos && pos.offsetNode) {
-        var n = pos.offsetNode.nodeType === 3 ? pos.offsetNode.parentNode : pos.offsetNode;
-        var ch = n && n.closest ? n.closest(".ch") : null;
-        if (ch) {
-          var j = chIndexAt(ch);
-          if (j >= 0) return j;
-        }
-      }
-    } catch (e) { /* 老浏览器没有这个 API，走几何兜底 */ }
-    return chIndexNear(x, y);
+  function cellSize() {
+    for (var i = 0; i < selChars.length; i++) {
+      var r = selChars[i].getBoundingClientRect();
+      if (r.width > 0) return r.width;
+    }
+    return 24;
   }
 
-  // 落点没精确压在字格上（字间、行距、段间距、稿纸末尾留白）时，按坐标回退到最近的字格，
-  // 否则拖到行尾 / 文末空白处就选不到终点。仅在 elementFromPoint 没命中字格时才跑，开销可控。
-  function chIndexNear(x, y) {
-    if (!selChars.length) return -1;
+  // 离 (x,y) 最近的字格，返回 { i, d }
+  function chNearest(x, y) {
     var best = -1, bestD = Infinity;
     for (var i = 0; i < selChars.length; i++) {
       var r = selChars[i].getBoundingClientRect();
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+      if (!r.width && !r.height) continue;
       var cx = x < r.left ? r.left : (x > r.right ? r.right : x);
       var cy = y < r.top ? r.top : (y > r.bottom ? r.bottom : y);
       var d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
       if (d < bestD) { bestD = d; best = i; }
     }
-    return best;
+    return { i: best, d: Math.sqrt(bestD) };
+  }
+
+  /*
+    坐标 -> 字格下标。
+    strict=true 用于「按下」：离正文太远就返回 -1，调用方当成点空白（清选区）。
+    strict=false 用于「拖动」：一直取最近字格，拖到行尾、段末、文末留白也能落到最后一个字。
+  */
+  function chIndexFromPoint(x, y, strict) {
+    var i = chIndexAt(document.elementFromPoint(x, y));
+    if (i >= 0) return i;
+    // caretPosition 在 Chrome 里对着正文下方一大片留白也会返回「最近的文本位置」，
+    // 所以只在拖动时用它补精度；按下的严格判定里绝不能用，否则点空白永远清不掉选区。
+    if (!strict) {
+      try {
+        var pos = null;
+        if (document.caretPositionFromPoint) pos = document.caretPositionFromPoint(x, y);
+        else if (document.caretRangeFromPoint) {
+          var rg = document.caretRangeFromPoint(x, y);
+          pos = rg ? { offsetNode: rg.startContainer } : null;
+        }
+        if (pos && pos.offsetNode) {
+          var n = pos.offsetNode.nodeType === 3 ? pos.offsetNode.parentNode : pos.offsetNode;
+          var ch = n && n.closest ? n.closest(".ch") : null;
+          if (ch) {
+            var j = chIndexAt(ch);
+            if (j >= 0) return j;
+          }
+        }
+      } catch (e) { /* 老浏览器没有这个 API，走几何兜底 */ }
+    }
+    var near = chNearest(x, y);
+    if (near.i < 0) return -1;
+    if (strict && near.d > cellSize() * 0.9) return -1;
+    return near.i;
+  }
+
+  function chIndexNear(x, y) {
+    return chNearest(x, y).i;
   }
 
   function selRange() {
@@ -6895,9 +6917,9 @@
   function settleSel() {
     var r = selRange();
     if (!r) { hideLockPop(); return; }
-    if (r.text.length < 4) {
+    if (r.text.replace(/\s/g, "").length < 4) {
       hideLockPop();
-      setPaperHint("锁句至少四个字");
+      setPaperHint("锁句至少四个字：从起点拖到终点，也可以点两下");
       return;
     }
     var rect = selRect();
@@ -6906,76 +6928,109 @@
     setPaperHint("已选 " + r.text.length + " 字，点「锁住这句」交给 AI，或继续拖动调整");
   }
 
+  function detachSelDrag() {
+    document.removeEventListener("pointermove", onSelMove, true);
+    document.removeEventListener("pointerup", onSelUp, true);
+    document.removeEventListener("pointercancel", onSelCancel, true);
+  }
+
+  function onSelMove(e) {
+    if (!selPressed) return;
+    if (!selDragging) {
+      var dx = e.clientX - selDownX, dy = e.clientY - selDownY;
+      if (Math.abs(dx) + Math.abs(dy) < 5) return;
+      // 触屏上竖着划是滚页，别抢成选字
+      if (coarse && Math.abs(dy) > Math.abs(dx) * 1.2) { onSelCancel(); return; }
+      selDragging = true;
+    }
+    var idx = chIndexFromPoint(e.clientX, e.clientY, false);
+    if (idx >= 0 && idx !== selB) { selB = idx; paintSel(); }
+    hideLockPop();
+    if (e.cancelable) e.preventDefault();
+  }
+
+  function onSelUp(e) {
+    if (!selPressed) { detachSelDrag(); return; }
+    selPressed = false;
+    detachSelDrag();
+    var dragged = selDragging;
+    selDragging = false;
+    if (dragged) {
+      // 拖选完成：吃掉随后那个 click，避免落在锁句/标记上误解锁
+      swallowClick = true;
+      setTimeout(function () { swallowClick = false; }, 400);   // 没有 click 跟上来就不留后患
+      settleSel();
+      return;
+    }
+    if (selOnMark) {
+      clearSel();
+      hideLockPop();
+      return;
+    }
+    if (selA === selB && selA >= 0) {
+      tapAt = Date.now();
+      tapIdx = selA;
+      hideLockPop();
+      setPaperHint("已点到第 " + (selA + 1) + " 字，再点终点连成一句");
+    }
+  }
+
+  function onSelCancel() {
+    selPressed = false;
+    selDragging = false;
+    detachSelDrag();
+  }
+
+  // 刚拖选完，随后那个 click 不往下传（否则点中锁句会立刻被解锁）
+  document.addEventListener("click", function (e) {
+    if (!swallowClick) return;
+    swallowClick = false;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+
   if (els.paperBody) {
     on(els.paperBody, "pointerdown", function (e) {
       if (e.button !== undefined && e.button !== 0) return;
       refreshChars();
-      // 手指按在格缝、标记或角标上时，按坐标再找一次字格，避免点空
-      var idx = chIndexAt(e.target);
-      if (idx < 0) idx = chIndexFromPoint(e.clientX, e.clientY);
-      if (idx < 0) { clearSel(); hideLockPop(); return; }
+      if (!selChars.length) return;
 
-      // 点选第二下（且离上次不远）：直接成区间，触屏没拖动也能选
-      if (!selDragging && tapIdx >= 0 && tapIdx !== idx && Date.now() - tapAt < 8000) {
-        selA = tapIdx; selB = idx;
-        selDragging = false;
-        paintSel();
-        settleSel();
-        tapIdx = -1;
-        e.preventDefault();
+      var idx = chIndexFromPoint(e.clientX, e.clientY, true);
+      if (idx < 0) {
+        // 点在稿纸留白：清选区与浮层（旧代码这里会被「取最近字格」救回来，所以永远清不掉）
+        clearSel();
+        hideLockPop();
         return;
       }
 
       var onMarkEl = e.target.closest && e.target.closest(".ink-mark, .critic-mark, .lock-mark");
       selOnMark = !!onMarkEl;
+
+      // 点选第二下：直接成区间
+      if (tapIdx >= 0 && tapIdx !== idx && Date.now() - tapAt < 8000) {
+        selA = tapIdx; selB = idx;
+        tapIdx = -1;
+        selPressed = false;
+        selDragging = false;
+        paintSel();
+        settleSel();
+        if (e.cancelable) e.preventDefault();
+        return;
+      }
+
       selA = selB = idx;
+      selPressed = true;
       selDragging = false;
       selDownX = e.clientX;
       selDownY = e.clientY;
       paintSel();
       hideLockPop();
-      if (els.paperBody.setPointerCapture) {
-        try { els.paperBody.setPointerCapture(e.pointerId); } catch (x) { /* 老浏览器 */ }
-      }
-      // 落在锁句/红笔标记上时不要抢默认行为，否则浏览器可能不派发 click，标记就点不动
-      if (!onMarkEl && e.cancelable) e.preventDefault();
-    });
 
-    on(els.paperBody, "pointermove", function (e) {
-      if (selA < 0) return;
-      if (!selDragging) {
-        if (Math.abs(e.clientX - selDownX) + Math.abs(e.clientY - selDownY) < 6) return;
-        selDragging = true;
-      }
-      var idx = chIndexFromPoint(e.clientX, e.clientY);
-      if (idx >= 0 && idx !== selB) { selB = idx; paintSel(); }
-      hideLockPop();
-      if (e.cancelable) e.preventDefault();
+      // 不用 setPointerCapture：移动/抬起挂在 document 上，鼠标划出字格、划出稿纸都还能接住
+      document.addEventListener("pointermove", onSelMove, true);
+      document.addEventListener("pointerup", onSelUp, true);
+      document.addEventListener("pointercancel", onSelCancel, true);
     });
-
-    on(els.paperBody, "pointerup", function (e) {
-      if (selA < 0) return;
-      var dragged = selDragging;
-      selDragging = false;
-      if (dragged) {
-        settleSel();
-      } else if (selOnMark) {
-        // 单击标记：不抢，清掉这一格的高亮，让标记的 click（看旁批 / 解锁）照常生效
-        clearSel();
-        hideLockPop();
-      } else if (selA === selB) {
-        // 单击：记住落点，等第二下；同时把提示说清楚
-        tapAt = Date.now();
-        tapIdx = selA;
-        hideLockPop();
-        setPaperHint("已点到第 " + (selA + 1) + " 字，再点终点连成一句");
-      }
-      if (els.paperBody.releasePointerCapture) {
-        try { els.paperBody.releasePointerCapture(e.pointerId); } catch (x) { /* 忽略 */ }
-      }
-    });
-
-    on(els.paperBody, "pointercancel", function () { selDragging = false; });
   }
 
   if (lockApplyBtn) {
@@ -7006,11 +7061,15 @@
       }
     });
   }
-  on(document, "pointerdown", function (e) {
-    if (!lockPop || lockPop.hidden) return;
-    if (lockPop.contains(e.target) || els.paperBody.contains(e.target)) return;
-    hideLockPop();
-  });
+  // 点稿纸以外任何地方（页边、侧栏、对话区）：浮层和选区一起收掉
+  document.addEventListener("pointerdown", function (e) {
+    var t = e.target;
+    var inPop = lockPop && lockPop.contains(t);
+    var inPaper = els.paperBody && els.paperBody.contains(t);
+    if (inPop || inPaper) return;
+    if (lockPop && !lockPop.hidden) hideLockPop();
+    if (selA >= 0) clearSel();
+  }, true);
   on(document, "keydown", function (e) {
     if (e.key === "Escape") { hideLockPop(); clearSel(); }
   });
