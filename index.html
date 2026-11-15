@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AC">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
-<link rel="stylesheet" href="assets/css/home.css?v=20261116V">
+<link rel="stylesheet" href="assets/css/home.css?v=20261116W">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
 <body class="home">
@@ -111,12 +111,21 @@
       <div class="view-head">
         <div>
           <h1>我的作文</h1>
-          <p>生成或录入的作文都在这里，点「继续修改」回到工作台。</p>
+          <p>按写的是什么摊成板块，点节点继续改；给个新题目，还能从旧稿里借素材派生一篇。</p>
         </div>
-        <button class="btn-outline" id="refreshEssays" type="button">刷新列表</button>
+        <button class="btn-outline" id="refreshEssays" type="button">刷新导图</button>
       </div>
       <div class="app-msg" id="essayMsg"></div>
-      <div class="essay-list" id="essayList"></div>
+      <div class="map-toolbar">
+        <button class="btn btn-primary" id="deriveOpen" type="button">给个题目，派生一篇</button>
+        <span class="map-toolbar-note">AI 会从你写过的作文里挑最贴题的素材重新成篇，借过哪几篇会在图上连起来。</span>
+      </div>
+      <div class="map-classify-hint" id="classifyHint" hidden>
+        <span id="classifyText">有旧作文还没归到板块</span>
+        <button class="btn-outline" id="classifyBtn" type="button">一键归类</button>
+        <span>归类只是建议，每个节点上都能自己改，改完就不再自动覆盖。</span>
+      </div>
+      <div class="mindmap" id="mindmap"></div>
     </section>
 
     <!-- 视图二：创建作文 -->
@@ -150,6 +159,12 @@
           </div>
 
           <div class="import-pane" id="importType">
+            <div class="field">
+              <label for="importBoard">所属板块</label>
+              <select class="input" id="importBoard">
+                <option value="">让 AI 自动判断</option>
+              </select>
+            </div>
             <div class="field">
               <label for="importTitle">标题</label>
               <input class="input" id="importTitle" type="text" maxlength="120" placeholder="例：那一刻，我长大了">
@@ -308,6 +323,36 @@
   </div>
 </div>
 
+<!-- 素材派生：给新题目，从自己的旧作文里借素材 -->
+<div class="modal-mask" id="deriveMask" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="deriveTitle">
+    <div class="modal-head">
+      <h2 id="deriveTitle">素材派生</h2>
+      <button class="modal-close" id="deriveClose" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="auth-hint">给一个新题目，AI 会翻你写过的作文，挑最贴题的场面和器物重新成篇。派生稿会存进「我的作文」，并连回借过的那几篇。</div>
+    <div class="derive-form">
+      <div class="field">
+        <label for="deriveTopic">新题目</label>
+        <input class="input" id="deriveTopic" type="text" maxlength="120" placeholder="例：旧物里的光">
+      </div>
+      <div class="field">
+        <label for="deriveWords">目标字数</label>
+        <input class="input" id="deriveWords" type="number" min="300" max="1600" step="50" value="700">
+      </div>
+      <div class="field">
+        <label for="deriveGenre">文体倾向 <span class="opt">（可不填）</span></label>
+        <input class="input" id="deriveGenre" type="text" maxlength="20" placeholder="例：记叙文">
+      </div>
+    </div>
+    <p class="derive-cost">派生一次 1 积分；模型没跑通会原路退回。出稿大约要等十几秒。</p>
+    <div class="auth-msg" id="deriveMsg"></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="deriveGo" type="button">开始派生</button>
+    </div>
+  </div>
+</div>
+
 <!-- 登录 / 注册弹窗（auth.js 依赖这些 id） -->
 <div class="modal-mask" id="authMask" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
@@ -394,6 +439,7 @@
 <script src="assets/js/rules.js?v=20261116N"></script>
 <script src="assets/js/poster.js?v=20261116N"></script>
 <script src="assets/js/auth.js?v=20261116O"></script>
-<script src="assets/js/home.js?v=20261116S"></script>
+<script src="assets/js/mindmap.js?v=20261116A"></script>
+<script src="assets/js/home.js?v=20261116T"></script>
 </body>
 </html>

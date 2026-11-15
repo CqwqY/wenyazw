@@ -14,8 +14,12 @@
     views: { essays: $("viewEssays"), create: $("viewCreate"), account: $("viewAccount") },
     sideItems: document.querySelectorAll(".side-item"),
     tabItems: document.querySelectorAll(".app-tab"),
-    list: $("essayList"), essayMsg: $("essayMsg"), refresh: $("refreshEssays"),
-    importType: $("importType"),
+    mindmap: $("mindmap"), essayMsg: $("essayMsg"), refresh: $("refreshEssays"),
+    classifyHint: $("classifyHint"), classifyText: $("classifyText"), classifyBtn: $("classifyBtn"),
+    deriveOpen: $("deriveOpen"), deriveMask: $("deriveMask"), deriveClose: $("deriveClose"),
+    deriveTopic: $("deriveTopic"), deriveWords: $("deriveWords"), deriveGenre: $("deriveGenre"),
+    deriveGo: $("deriveGo"), deriveMsg: $("deriveMsg"),
+    importType: $("importType"), importBoard: $("importBoard"),
     importTitle: $("importTitle"), importBody: $("importBody"), importCount: $("importCount"),
     importSave: $("importSave"), importMsg: $("importMsg"),
     importParams: $("importParams"), paramTpl: $("paramTpl"),
@@ -266,81 +270,159 @@
     location.href = "write.html?resume=1";
   }
 
-  function renderList(rows) {
-    els.list.innerHTML = "";
-    if (!rows.length) {
-      var empty = document.createElement("div");
-      empty.className = "essay-empty";
-      empty.textContent = "还没有作文。去「创建作文」写一篇，或把已有的作文录进来。";
-      els.list.appendChild(empty);
-      return;
-    }
-    rows.forEach(function (r) {
-      var card = document.createElement("div");
-      card.className = "essay-card";
+  /* ---------------- 视图一：思维导图 ----------------
+     板块按「写了什么」分，和基础参数里的文体/类别不是一回事。
+     导图只负责摆节点和连线，数据、接口、弹层都在这一层。 */
+  var allRows = [];
+  var boardDefs = [];
+  var boardPollTimer = 0;
+  var boardPolls = 0;
 
-      var meta = document.createElement("div");
-      meta.className = "essay-meta";
-      [fmtTime(r.updated_at || r.created_at),
-        (r.word_count || 0) + " 字",
-        r.category ? esc(r.category) : "",
-        r.has_outline ? "有大纲" : ""].filter(Boolean).forEach(function (t) {
-        var tag = document.createElement("span");
-        tag.className = "tag";
-        tag.textContent = t;
-        meta.appendChild(tag);
-      });
-      card.appendChild(meta);
+  function rowOf(id) {
+    for (var i = 0; i < allRows.length; i++) if (allRows[i].id === id) return allRows[i];
+    return null;
+  }
 
-      var h3 = document.createElement("h3");
-      h3.textContent = esc(r.title || "无题");
-      card.appendChild(h3);
-
-      var acts = document.createElement("div");
-      acts.className = "essay-card-actions";
-
-      var go = document.createElement("button");
-      go.type = "button";
-      go.className = "btn btn-primary";
-      go.textContent = "继续修改";
-      go.addEventListener("click", function () { openEssay(r.id); });
-      acts.appendChild(go);
-
-      var prm = document.createElement("button");
-      prm.type = "button";
-      prm.className = "btn-outline";
-      prm.textContent = "改参数";
-      prm.addEventListener("click", function () { openParams(r); });
-      acts.appendChild(prm);
-
-      var pst = document.createElement("button");
-      pst.type = "button";
-      pst.className = "btn-outline";
-      pst.textContent = "作文海报";
-      pst.addEventListener("click", function () { openPoster(r); });
-      acts.appendChild(pst);
-
-      var del = document.createElement("button");
-      del.type = "button";
-      del.className = "btn-outline";
-      del.textContent = "删除";
-      del.addEventListener("click", function () { deleteEssay(r.id, r.title); });
-      acts.appendChild(del);
-
-      card.appendChild(acts);
-      els.list.appendChild(card);
+  function fallbackBoards(rows) {
+    var seen = {};
+    rows.forEach(function (r) { seen[r.board || "other"] = 1; });
+    var keys = Object.keys(seen);
+    if (!keys.length) keys = ["other"];
+    return keys.map(function (k) {
+      return { key: k, label: k === "other" ? "暂未归类" : k, hint: "", color: "#1d7048" };
     });
   }
 
-  async function loadEssays() {
+  function renderMindmap(rows, boards) {
+    allRows = rows || [];
+    boardDefs = (boards && boards.length) ? boards : fallbackBoards(allRows);
+    if (!window.WY_MINDMAP) {
+      setMsg(els.essayMsg, "导图组件没加载，刷新页面再试。", "error");
+      return;
+    }
+    window.WY_MINDMAP.render({ rows: allRows, boards: boardDefs }, {
+      onOpen: function (id) { openEssay(id); },
+      onParams: function (id) { var r = rowOf(id); if (r) openParams(r); },
+      onPoster: function (id) { var r = rowOf(id); if (r) openPoster(r); },
+      onDelete: function (id) { var r = rowOf(id); deleteEssay(id, r ? r.title : "无题"); },
+      onBoardChange: function (id, key) { changeBoard(id, key); }
+    });
+  }
+
+  function updateClassifyHint(n, total) {
+    if (!els.classifyHint) return;
+    if (!total || !n) { els.classifyHint.hidden = true; return; }
+    els.classifyHint.hidden = false;
+    if (els.classifyText) {
+      els.classifyText.textContent = "有 " + n + " 篇旧作文还没归到板块，先暂放在「暂未归类」。";
+    }
+  }
+
+  function fillBoardSelect() {
+    if (!els.importBoard || els.importBoard.getAttribute("data-filled")) return;
+    boardDefs.forEach(function (b) {
+      if (b.key === "other") return;
+      var o = document.createElement("option");
+      o.value = b.key; o.textContent = b.label;
+      els.importBoard.appendChild(o);
+    });
+    els.importBoard.setAttribute("data-filled", "1");
+  }
+
+  async function classifyAll() {
+    if (!els.classifyBtn) return;
+    els.classifyBtn.disabled = true;
+    setMsg(els.essayMsg, "正在把旧作文归到板块…");
+    try {
+      var j = await api("/api/essays/classify", { method: "POST", body: {} });
+      var msg = j.message || "归类完成。";
+      await loadEssays();
+      setMsg(els.essayMsg, msg + " 归类只是建议，每个节点上都能自己改。", "ok");
+    } catch (e) {
+      setMsg(els.essayMsg, "归类失败：" + ((e && e.message) || "未知错误"), "error");
+    } finally {
+      els.classifyBtn.disabled = false;
+    }
+  }
+
+  async function changeBoard(id, key) {
+    setMsg(els.essayMsg, "正在移动…");
+    try {
+      var j = await api("/api/essays/" + encodeURIComponent(id) + "/board", {
+        method: "PUT", body: { board: key }
+      });
+      await loadEssays();
+      setMsg(els.essayMsg, "已移到「" + (j.label || "") + "」，之后不会再被自动归类覆盖。", "ok");
+    } catch (e) {
+      setMsg(els.essayMsg, "移动失败：" + ((e && e.message) || "未知错误"), "error");
+    }
+  }
+
+  function openDerive() {
+    if (!loggedIn()) { if (auth()) auth().open("login"); return; }
+    if (!allRows.length) {
+      setMsg(els.essayMsg, "先存几篇自己写过的作文，才有素材可借。", "error");
+      return;
+    }
+    setMsg(els.deriveMsg, "");
+    if (els.deriveMask) els.deriveMask.removeAttribute("hidden");
+    if (els.deriveTopic) els.deriveTopic.focus();
+  }
+
+  function closeDerive() {
+    if (els.deriveMask) els.deriveMask.setAttribute("hidden", "");
+  }
+
+  async function runDerive() {
+    var topic = els.deriveTopic ? els.deriveTopic.value.trim() : "";
+    if (!topic) { setMsg(els.deriveMsg, "先写一个新题目。", "error"); return; }
+    var n = parseInt(els.deriveWords ? els.deriveWords.value : "700", 10) || 700;
+    els.deriveGo.disabled = true;
+    setMsg(els.deriveMsg, "正在翻旧稿、挑素材、写新篇，大约十几秒…");
+    try {
+      var j = await api("/api/essays/derive", {
+        method: "POST",
+        body: {
+          topic: topic,
+          words: Math.max(300, Math.min(1600, n)),
+          genre: els.deriveGenre ? els.deriveGenre.value.trim() : ""
+        }
+      });
+      setMsg(els.deriveMsg, "派生好了《" + esc(j.title || "无题") + "》。", "ok");
+      window.setTimeout(closeDerive, 1000);
+      await loadEssays();
+      var tail = (j.note ? " " + String(j.note) : "");
+      setMsg(els.essayMsg, "《" + esc(j.title || "无题") + "》已进导图，金色虚线连着借过的 " +
+        ((j.sourceIds || []).length || 1) + " 篇素材。" + tail, "ok");
+      if (auth() && auth().refreshCredits) auth().refreshCredits();
+    } catch (e) {
+      setMsg(els.deriveMsg, "派生失败：" + ((e && e.message) || "未知错误"), "error");
+    } finally {
+      els.deriveGo.disabled = false;
+    }
+  }
+
+  async function loadEssays(quiet) {
     if (!loggedIn()) return;
-    setMsg(els.essayMsg, "正在加载…");
+    if (!quiet) setMsg(els.essayMsg, "正在加载…");
     try {
       var j = await api("/api/essays");
-      renderList(j.essays || []);
-      setMsg(els.essayMsg, "");
+      renderMindmap(j.essays || [], j.boards);
+      updateClassifyHint(j.unboarded || 0, (j.essays || []).length);
+      fillBoardSelect();
+      if (!quiet) setMsg(els.essayMsg, "");
+      /* 新作文是保存后异步归类的，几秒后补拉一次最多两回，
+         用户不用手动刷新就能看到它自己落进哪个板块。 */
+      if ((j.unboarded || 0) > 0 && boardPolls < 2 && !boardPollTimer) {
+        boardPolls++;
+        boardPollTimer = window.setTimeout(function () {
+          boardPollTimer = 0;
+          if (currentView === "essays" && loggedIn()) loadEssays(true);
+        }, 4200);
+      }
+      if (!(j.unboarded || 0)) boardPolls = 0;
     } catch (e) {
-      setMsg(els.essayMsg, "加载失败：" + ((e && e.message) || "未知错误"), "error");
+      if (!quiet) setMsg(els.essayMsg, "加载失败：" + ((e && e.message) || "未知错误"), "error");
     }
   }
 
@@ -429,6 +511,7 @@
           category: p.cat + " · " + p.genre,
           province: p.prov.join("、"),
           params: JSON.stringify(p),
+          board: els.importBoard ? els.importBoard.value : "",
           session: "",
           wordCount: words(text)
         }
@@ -706,8 +789,21 @@
     els.paramsMask.addEventListener("click", function (e) { if (e.target === els.paramsMask) closeParams(); });
   }
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && els.paramsMask && !els.paramsMask.hasAttribute("hidden")) closeParams();
+    if (e.key === "Escape") {
+      if (els.paramsMask && !els.paramsMask.hasAttribute("hidden")) closeParams();
+      if (els.deriveMask && !els.deriveMask.hasAttribute("hidden")) closeDerive();
+    }
   });
+  if (els.classifyBtn) els.classifyBtn.addEventListener("click", classifyAll);
+  if (els.deriveOpen) els.deriveOpen.addEventListener("click", openDerive);
+  if (els.deriveClose) els.deriveClose.addEventListener("click", closeDerive);
+  if (els.deriveGo) els.deriveGo.addEventListener("click", runDerive);
+  if (els.deriveMask) {
+    els.deriveMask.addEventListener("click", function (e) { if (e.target === els.deriveMask) closeDerive(); });
+  }
+  if (els.deriveTopic) {
+    els.deriveTopic.addEventListener("keydown", function (e) { if (e.key === "Enter") runDerive(); });
+  }
   if (els.styleSave) els.styleSave.addEventListener("click", saveStyle);
   if (els.styleScan) els.styleScan.addEventListener("click", scanStyle);
   if (els.styleAddMark) {
@@ -740,7 +836,7 @@
   Array.prototype.forEach.call(els.tabItems, function (b) {
     b.addEventListener("click", function () { setView(b.getAttribute("data-view")); });
   });
-  if (els.refresh) els.refresh.addEventListener("click", loadEssays);
+  if (els.refresh) els.refresh.addEventListener("click", function () { loadEssays(); });
 
   bindCount(els.importBody, els.importCount);
 
