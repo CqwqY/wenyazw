@@ -3329,23 +3329,50 @@
     var ttl = document.createElement("span");
     ttl.className = "flow-title";
     ttl.textContent = task;
+    // 收起状态下也能看到内容：标题后面常驻一行摘要
+    var prev = document.createElement("span");
+    prev.className = "flow-preview";
+    prev.textContent = "正在生成…";
     var caret = document.createElement("span");
     caret.className = "flow-caret";
     caret.textContent = open ? "收起" : "展开";
     head.appendChild(dot);
     head.appendChild(ttl);
+    head.appendChild(prev);
     head.appendChild(caret);
     var body = document.createElement("div");
     body.className = "flow-body";
     card.appendChild(head);
     card.appendChild(body);
+    if (open) card.setAttribute("data-pin", "1");   // 最终回答卡：一直展开，不被自动收起
     on(head, "click", function () {
-      var o = card.classList.toggle("is-open");
-      caret.textContent = o ? "收起" : "展开";
+      setFlowOpen({ card: card, caret: caret }, !card.classList.contains("is-open"));
       scheduleSessionSave();
     });
     els.contextList.appendChild(card);
-    return { card: card, body: body, caret: caret };
+    return { card: card, body: body, caret: caret, preview: prev };
+  }
+
+  function setFlowOpen(fc, open) {
+    if (!fc || !fc.card) return;
+    fc.card.classList.toggle("is-open", !!open);
+    if (fc.caret) fc.caret.textContent = open ? "收起" : "展开";
+  }
+
+  /* 正在写的那张卡自动展开，其余过程卡自动收起（最终回答卡不动） */
+  function focusFlowCard(fc) {
+    Object.keys(flowCards).forEach(function (k) {
+      var o = flowCards[k];
+      if (o !== fc && !o.card.getAttribute("data-pin")) setFlowOpen(o, false);
+    });
+    if (!fc.card.classList.contains("is-open")) setFlowOpen(fc, true);
+    els.contextList.scrollTop = els.contextList.scrollHeight;
+  }
+
+  function flowPreviewText(fc, text) {
+    if (!fc || !fc.preview) return;
+    var one = String(text || "").replace(/\s+/g, " ").trim();
+    fc.preview.textContent = one ? (one.length > 46 ? one.slice(0, 46) + "…" : one) : "正在生成…";
   }
 
   function getFlowCard(task) {
@@ -3372,11 +3399,17 @@
       Object.defineProperty(tx, "textContent", {
         configurable: true,
         get: function () { return store; },
-        set: function (v) { store = String(v == null ? "" : v); tx.replaceChildren(document.createTextNode(store)); }
+        set: function (v) {
+          store = String(v == null ? "" : v);
+          tx.replaceChildren(document.createTextNode(store));
+          flowPreviewText(fc, store);
+          if (!fc.card.getAttribute("data-pin")) focusFlowCard(fc);
+        }
       });
       if (text) tx.textContent = text;
     } else {
       tx.textContent = text || "";
+      flowPreviewText(fc, text);
     }
     return tx;
   }

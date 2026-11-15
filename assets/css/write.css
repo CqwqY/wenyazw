@@ -2942,6 +2942,17 @@ table.score-table .score-table-key {
   cursor: pointer;
   user-select: none;
 }
+.flow-preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.flow-card.is-open .flow-preview { display: none; }
 .flow-dot {
   width: 8px;
   height: 8px;
