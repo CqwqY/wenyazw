@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AA">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
-<link rel="stylesheet" href="assets/css/home.css?v=20261116S">
+<link rel="stylesheet" href="assets/css/home.css?v=20261116T">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
 <body class="home">
@@ -139,12 +139,7 @@
         <div class="create-card create-import">
           <span class="create-no">02</span>
           <h2>录入已有作文</h2>
-          <p>把纸上的、手机里的作文录进来，之后一样能润色和评改。</p>
-
-          <div class="import-tabs" id="importTabs">
-            <button type="button" class="import-tab active" data-import="type">输入录入</button>
-            <button type="button" class="import-tab" data-import="photo">拍摄录入</button>
-          </div>
+          <p>把已有的作文文字放进来，之后一样能润色和评改。</p>
 
           <div class="param-box">
             <div class="param-head">
@@ -166,32 +161,6 @@
             <div class="import-actions">
               <span class="import-count" id="importCount">0 字</span>
               <button class="btn btn-primary" id="importSave" type="button">保存到我的作文</button>
-            </div>
-          </div>
-
-          <div class="import-pane" id="importPhoto" hidden>
-            <div class="photo-actions">
-              <button type="button" class="btn-outline photo-pick" id="photoCaptureBtn">拍照录入</button>
-              <input type="file" id="photoCapture" accept="image/*" capture="environment" hidden>
-              <button type="button" class="btn-outline photo-pick" id="photoPickBtn">从相册选图</button>
-              <input type="file" id="photoPick" accept="image/*" hidden>
-            </div>
-            <div class="photo-preview" id="photoPreview" hidden></div>
-            <div class="ocr-status-row">
-              <div class="ocr-status" id="ocrStatus">选一张作文照片，会自动识别成文字；识别结果可以自己改。</div>
-              <button class="btn-outline ocr-retry" id="ocrRetry" type="button" hidden>重试识别</button>
-            </div>
-            <div class="field">
-              <label for="photoTitle">标题</label>
-              <input class="input" id="photoTitle" type="text" maxlength="120" placeholder="识别后会自动取首行做标题，可改">
-            </div>
-            <div class="field">
-              <label for="photoText">识别结果（请校对）</label>
-              <textarea class="input import-body" id="photoText" rows="10" placeholder="识别出的文字会出现在这里，改完再保存"></textarea>
-            </div>
-            <div class="import-actions">
-              <span class="import-count" id="photoCount">0 字</span>
-              <button class="btn btn-primary" id="photoSave" type="button">保存到我的作文</button>
             </div>
           </div>
 
@@ -384,6 +353,6 @@
 <script src="assets/js/rules.js?v=20261116N"></script>
 <script src="assets/js/poster.js?v=20261116N"></script>
 <script src="assets/js/auth.js?v=20261116N"></script>
-<script src="assets/js/home.js?v=20261116O"></script>
+<script src="assets/js/home.js?v=20261116P"></script>
 </body>
 </html>
