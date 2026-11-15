@@ -229,47 +229,119 @@
 .pay-tiers {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px;
+  align-items: stretch;
 }
 
+/* 三档刻意做成「低—中—高」的阶梯：中间档描绿上浮，最高档整块深绿压场，
+   价差和赠量一眼就看出来，不用读者自己去算单价。 */
 .pay-tier {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px 16px;
+  padding: 20px 16px 16px;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--paper-2);
+  border-radius: 16px;
+  background: var(--card);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
 
 .pay-tier.is-hot {
-  border-color: rgba(29, 112, 72, .34);
-  background: rgba(29, 112, 72, .05);
+  border-color: rgba(29, 112, 72, .45);
+  background: var(--brand-soft);
+  box-shadow: 0 10px 26px -18px rgba(18, 63, 44, .5);
+  transform: translateY(-6px);
 }
 
-.pay-amount {
-  font-family: var(--sans);
-  font-size: 22px;
+.pay-tier.is-top {
+  border-color: var(--brand-deep);
+  background: linear-gradient(180deg, #1b5c3c 0%, #123f2c 100%);
+  box-shadow: 0 16px 32px -16px rgba(18, 63, 44, .62);
+  transform: translateY(-6px);
+}
+
+.pay-ribbon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 600;
-  line-height: 1.1;
-  color: #1d7048;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  color: #fff;
+  background: var(--brand);
 }
-.pay-amount small { font-size: 13px; font-weight: 500; margin-left: 2px; }
 
-.pay-credits {
-  font-size: 13.5px;
+.pay-tier.is-top .pay-ribbon {
+  background: var(--gold);
+  color: #fffdf8;
+}
+
+.pay-name {
+  font-size: 12.5px;
   font-weight: 600;
-  color: var(--ink);
-}
-
-.pay-per {
-  font-size: 12px;
+  letter-spacing: .08em;
   color: var(--ink-mute);
 }
 
+.pay-tier.is-top .pay-name { color: var(--on-green-mute); }
+
+.pay-amount {
+  margin-top: 6px;
+  font-family: var(--sans);
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--brand-deep);
+}
+.pay-amount small {
+  font-size: 15px;
+  font-weight: 500;
+  margin-right: 1px;
+}
+.pay-tier.is-top .pay-amount { color: #fffdf8; }
+
+.pay-times {
+  margin-top: 9px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.pay-times b {
+  font-size: 19px;
+  font-weight: 600;
+  margin-right: 2px;
+  color: var(--brand-deep);
+}
+.pay-tier.is-hot .pay-times b { color: var(--brand); }
+.pay-tier.is-top .pay-times { color: var(--on-green-mute); }
+.pay-tier.is-top .pay-times b { color: #fffdf8; }
+
+.pay-save {
+  margin-top: 5px;
+  margin-bottom: auto;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+.pay-tier.is-hot .pay-save { color: #1d7048; }
+.pay-tier.is-top .pay-save { color: #f0d9a4; }
+
 .pay-go {
-  margin-top: 10px;
+  margin-top: 14px;
   text-align: center;
+}
+
+/* 最低档按钮走描边款，把实心色块留给上面两档，视线自然往上走 */
+.pay-tier:not(.is-hot):not(.is-top) .pay-go {
+  color: var(--brand);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  box-shadow: none;
+}
+.pay-tier:not(.is-hot):not(.is-top) .pay-go:hover {
+  background: var(--brand-soft);
+  border-color: var(--brand);
 }
 .pay-go.is-off {
   color: var(--ink-mute);
@@ -277,6 +349,17 @@
   border: 1px dashed var(--line-strong);
   cursor: default;
   pointer-events: none;
+}
+.pay-tier.is-top .pay-go {
+  background: #fffdf8;
+  border-color: #fffdf8;
+  color: var(--brand-deep);
+}
+.pay-tier.is-top .pay-go:hover { background: #f0f7f1; }
+.pay-tier.is-top .pay-go.is-off {
+  background: transparent;
+  border-color: rgba(255, 255, 255, .4);
+  color: var(--on-green-mute);
 }
 
 .pay-claim { margin-top: 16px; }
@@ -297,5 +380,7 @@
 .pay-claim-row .btn { flex: none; }
 
 @media (max-width: 720px) {
-  .pay-tiers { grid-template-columns: 1fr; }
+  .pay-tiers { grid-template-columns: 1fr; gap: 20px; }
+  .pay-tier { transform: none; }
+  .pay-tier.is-hot, .pay-tier.is-top { transform: none; }
 }

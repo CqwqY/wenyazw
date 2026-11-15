@@ -38,6 +38,14 @@
     pay.remark.title = myName ? "点一下复制" : "用户名还没读到，刷新一下页面";
   }
 
+  /* 档位名按位置给，不写死在价格上，改 .env 的价目表也能对上号 */
+  function tierName(i, n) {
+    if (n <= 1) return "畅写版";
+    if (i === 0) return "轻量版";
+    if (i === n - 1) return "畅写版";
+    return "常用版";
+  }
+
   function renderPlans(j) {
     if (!pay.tiers) return;
     pay.tiers.innerHTML = "";
@@ -49,25 +57,43 @@
       pay.tiers.appendChild(e);
       return;
     }
-    list.forEach(function (p) {
+    var n = list.length;
+    list.forEach(function (p, i) {
+      var isTop = n > 1 && i === n - 1;
+      var isHot = !isTop && (n >= 3 ? i === 1 : i === 0);
+
       var card = document.createElement("div");
-      card.className = "pay-tier" + (p.amount === 18 ? " is-hot" : "");
+      card.className = "pay-tier" + (isTop ? " is-top" : isHot ? " is-hot" : "");
+
+      if (isTop || isHot) {
+        var ribbon = document.createElement("span");
+        ribbon.className = "pay-ribbon";
+        ribbon.textContent = isTop ? "最划算" : "最多人选";
+        card.appendChild(ribbon);
+      }
+
+      var name = document.createElement("div");
+      name.className = "pay-name";
+      name.textContent = tierName(i, n);
 
       var amount = document.createElement("div");
       amount.className = "pay-amount";
-      amount.innerHTML = p.amount + "<small> 元</small>";
+      amount.innerHTML = "<small>¥</small>" + p.amount;
 
-      var credits = document.createElement("div");
-      credits.className = "pay-credits";
-      credits.textContent = p.credits + " 积分";
+      var times = document.createElement("div");
+      times.className = "pay-times";
+      times.innerHTML = "<b>" + p.times + "</b> 次 AI 操作";
 
-      var per = document.createElement("div");
-      per.className = "pay-per";
-      per.textContent = "每元约 " + p.perYuan + " 分";
+      var save = document.createElement("div");
+      save.className = "pay-save";
+      save.textContent = p.bonus > 0
+        ? "含赠送 " + p.bonusTimes + " 次，省 " + p.saveYuan + " 元"
+        : "入门档，先少量试试";
 
+      card.appendChild(name);
       card.appendChild(amount);
-      card.appendChild(credits);
-      card.appendChild(per);
+      card.appendChild(times);
+      card.appendChild(save);
 
       var go = document.createElement("a");
       go.className = "btn btn-primary pay-go";
@@ -75,7 +101,7 @@
         go.href = j.pageUrl;
         go.target = "_blank";
         go.rel = "noopener";
-        go.textContent = "去赞助";
+        go.textContent = "去爱发电";
       } else {
         go.href = "#";
         go.textContent = "通道配置中";
