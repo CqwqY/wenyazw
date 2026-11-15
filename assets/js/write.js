@@ -297,6 +297,24 @@
     return out;
   }
 
+  /* 把当前对话整理成给 AI 看的「前情提要」：用户说的 + AI 回复的，按时间顺序。
+     让每次新输入都带着整段上下文，AI 就不会「你一说话它就失忆」。 */
+  function dialogHistory(limit) {
+    var msgs = [];
+    chatSnapshot().forEach(function (b) {
+      if (b.card) {
+        (b.segs || []).forEach(function (s) {
+          var t = trim(s.text).replace(/\s+/g, " ");
+          if (t) msgs.push((s.role || "AI") + "：" + t);
+        });
+      } else if (trim(b.text)) {
+        msgs.push((b.user ? "用户" : (b.role || "AI")) + "：" + trim(b.text).replace(/\s+/g, " "));
+      }
+    });
+    msgs = msgs.slice(-(limit || 10));
+    return msgs.map(function (m) { return m.slice(0, 180); }).join("\n");
+  }
+
   function flowSnapshot() {
     var out = [];
     if (!els.flowSteps) return out;
@@ -3840,7 +3858,8 @@
       adopted: adopted,
       lastScores: (criticScores || []).map(function (x) {
         return { province: x.province || "", total: x.total, full: x.full, band: x.band || "", why: x.why || "" };
-      })
+      }),
+      history: dialogHistory()
     });
     if (extra) for (var k2 in extra) if (Object.prototype.hasOwnProperty.call(extra, k2)) v[k2] = extra[k2];
     return v;
@@ -4771,7 +4790,7 @@
     setDocHint("正在改大纲…");
 
     try {
-      var res = await fetchAnnotation("outlineEdit", taskVars({ edit: true, req: req }));
+      var res = await fetchAnnotation("outlineEdit", taskVars({ edit: true, req: req, history: dialogHistory() }));
       var obj = parseOutlineAny(res);
       setOutline(obj);
       assistantReplyEl.textContent = outline.note ? ("大纲已更新。" + outline.note) : "大纲已更新，可继续改或在右侧直接编辑。";
