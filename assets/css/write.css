@@ -2923,47 +2923,42 @@ table.score-table .score-table-key {
 .bubble.role-critic-b .bubble-label { color: #2f5a6f; background: #e4eef3; border-color: #cddde4; }
 .bubble.role-critic-b .bubble-text { background: #f3f7f9; border-color: #cddde4; border-left-color: #3f7c97; }
 
-/* 长内容折叠遮罩：默认淡出预览 + 查看按钮，点开才露全文 */
-.bubble-mask { position: relative; }
-.bubble-text.is-masked { background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; }
-.bubble-mask .mask-preview {
-  max-height: 84px;
-  overflow: hidden;
-  opacity: .6;
-  filter: blur(1.2px);
-  max-width: 94%;
-  background: var(--paper-2);
+/* 任务流程卡片：每个 AI 任务汇总成一张可展开的卡片（讨论流程 / 评分流程 / 列提纲流程 …） */
+.bubble.flow-card {
+  width: 100%;
+  padding: 0;
+  gap: 0;
   border: 1px solid var(--line);
+  border-left: 3px solid var(--brand);
   border-radius: 14px;
-  padding: 11px 14px;
-  transition: max-height .28s ease, filter .28s ease, opacity .28s ease;
-  -webkit-mask-image: linear-gradient(180deg, #000 54%, transparent);
-  mask-image: linear-gradient(180deg, #000 54%, transparent);
+  background: var(--paper-2);
+  overflow: hidden;
 }
-.bubble-mask.is-open .mask-preview {
-  max-height: none;
-  filter: none;
-  opacity: 1;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-.bubble-mask .mask-toggle {
-  display: inline-flex;
+.flow-head {
+  display: flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1d7048;
+  gap: 8px;
+  padding: 11px 14px;
   cursor: pointer;
-  background: rgba(29, 112, 72, .08);
-  border: 1px solid rgba(29, 112, 72, .22);
-  padding: 6px 13px;
-  border-radius: 999px;
-  transition: background .18s ease, transform .12s ease;
+  user-select: none;
 }
-.bubble-mask .mask-toggle:hover { background: rgba(29, 112, 72, .15); }
-.bubble-mask .mask-toggle:active { transform: translateY(1px); }
+.flow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3fae74;
+  flex: none;
+  transition: box-shadow .18s ease;
+}
+.flow-card.is-open .flow-dot { box-shadow: 0 0 0 3px rgba(63, 174, 116, .18); }
+.flow-title { font-weight: 600; font-size: 14px; color: var(--ink); }
+.flow-caret { margin-left: auto; font-size: 12px; color: var(--ink-mute); }
+.flow-body { display: none; padding: 0 14px 12px; }
+.flow-card.is-open .flow-body { display: block; }
+.flow-seg { padding: 9px 0; border-top: 1px dashed var(--line); }
+.flow-seg:first-child { border-top: 0; }
+.flow-seg-label { font-size: 12px; font-weight: 600; color: #1d7048; margin-bottom: 3px; }
+.flow-seg-text { font-size: 14px; line-height: 1.7; color: var(--ink); white-space: pre-wrap; }
 
 /* ---------- 对话框下方的模型切换 ---------- */
 

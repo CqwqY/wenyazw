@@ -274,13 +274,24 @@
     var out = [];
     if (!els.contextList) return out;
     Array.prototype.forEach.call(els.contextList.children, function (b) {
-      if (!b.classList || !b.classList.contains("bubble")) return;
-      var lab = b.querySelector(".bubble-label"), tx = b.querySelector(".bubble-text");
+      if (!b.classList) return;
+      if (b.classList.contains("flow-card")) {
+        var segs = [];
+        Array.prototype.forEach.call(b.querySelectorAll(".flow-seg"), function (s) {
+          var r = s.querySelector(".flow-seg-label"), tx = s.querySelector(".flow-seg-text");
+          var txt = tx ? tx.textContent : "";
+          if (trim(txt)) segs.push({ role: r ? r.textContent : "", text: txt });
+        });
+        out.push({ card: true, task: b.getAttribute("data-task") || "", open: b.classList.contains("is-open"), segs: segs });
+        return;
+      }
+      if (!b.classList.contains("bubble")) return;
+      var lab = b.querySelector(".bubble-label"), tx2 = b.querySelector(".bubble-text");
       out.push({
         user: b.classList.contains("user"),
         cls: b.className,
         role: lab ? lab.textContent : "",
-        text: tx ? tx.textContent : ""
+        text: tx2 ? tx2.textContent : ""
       });
     });
     return out;
@@ -357,15 +368,19 @@
     } catch (e) { return null; }
   }
 
-  // 这些角色是结论性的「最终回答」，恢复历史对话时保持展开、不折叠
-  var FINAL_ROLES = { "讨论结论": 1, "评分": 1, "结论": 1, "改稿": 1, "讨论": 1 };
-
   function paintChat(list) {
     if (!els.contextList || !list || !list.length) return;
     els.contextList.innerHTML = "";
+    flowCards = {};
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     list.forEach(function (m) {
-      if (!m || !trim(m.text)) return;
+      if (!m) return;
+      if (m.card) {
+        var fc = buildFlowCard(m.task || "流程", !!m.open);
+        (m.segs || []).forEach(function (s) { appendFlowSeg(fc, s.role, s.text, false); });
+        return;
+      }
+      if (!trim(m.text)) return;
       var b = document.createElement("div");
       b.className = m.cls || (m.user ? "bubble user" : "bubble ai role-ai");
       var label = document.createElement("div");
@@ -374,7 +389,6 @@
       var t = document.createElement("div");
       t.className = "bubble-text";
       t.textContent = m.text;
-      wrapMask(t, m.text, !!FINAL_ROLES[m.role]);
       b.appendChild(label);
       b.appendChild(t);
       els.contextList.appendChild(b);
@@ -3267,40 +3281,86 @@
     "文芽": "role-ai"
   };
 
-  /* 长内容默认折叠遮罩：超过阈值（字数多或有分段）时，先显示淡出预览 + 查看按钮，点开才露全文。
-     覆盖用户长要求与 AI 长回复；正文生成不走气泡，不受影响。 */
-  /* 长内容折叠遮罩：每次重算，幂等。noMask 表示这是「最终回答」，保持展开 */
-  function maskApply(el, text, noMask) {
-    if (!el) return;
-    if (typeof text !== "string") text = "";
-    while (el.firstChild) el.removeChild(el.firstChild);
-    var long = text.length > 220 || /\n\s*\n/.test(text);
-    if (noMask || !long) {
-      el.classList.remove("is-masked");
-      if (text) el.appendChild(document.createTextNode(text));
-      return;
-    }
-    el.classList.add("is-masked");
-    var box = document.createElement("div");
-    box.className = "bubble-mask";
-    var pv = document.createElement("div");
-    pv.className = "mask-preview";
-    pv.textContent = text;
-    var btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "mask-toggle";
-    btn.textContent = "查看全文";
-    box.appendChild(pv);
-    box.appendChild(btn);
-    el.appendChild(box);
-    on(btn, "click", function () {
-      var open = box.classList.toggle("is-open");
-      btn.textContent = open ? "收起" : "查看全文";
-    });
+  /* 任务流程卡片：把同一任务的 AI 过程回复汇总成一张可按需展开的卡片，
+     标题按任务命名（讨论流程 / 评分流程 / 列提纲流程 …）。
+     过程卡片默认收起；最终回答（noMask）单独成卡并默认展开。 */
+  var FLOW_TASK = {
+    "评卷甲": "讨论流程", "评卷乙": "讨论流程", "甲·改法": "讨论流程",
+    "乙·挑方案": "讨论流程", "甲·定改法": "讨论流程", "讨论": "讨论流程", "改稿": "讨论流程",
+    "大纲助教": "列提纲流程",
+    "讲评老师": "讲评流程",
+    "文芽": "写作流程",
+    "批改老师": "改写流程",
+    "结论": "讨论结论", "讨论结论": "讨论结论",
+    "评分": "评分流程"
+  };
+  var flowCards = {};   // 任务名 -> {card, body, caret}；同一任务的过程回复合并到一张卡片
+
+  function flowTaskName(role) {
+    return FLOW_TASK[role] || (role ? (role + "流程") : "流程");
   }
 
-  function wrapMask(el, text, noMask) {
-    maskApply(el, text, !!noMask);
+  function buildFlowCard(task, open) {
+    var card = document.createElement("div");
+    card.className = "bubble ai flow-card role-ai" + (open ? " is-open" : "");
+    card.setAttribute("data-task", task);
+    var head = document.createElement("div");
+    head.className = "flow-head";
+    var dot = document.createElement("span");
+    dot.className = "flow-dot";
+    var ttl = document.createElement("span");
+    ttl.className = "flow-title";
+    ttl.textContent = task;
+    var caret = document.createElement("span");
+    caret.className = "flow-caret";
+    caret.textContent = open ? "收起" : "展开";
+    head.appendChild(dot);
+    head.appendChild(ttl);
+    head.appendChild(caret);
+    var body = document.createElement("div");
+    body.className = "flow-body";
+    card.appendChild(head);
+    card.appendChild(body);
+    on(head, "click", function () {
+      var o = card.classList.toggle("is-open");
+      caret.textContent = o ? "收起" : "展开";
+      scheduleSessionSave();
+    });
+    els.contextList.appendChild(card);
+    return { card: card, body: body, caret: caret };
+  }
+
+  function getFlowCard(task) {
+    if (flowCards[task]) return flowCards[task];
+    var fc = buildFlowCard(task, false);
+    flowCards[task] = fc;
+    return fc;
+  }
+
+  // 把一条回复作为卡片里的一段；proxy 为真时返回可复写的文本节点（代理 textContent）
+  function appendFlowSeg(fc, role, text, proxy) {
+    var seg = document.createElement("div");
+    seg.className = "flow-seg";
+    var lab = document.createElement("div");
+    lab.className = "flow-seg-label";
+    lab.textContent = role || "";
+    var tx = document.createElement("div");
+    tx.className = "flow-seg-text";
+    seg.appendChild(lab);
+    seg.appendChild(tx);
+    fc.body.appendChild(seg);
+    if (proxy) {
+      var store = "";
+      Object.defineProperty(tx, "textContent", {
+        configurable: true,
+        get: function () { return store; },
+        set: function (v) { store = String(v == null ? "" : v); tx.replaceChildren(document.createTextNode(store)); }
+      });
+      if (text) tx.textContent = text;
+    } else {
+      tx.textContent = text || "";
+    }
+    return tx;
   }
 
   function addUserBubble(text, role) {
@@ -3313,7 +3373,6 @@
     var t = document.createElement("div");
     t.className = "bubble-text";
     t.textContent = text;
-    wrapMask(t, text);
     b.appendChild(label);
     b.appendChild(t);
     els.contextList.appendChild(b);
@@ -3325,31 +3384,15 @@
   function addAssistantBubble(role, opts) {
     var name = role || "文芽";
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
-    var b = document.createElement("div");
-    b.className = "bubble ai " + (ROLE_CLASS[name] || "role-ai");
-    var label = document.createElement("div");
-    label.className = "bubble-label";
-    label.textContent = name;
-    var t = document.createElement("div");
-    t.className = "bubble-text";
-    b.appendChild(label);
-    b.appendChild(t);
-    els.contextList.appendChild(b);
+    var noMask = !!(opts && opts.noMask);
+    var task = flowTaskName(name);
+    // 过程回复合并进同任务卡片；最终回答单独成卡并默认展开
+    var fc = noMask ? buildFlowCard(task, true) : getFlowCard(task);
+    var tx = appendFlowSeg(fc, name, "", true);
     els.contextList.scrollTop = els.contextList.scrollHeight;
     noteChatReply();
     scheduleSessionSave();
-    // 讨论 / 列提纲等过程文本默认折叠；传 noMask 的「最终回答」保持展开
-    var noMask = !!(opts && opts.noMask);
-    var store = "";
-    Object.defineProperty(t, "textContent", {
-      configurable: true,
-      get: function () { return store; },
-      set: function (v) {
-        store = String(v == null ? "" : v);
-        maskApply(t, store, noMask);
-      }
-    });
-    return t;
+    return tx;
   }
 
   /* ---------------- 输出更新（流式驱动） ---------------- */
@@ -4425,6 +4468,7 @@
 
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
+    flowCards = {};
 
     // 这篇以前写过的话，把对话/评改/旁批/锁句接回来（本机没有就用云端随稿存的那份）
     if (hydrateEssaySession(data.session) && criticItems.length) renderCritic();
@@ -4561,6 +4605,7 @@
     syncAnnotTools();
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
     els.contextList.innerHTML = "";
+    flowCards = {};
 
     var summary = "类别：" + selectedCat + " ｜ 文体：" + activeGenre + " ｜ 题目：" + els.topic.value.trim().slice(0, 30) +
       (els.topic.value.trim().length > 30 ? "…" : "") + " ｜ 约 " + wordCount + " 字 ｜ " + activeProvinces.join("、");
