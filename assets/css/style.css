@@ -203,6 +203,8 @@ button, input, select { font: inherit; color: inherit; }
 
 .btn:active { transform: translateY(1px); }
 
+.btn:hover:not(:active) { transform: translateY(-1px); }
+
 .btn-primary {
   background: var(--brand);
   color: #fff;

@@ -282,7 +282,7 @@ body.app-on .site-footer { display: none; }
     linear-gradient(110deg, var(--g-900), var(--g-700));
   border: 1px solid rgba(242, 249, 243, .14);
   box-shadow: var(--shadow-green);
-  border-radius: 18px;
+  border-radius: 22px;
   padding: 22px 24px;
   margin-bottom: 16px;
 }

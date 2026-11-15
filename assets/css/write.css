@@ -636,10 +636,10 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
 .chat-list {
   flex: 1 1 auto;
   overflow: auto;
-  padding: 18px 16px;
+  padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .chat-foot {
@@ -669,13 +669,13 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
   padding: 6px 2px;
 }
 
-.bubble { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.bubble { display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
 
 .bubble-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: .02em;
-  padding: 2px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
   width: fit-content;
   color: var(--ink-mute);
@@ -685,10 +685,10 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
 
 .bubble-text {
   max-width: 94%;
-  padding: 11px 14px;
+  padding: 12px 15px;
   border-radius: 14px;
-  font-size: 13.5px;
-  line-height: 1.74;
+  font-size: 14px;
+  line-height: 1.72;
   white-space: normal;
   word-break: normal;
   box-shadow: 0 1px 2px rgba(18, 63, 44, .06);
@@ -696,14 +696,14 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
 
 .bubble.user { align-items: flex-end; }
 .bubble.user .bubble-label {
-  color: #1d7048;
-  background: rgba(29, 112, 72, .1);
-  border-color: rgba(29, 112, 72, .22);
+  color: #fff;
+  background: var(--g-800);
+  border-color: var(--g-800);
 }
 .bubble.user .bubble-text {
-  background: rgba(29, 112, 72, .12);
+  background: rgba(29, 112, 72, .15);
   color: var(--ink);
-  border: 1px solid rgba(29, 112, 72, .18);
+  border: 1px solid rgba(29, 112, 72, .24);
   border-bottom-right-radius: 4px;
 }
 
@@ -1807,7 +1807,7 @@ table.score-table .score-table-key {
   flex: 1 1 0;
   position: relative;
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.3;
   color: var(--ink-mute);
   padding-top: 18px;
@@ -2925,13 +2925,20 @@ table.score-table .score-table-key {
 
 /* 长内容折叠遮罩：默认淡出预览 + 查看按钮，点开才露全文 */
 .bubble-mask { position: relative; }
+.bubble-text.is-masked { background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; }
 .bubble-mask .mask-preview {
-  max-height: 78px;
+  max-height: 84px;
   overflow: hidden;
-  opacity: .9;
-  filter: blur(.3px);
-  -webkit-mask-image: linear-gradient(180deg, #000 52%, transparent);
-  mask-image: linear-gradient(180deg, #000 52%, transparent);
+  opacity: .6;
+  filter: blur(1.2px);
+  max-width: 94%;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 11px 14px;
+  transition: max-height .28s ease, filter .28s ease, opacity .28s ease;
+  -webkit-mask-image: linear-gradient(180deg, #000 54%, transparent);
+  mask-image: linear-gradient(180deg, #000 54%, transparent);
 }
 .bubble-mask.is-open .mask-preview {
   max-height: none;
@@ -2943,18 +2950,20 @@ table.score-table .score-table-key {
 .bubble-mask .mask-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 9px;
-  font-size: 12px;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 13px;
   font-weight: 600;
   color: #1d7048;
   cursor: pointer;
   background: rgba(29, 112, 72, .08);
   border: 1px solid rgba(29, 112, 72, .22);
-  padding: 4px 11px;
+  padding: 6px 13px;
   border-radius: 999px;
+  transition: background .18s ease, transform .12s ease;
 }
 .bubble-mask .mask-toggle:hover { background: rgba(29, 112, 72, .15); }
+.bubble-mask .mask-toggle:active { transform: translateY(1px); }
 
 /* ---------- 对话框下方的模型切换 ---------- */
 
