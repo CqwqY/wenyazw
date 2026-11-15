@@ -287,11 +287,15 @@
       }
       if (!b.classList.contains("bubble")) return;
       var lab = b.querySelector(".bubble-label"), tx2 = b.querySelector(".bubble-text");
+      var txt = tx2 ? tx2.textContent : "";
+      // 空气泡（请求失败/被中止）和「正在生成…」这类过程占位别存进档，不然下次打开像凭空多了一条消息
+      if (!trim(txt)) return;
+      if (/^正在(生成|理解|拟|写|测试)/.test(trim(txt)) && trim(txt).length < 60) return;
       out.push({
         user: b.classList.contains("user"),
         cls: b.className,
         role: lab ? lab.textContent : "",
-        text: tx2 ? tx2.textContent : ""
+        text: txt
       });
     });
     return out;
@@ -394,25 +398,31 @@
     list.forEach(function (m) {
       if (!m) return;
       if (m.card) {
-        var fc = buildFlowCard(m.task || "流程", !!m.open, false);
-        (m.segs || []).forEach(function (s) { appendFlowSeg(fc, s.role, s.text, false); });
-        if (!(m.segs || []).length) fc.card.setAttribute("data-state", "done");
+        // 旧存档里的流程卡片：拆成普通气泡还原，保证文字一定看得见
+        (m.segs || []).forEach(function (s) {
+          paintOneBubble({ user: false, role: s.role, text: s.text, cls: "" });
+        });
         return;
       }
-      if (!trim(m.text)) return;
-      var b = document.createElement("div");
-      b.className = m.cls || (m.user ? "bubble user" : "bubble ai role-ai");
-      var label = document.createElement("div");
-      label.className = "bubble-label";
-      label.textContent = m.role || (m.user ? "你" : "文芽");
-      var t = document.createElement("div");
-      t.className = "bubble-text";
-      t.textContent = m.text;
-      b.appendChild(label);
-      b.appendChild(t);
-      els.contextList.appendChild(b);
+      paintOneBubble(m);
     });
     els.contextList.scrollTop = els.contextList.scrollHeight;
+  }
+
+  function paintOneBubble(m) {
+    if (!m || !trim(m.text)) return;
+    var b = document.createElement("div");
+    if (m.cls && m.cls.indexOf("bubble") >= 0) b.className = m.cls;
+    else b.className = m.user ? "bubble user" : ("bubble ai " + (ROLE_CLASS[m.role] || "role-ai"));
+    var label = document.createElement("div");
+    label.className = "bubble-label";
+    label.textContent = m.role || (m.user ? "你" : "文芽");
+    var t = document.createElement("div");
+    t.className = "bubble-text";
+    t.textContent = m.text;
+    b.appendChild(label);
+    b.appendChild(t);
+    els.contextList.appendChild(b);
   }
 
   function paintFlow(list) {
@@ -1498,6 +1508,71 @@
 
   function setPaperHint(msg) {
     if (msg) els.paperStat.textContent = msg;
+  }
+
+  /* ---------------- 统一弹窗（出错 / 测试结果 / 需要解释的失败都走这里） ---------------- */
+
+  var dialogEl = null;
+  var dialogEsc = null;
+
+  function closeDialog() {
+    if (!dialogEl) return;
+    var d = dialogEl;
+    dialogEl = null;
+    if (dialogEsc) { document.removeEventListener("keydown", dialogEsc); dialogEsc = null; }
+    d.classList.remove("is-in");
+    setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 150);
+  }
+
+  /* wyAlert({ kind:'error'|'ok'|'info', tag, title, message, okText, detail }) */
+  function wyAlert(opt) {
+    var o = typeof opt === "string" ? { message: opt } : (opt || {});
+    var kind = o.kind || "info";
+    closeDialog();
+    var mask = document.createElement("div");
+    mask.className = "wy-mask is-" + kind;
+    var box = document.createElement("div");
+    box.className = "wy-dialog";
+    box.setAttribute("role", "alertdialog");
+    box.setAttribute("aria-modal", "true");
+    var tag = document.createElement("div");
+    tag.className = "wy-dialog-tag";
+    tag.textContent = o.tag || (kind === "error" ? "出错了" : kind === "ok" ? "完成" : "提示");
+    box.appendChild(tag);
+    if (o.title) {
+      var ttl = document.createElement("div");
+      ttl.className = "wy-dialog-title";
+      ttl.textContent = o.title;
+      box.appendChild(ttl);
+    }
+    var body = document.createElement("div");
+    body.className = "wy-dialog-body";
+    body.textContent = o.message || "";
+    box.appendChild(body);
+    if (o.detail) {
+      var det = document.createElement("div");
+      det.className = "wy-dialog-detail";
+      det.textContent = o.detail;
+      box.appendChild(det);
+    }
+    var foot = document.createElement("div");
+    foot.className = "wy-dialog-foot";
+    var ok = document.createElement("button");
+    ok.type = "button";
+    ok.className = "btn btn-primary";
+    ok.textContent = o.okText || "知道了";
+    foot.appendChild(ok);
+    box.appendChild(foot);
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    requestAnimationFrame(function () { mask.classList.add("is-in"); });
+    dialogEl = mask;
+    on(ok, "click", closeDialog);
+    on(mask, "click", function (e) { if (e.target === mask) closeDialog(); });
+    dialogEsc = function (e) { if (e.key === "Escape") closeDialog(); };
+    document.addEventListener("keydown", dialogEsc);
+    try { ok.focus(); } catch (e) {}
+    return mask;
   }
 
   /* ---------------- 向导：类别 ---------------- */
@@ -3496,21 +3571,23 @@
     return t;
   }
 
-  function addAssistantBubble(role, opts) {
+  function addAssistantBubble(role) {
     var name = role || "文芽";
     if (els.contextEmpty) { els.contextEmpty.remove(); els.contextEmpty = null; }
-    var noMask = !!(opts && opts.noMask);
-    var task = flowTaskName(name);
-    // 过程回复合并进同任务卡片；最终回答单独成卡并默认展开
-    var fc = noMask ? buildFlowCard(task, true, true) : getFlowCard(task);
-    // 立刻把胶囊文案点亮：谁 · 正在干什么 · 0 字
-    flowMeta(fc, name, "", !noMask);
-    var tx = appendFlowSeg(fc, name, "", true);
-    if (!noMask) focusFlowCard(fc);
+    var b = document.createElement("div");
+    b.className = "bubble ai " + (ROLE_CLASS[name] || "role-ai");
+    var label = document.createElement("div");
+    label.className = "bubble-label";
+    label.textContent = name;
+    var t = document.createElement("div");
+    t.className = "bubble-text";
+    b.appendChild(label);
+    b.appendChild(t);
+    els.contextList.appendChild(b);
     els.contextList.scrollTop = els.contextList.scrollHeight;
     noteChatReply();
     scheduleSessionSave();
-    return tx;
+    return t;
   }
 
   /* ---------------- 输出更新（流式驱动） ---------------- */
@@ -4068,6 +4145,10 @@
             var em = (e2 && e2.message) || "作文解析失败";
             setPaperHint("生成失败：" + em);
             if (assistantReplyEl) assistantReplyEl.textContent = "生成失败：" + em;
+            wyAlert({
+              kind: "error", tag: "生成失败", title: "这一版没能上稿纸",
+              message: em, detail: "稿纸保留的是上一版，没有被覆盖。换个模型或再试一次。"
+            });
             return false;
           }
         } else {
@@ -4088,6 +4169,11 @@
         msg = "请求发不出去：多为浏览器跨域被拦或网络不通。换支持 CORS 的接口，或改用本地代理。";
       }
       setPaperHint("生成失败：" + withRefund(msg, !fullText.trim()));
+      wyAlert({
+        kind: "error", tag: "生成失败", title: "这次没写成",
+        message: withRefund(msg, !fullText.trim()),
+        detail: "稿纸上的内容没有被改动。可以直接再点一次，或换一个模型。"
+      });
       if (!opts.onProgress) updateOutput(false);
       return false;
 
@@ -6124,6 +6210,7 @@
       }
       bubble.textContent = "评分失败：" + msg;
       els.criticStat.textContent = "评分失败：" + msg;
+      wyAlert({ kind: "error", tag: "评分失败", title: "这次没算出分", message: msg, detail: "作文一个字没动，可以直接再点一次「AI 评分」。" });
     } finally {
       runningAsk = "";
       runRelease(runOwnedOne);
@@ -6487,9 +6574,15 @@
   async function testConnection() {
     var c = currentConfig();
     if (!c.base || !c.key || !c.model) {
-      setWizardStatus("测试前先填齐 Base URL、API Key、模型名。", "error");
+      wyAlert({
+        kind: "error",
+        tag: "还没填完",
+        title: "接口配置不完整",
+        message: "测试前先把 Base URL、API Key、模型名填齐。缺哪一项，点开对应输入框补上再测。"
+      });
       return;
     }
+    var t0 = Date.now();
     setWizardStatus("正在测试连接…", "");
     els.testBtn.disabled = true;
     try {
@@ -6503,16 +6596,31 @@
           max_tokens: 16
         })
       });
+      var secs = ((Date.now() - t0) / 1000).toFixed(1);
       if (!res.ok) throw new Error(friendlyError(res, await res.text()));
-      setWizardStatus("连接正常，可以生成作文。", "ok");
+      setWizardStatus("连接正常", "ok");
+      wyAlert({
+        kind: "ok",
+        tag: "测试通过",
+        title: "连接正常",
+        message: "模型 " + c.model + " 有回应，用时 " + secs + " 秒。可以开始生成作文了。"
+      });
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
-        msg = "跨域被拦或网络不通，该接口可能无法从浏览器直连。";
+        msg = "请求发不出去：多半是跨域被拦，或者网络不通。";
       }
-      setWizardStatus("连接失败：" + msg, "error");
+      setWizardStatus("连接失败", "error");
+      wyAlert({
+        kind: "error",
+        tag: "测试失败",
+        title: "连不上这个模型",
+        message: msg,
+        detail: "排查顺序：Base URL 是否以 /v1 结尾、Key 是否还有额度、这个接口是否允许浏览器直连（不允许就得走站内模型）。"
+      });
     } finally {
       els.testBtn.disabled = false;
+      try { syncCostBadges(); } catch (e2) { /* 角标重挂失败不影响使用 */ }
     }
   }
 
@@ -6718,6 +6826,12 @@
     pendingLockText = "";
   }
 
+  // 每次按下都重新抓字格快照：稿纸可能刚重绘过，旧快照里的节点已经不在文档里了
+  function refreshChars() {
+    selChars = Array.prototype.slice.call(els.paperBody.querySelectorAll(".ch"));
+    return selChars;
+  }
+
   function chIndexAt(node) {
     var el = node;
     if (el && el.nodeType === 3) el = el.parentNode;
@@ -6726,6 +6840,30 @@
     if (!ch || !els.paperBody.contains(ch)) return -1;
     for (var i = 0; i < selChars.length; i++) if (selChars[i] === ch) return i;
     return -1;
+  }
+
+  // 坐标 -> 字格下标：先用 elementFromPoint，再用 caretPosition（点进字缝也准），
+  // 最后按几何距离兜底。桌面端拖到行尾/文末留白也能落到最后一个字。
+  function chIndexFromPoint(x, y) {
+    var i = chIndexAt(document.elementFromPoint(x, y));
+    if (i >= 0) return i;
+    try {
+      var pos = null;
+      if (document.caretPositionFromPoint) pos = document.caretPositionFromPoint(x, y);
+      else if (document.caretRangeFromPoint) {
+        var rg = document.caretRangeFromPoint(x, y);
+        pos = rg ? { offsetNode: rg.startContainer } : null;
+      }
+      if (pos && pos.offsetNode) {
+        var n = pos.offsetNode.nodeType === 3 ? pos.offsetNode.parentNode : pos.offsetNode;
+        var ch = n && n.closest ? n.closest(".ch") : null;
+        if (ch) {
+          var j = chIndexAt(ch);
+          if (j >= 0) return j;
+        }
+      }
+    } catch (e) { /* 老浏览器没有这个 API，走几何兜底 */ }
+    return chIndexNear(x, y);
   }
 
   // 落点没精确压在字格上（字间、行距、段间距、稿纸末尾留白）时，按坐标回退到最近的字格，
@@ -6823,10 +6961,10 @@
   if (els.paperBody) {
     on(els.paperBody, "pointerdown", function (e) {
       if (e.button !== undefined && e.button !== 0) return;
-      selChars = Array.prototype.slice.call(els.paperBody.querySelectorAll(".ch"));
+      refreshChars();
       // 手指按在格缝、标记或角标上时，按坐标再找一次字格，避免点空
       var idx = chIndexAt(e.target);
-      if (idx < 0) idx = chIndexAt(document.elementFromPoint(e.clientX, e.clientY));
+      if (idx < 0) idx = chIndexFromPoint(e.clientX, e.clientY);
       if (idx < 0) { clearSel(); hideLockPop(); return; }
 
       // 点选第二下（且离上次不远）：直接成区间，触屏没拖动也能选
@@ -6840,7 +6978,8 @@
         return;
       }
 
-      selOnMark = !!(e.target.closest && e.target.closest(".ink-mark, .critic-mark, .lock-mark"));
+      var onMarkEl = e.target.closest && e.target.closest(".ink-mark, .critic-mark, .lock-mark");
+      selOnMark = !!onMarkEl;
       selA = selB = idx;
       selDragging = false;
       selDownX = e.clientX;
@@ -6850,7 +6989,8 @@
       if (els.paperBody.setPointerCapture) {
         try { els.paperBody.setPointerCapture(e.pointerId); } catch (x) { /* 老浏览器 */ }
       }
-      e.preventDefault();
+      // 落在锁句/红笔标记上时不要抢默认行为，否则浏览器可能不派发 click，标记就点不动
+      if (!onMarkEl && e.cancelable) e.preventDefault();
     });
 
     on(els.paperBody, "pointermove", function (e) {
@@ -6859,9 +6999,7 @@
         if (Math.abs(e.clientX - selDownX) + Math.abs(e.clientY - selDownY) < 6) return;
         selDragging = true;
       }
-      var el = document.elementFromPoint(e.clientX, e.clientY);
-      var idx = chIndexAt(el);
-      if (idx < 0) idx = chIndexNear(e.clientX, e.clientY);
+      var idx = chIndexFromPoint(e.clientX, e.clientY);
       if (idx >= 0 && idx !== selB) { selB = idx; paintSel(); }
       hideLockPop();
       if (e.cancelable) e.preventDefault();
@@ -6893,13 +7031,31 @@
   }
 
   if (lockApplyBtn) {
-    on(lockApplyBtn, "pointerdown", function (e) { e.preventDefault(); e.stopPropagation(); });
-    on(lockApplyBtn, "click", function (e) {
-      e.preventDefault();
+    on(lockApplyBtn, "pointerdown", function (e) { e.stopPropagation(); });
+    var applyLock = function (e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
       var t = pendingLockText;
+      if (!t) return;
       hideLockPop();
       clearSel();
-      if (t) lockText(t);
+      lockText(t);
+    };
+    on(lockApplyBtn, "click", applyLock);
+    on(lockApplyBtn, "pointerup", function (e) {
+      // 有些浏览器 pointerdown 后不派发 click，这里补一次（click 先到就已被清空，不会重复锁）
+      setTimeout(function () { if (pendingLockText) applyLock(e); }, 0);
+    });
+  }
+  // 点锁句解锁：直接挂在稿纸上兜一层，避免拖动选择的 preventDefault 把 click 吞掉
+  if (els.paperBody) {
+    on(els.paperBody, "click", function (e) {
+      var m = e.target.closest && e.target.closest(".lock-mark");
+      if (!m) return;
+      var txt = m.textContent || "";
+      if (trim(txt)) {
+        e.stopPropagation();
+        unlockText(txt);
+      }
     });
   }
   on(document, "pointerdown", function (e) {
