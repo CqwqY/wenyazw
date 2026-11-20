@@ -7799,9 +7799,35 @@
     initLoginGate();
   }
 
+  /* 从主页派生「作文素材暂无符合」转来：带上题目开一份全新的稿。
+     new=1 时清掉本机现场和版本账本，也不恢复上次那篇作文，否则会直接跳回旧稿里。 */
+  function applyTopicParam() {
+    var q, topic = "", fresh = false;
+    try {
+      q = new URLSearchParams(location.search || "");
+      topic = String(q.get("topic") || "").trim().slice(0, 120);
+      fresh = q.get("new") === "1";
+    } catch (e) { return false; }
+    /* 只有从「写新文」按钮来的 new=1 才生效。单独带 ?topic= 时不预填、
+       也不碰现场，否则会出现「题目填好了、界面却跳回旧稿」的半吊子状态。 */
+    if (!fresh) return false;
+    currentEssayId = null;   // 先复位，sessionKey / versionKey 才会落回本机这一篇
+    try { localStorage.removeItem(sessionKey()); } catch (e) { /* ignore */ }
+    resetVersions();
+    updateDiffBtn();
+    if (topic && els.topic) {
+      els.topic.value = topic;
+      els.topic.dispatchEvent(new Event("input", { bubbles: true }));
+      setWizardStatus("已带入题目《" + topic + "》· 选好类别和文体就能开写。", "ok");
+    }
+    try { if (history.replaceState) history.replaceState(null, "", location.pathname); } catch (e) { /* ignore */ }
+    return true;   // 新文流程：题目已带入，不接旧现场
+  }
+
   /* 从控制台跳回来时恢复那篇作文。auth.js 在本脚本之后加载，
      所以延后到 DOM 就绪再读登录态。?essay 优先；没有就接上次的写作现场。 */
   function bootRestore() {
+    if (applyTopicParam()) return;   // 新文流程：题目已带入，不接旧现场
     Promise.resolve()
       .then(function () { return tryResumeEssay(); })
       .catch(function () { /* 取稿失败已由内部提示 */ })

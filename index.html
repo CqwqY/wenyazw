@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AE">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
-<link rel="stylesheet" href="assets/css/home.css?v=20261116W">
+<link rel="stylesheet" href="assets/css/home.css?v=20261116X">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
 <body class="home">
@@ -330,7 +330,7 @@
       <h2 id="deriveTitle">素材派生</h2>
       <button class="modal-close" id="deriveClose" type="button" aria-label="关闭">×</button>
     </div>
-    <div class="auth-hint">给一个新题目，AI 会翻你写过的作文，挑最贴题的场面和器物重新成篇。派生稿会存进「我的作文」，并连回借过的那几篇。</div>
+    <div class="auth-hint">给一个新题目，AI 会先判断你写过的作文里有没有真能撑起这个题目的素材：默认只借最贴题的一篇，挑不到就不硬拼，直接告诉你要作新文。派生稿会存进「我的作文」，并连回借过的那几篇。</div>
     <div class="derive-form">
       <div class="field">
         <label for="deriveTopic">新题目</label>
@@ -345,8 +345,13 @@
         <input class="input" id="deriveGenre" type="text" maxlength="20" placeholder="例：记叙文">
       </div>
     </div>
-    <p class="derive-cost">派生一次 1 积分；模型没跑通会原路退回。出稿大约要等十几秒。</p>
+    <p class="derive-cost">派生一次 1 积分；没挑到合适素材、或模型没跑通，都会原路退回。</p>
     <div class="auth-msg" id="deriveMsg"></div>
+    <div class="derive-no-match" id="deriveNoMatch" hidden>
+      <p class="dn-title">作文素材暂无符合，要作新文</p>
+      <p class="dn-reason" id="deriveNoMatchWhy"></p>
+      <button class="btn btn-primary" id="deriveNewBtn" type="button">按这个题目写新文</button>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-primary" id="deriveGo" type="button">开始派生</button>
     </div>
@@ -440,6 +445,6 @@
 <script src="assets/js/poster.js?v=20261116N"></script>
 <script src="assets/js/auth.js?v=20261116O"></script>
 <script src="assets/js/mindmap.js?v=20261116A"></script>
-<script src="assets/js/home.js?v=20261116T"></script>
+<script src="assets/js/home.js?v=20261116U"></script>
 </body>
 </html>

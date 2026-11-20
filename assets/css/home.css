@@ -742,6 +742,31 @@ body.app-on .site-footer { display: none; }
 #deriveMsg.ok { color: var(--brand-deep); }
 #deriveMsg.error { color: #a8322a; }
 
+/* 挑不到素材：暖金浅底提示，不用红色（红色是错误/扣分语义）。
+   显式写 [hidden]，否则下面的 display:block 会盖掉浏览器默认隐藏。 */
+.derive-no-match[hidden] { display: none; }
+.derive-no-match {
+  display: block;
+  margin: 2px 0 14px;
+  padding: 14px 15px 15px;
+  border: 1px solid rgba(201, 147, 47, .3);
+  border-radius: 12px;
+  background: rgba(201, 147, 47, .08);
+}
+.derive-no-match .dn-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #8a6321;
+}
+.derive-no-match .dn-reason {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.derive-no-match .btn { width: 100%; }
+
 @media (max-width: 900px) {
   .map-layout { grid-template-columns: 150px minmax(0, 1fr); gap: 22px; }
   .map-boards { grid-template-columns: 1fr; }

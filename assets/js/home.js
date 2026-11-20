@@ -19,6 +19,8 @@
     deriveOpen: $("deriveOpen"), deriveMask: $("deriveMask"), deriveClose: $("deriveClose"),
     deriveTopic: $("deriveTopic"), deriveWords: $("deriveWords"), deriveGenre: $("deriveGenre"),
     deriveGo: $("deriveGo"), deriveMsg: $("deriveMsg"),
+    deriveNoMatch: $("deriveNoMatch"), deriveNoMatchWhy: $("deriveNoMatchWhy"),
+    deriveNewBtn: $("deriveNewBtn"),
     importType: $("importType"), importBoard: $("importBoard"),
     importTitle: $("importTitle"), importBody: $("importBody"), importCount: $("importCount"),
     importSave: $("importSave"), importMsg: $("importMsg"),
@@ -358,13 +360,27 @@
     }
   }
 
+  function hideNoMatch() {
+    if (els.deriveNoMatch) els.deriveNoMatch.setAttribute("hidden", "");
+  }
+
+  function showNoMatch(reason) {
+    if (els.deriveNoMatchWhy) {
+      els.deriveNoMatchWhy.textContent = String(reason || "旧稿里没有能撑起这个题目的场面，硬拼反而写散了。").trim().slice(0, 160);
+    }
+    if (els.deriveNoMatch) els.deriveNoMatch.removeAttribute("hidden");
+  }
+
+  /* 派生不下去就转正常新文流程：题目带进工作台，不让用户再敲一遍。 */
+  function goNewEssay() {
+    var topic = els.deriveTopic ? els.deriveTopic.value.trim() : "";
+    location.href = "write.html?new=1&topic=" + encodeURIComponent(topic);
+  }
+
   function openDerive() {
     if (!loggedIn()) { if (auth()) auth().open("login"); return; }
-    if (!allRows.length) {
-      setMsg(els.essayMsg, "先存几篇自己写过的作文，才有素材可借。", "error");
-      return;
-    }
     setMsg(els.deriveMsg, "");
+    hideNoMatch();
     if (els.deriveMask) els.deriveMask.removeAttribute("hidden");
     if (els.deriveTopic) els.deriveTopic.focus();
   }
@@ -377,8 +393,9 @@
     var topic = els.deriveTopic ? els.deriveTopic.value.trim() : "";
     if (!topic) { setMsg(els.deriveMsg, "先写一个新题目。", "error"); return; }
     var n = parseInt(els.deriveWords ? els.deriveWords.value : "700", 10) || 700;
+    hideNoMatch();
     els.deriveGo.disabled = true;
-    setMsg(els.deriveMsg, "正在翻旧稿、挑素材、写新篇，大约十几秒…");
+    setMsg(els.deriveMsg, "正在翻旧稿，先判断有没有真能撑起这个题目的素材…");
     try {
       var j = await api("/api/essays/derive", {
         method: "POST",
@@ -388,6 +405,13 @@
           genre: els.deriveGenre ? els.deriveGenre.value.trim() : ""
         }
       });
+      /* 挑不到素材是正常结论：不出稿、不扣分，直接给新文入口。 */
+      if (j.matched === false) {
+        showNoMatch(j.reason);
+        setMsg(els.deriveMsg, "这次没扣分，可以直接按这个题目写新文。", "ok");
+        if (auth() && auth().refreshCredits) auth().refreshCredits();
+        return;
+      }
       setMsg(els.deriveMsg, "派生好了《" + esc(j.title || "无题") + "》。", "ok");
       window.setTimeout(closeDerive, 1000);
       await loadEssays();
@@ -396,6 +420,7 @@
         ((j.sourceIds || []).length || 1) + " 篇素材。" + tail, "ok");
       if (auth() && auth().refreshCredits) auth().refreshCredits();
     } catch (e) {
+      hideNoMatch();
       setMsg(els.deriveMsg, "派生失败：" + ((e && e.message) || "未知错误"), "error");
     } finally {
       els.deriveGo.disabled = false;
@@ -798,10 +823,12 @@
   if (els.deriveOpen) els.deriveOpen.addEventListener("click", openDerive);
   if (els.deriveClose) els.deriveClose.addEventListener("click", closeDerive);
   if (els.deriveGo) els.deriveGo.addEventListener("click", runDerive);
+  if (els.deriveNewBtn) els.deriveNewBtn.addEventListener("click", goNewEssay);
   if (els.deriveMask) {
     els.deriveMask.addEventListener("click", function (e) { if (e.target === els.deriveMask) closeDerive(); });
   }
   if (els.deriveTopic) {
+    els.deriveTopic.addEventListener("input", hideNoMatch);
     els.deriveTopic.addEventListener("keydown", function (e) { if (e.key === "Enter") runDerive(); });
   }
   if (els.styleSave) els.styleSave.addEventListener("click", saveStyle);
