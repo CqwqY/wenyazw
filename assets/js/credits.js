@@ -255,9 +255,10 @@
       var j = await api("/api/credits");
       els.balance.textContent = String(j.credits);
       if (window.WY_AUTH && window.WY_AUTH.setCredits) window.WY_AUTH.setCredits(j.credits);
-      if (j.costPerCall && els.heroTip) {
-        els.heroTip.textContent = "每次 AI 操作消耗 " + j.costPerCall +
-          " 积分 · 生成失败自动退回 · 用自己的接口不消耗";
+      if (els.heroTip) {
+        var min = j.minCharge || 0.1;
+        els.heroTip.textContent = (j.billingLabel || "按用量计费") + " · 最低 " + min +
+          " 分起 · 生成失败自动退回 · 用自己的接口不消耗";
       }
       renderLog(j.log);
       if (els.balance.textContent === "0") {

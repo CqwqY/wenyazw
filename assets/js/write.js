@@ -1209,7 +1209,7 @@
     var cfg = loadCustomCfg();
 
     /* ---- 站内 ---- */
-    els.modelMenuList.appendChild(modelGroup("站内模型", "免密钥 · 每次 1 积分"));
+    els.modelMenuList.appendChild(modelGroup("站内模型", "免密钥 · 按用量计费"));
     els.modelMenuList.appendChild(modelRow("跟随自动", "服务器按备用链挑第一个能用的", site && !modelPick, function () {
       useSiteModel("");
     }));
@@ -1463,7 +1463,7 @@
   /* 失败提示统一补一句「积分退回去了」，免得用户以为白扣 */
   function withRefund(msg, refunded) {
     if (!refunded || els.preset.value !== "site") return msg;
-    return msg + "（这次的 1 积分已自动退回）";
+    return msg + "（这次预扣的积分已自动退回）";
   }
 
   var creditsSyncing = false;
@@ -1484,7 +1484,7 @@
   function refreshCreditLine() {
     if (!els.cfgCredits) return;
     var n = window.WY_AUTH && window.WY_AUTH.credits ? window.WY_AUTH.credits() : null;
-    var txt = n === null ? "剩余积分：登录后显示" : ("剩余积分 " + n + " · 每次操作消耗 1 积分");
+    var txt = n === null ? "剩余积分：登录后显示" : ("剩余积分 " + n + " · 按用量计费，最低 0.1 分起");
     els.cfgCredits.textContent = txt;
   }
 
@@ -1533,7 +1533,7 @@
     if (els.preset.value === "site") {
       syncPresetUI();
       saveConfig();
-      setWizardStatus("站内模型：登录后直接用，每次操作消耗 1 积分。", "");
+      setWizardStatus("站内模型：登录后直接用，按用量计费、最低 0.1 分起。", "");
       return;
     }
     syncPresetUI();
@@ -3620,7 +3620,7 @@
       wyAlert({
         kind: "info", tag: "还不能用", title: "先登录或填好接口",
         message: c.preset === "site"
-          ? "站内模型要先登录，这次操作消耗 1 积分。"
+          ? "站内模型要先登录，这次按用量计费、最低 0.1 分起。"
           : "自填接口还缺 Base URL / API Key / 模型名，先去「接口配置」补上。"
       });
       return;
@@ -3638,7 +3638,7 @@
       message: "原句：{" + span.slice(0, 160) + (span.length > 160 ? "…" : "") + "}",
       detail: "写清楚想怎么改，比如「换个动作，别写心理」「压短一点」「补一个具体的物件」。AI 只交回替换这一段的文字，全文其它地方不动。",
       placeholder: "这一处怎么改？",
-      cost: isSiteMode(c) ? "站内模型 · 本次消耗 1 积分" : "自填接口 · 不扣站内积分",
+      cost: isSiteMode(c) ? "站内模型 · 按用量计费，最低 0.1 分起" : "自填接口 · 不扣站内积分",
       okText: "交给 AI"
     });
     if (req === null) return;                       // 取消 / Esc / 点遮罩
@@ -5197,7 +5197,7 @@
     if (flowFromWizard && !confirm(
       "流程作文：先拟大纲、写正文，再最多 " + flowRoundLimit() +
       " 轮「评分 → 只改硬伤 → 复评」，约 " + (flowBudget(false) + 1) +
-      " 次 AI 调用，每次消耗 1 积分。\n分数不升会回退到最好的一版；中途可停止。继续？"
+      " 次 AI 调用，按实际用量扣积分、每次最低 0.1 分起。\n分数不升会回退到最好的一版；中途可停止。继续？"
     )) return;
     if (!selectedCat) { setWizardStatus("请先选择作文类别（命题/半命题/自拟）。", "error"); return; }
     if (!els.topic.value.trim()) {
@@ -5979,11 +5979,11 @@
     if (!els.debateCost) return;
     var auto = debateAutoApply ? "，改不改由 AI 定" : "，只讨论不动稿";
     if (debateNoLimit) {
-      els.debateCost.textContent = "不限轮数：谈得动就一直谈，乙挑不出或原地打转就收工；按实际轮数扣积分" + auto;
+      els.debateCost.textContent = "不限轮数：谈得动就一直谈，乙挑不出或原地打转就收工；按实际用量扣积分" + auto;
       return;
     }
     els.debateCost.textContent = debateRounds > 0
-      ? ("最多 " + debateCost() + " 次调用，每次 1 积分" + auto + "；乙挑不出就提前收")
+      ? ("最多 " + debateCost() + " 次调用，按用量计费" + auto + "；乙挑不出就提前收")
       : "单评一次，只给分不改稿（要改就填 1 以上）";
   }
 
@@ -6756,7 +6756,7 @@
   }
 
   function syncFlowCost() {
-    var txt = "约 " + flowBudget(true) + " 次 AI 调用（每次消耗 1 积分）";
+    var txt = "约 " + flowBudget(true) + " 次 AI 调用（按实际用量计费，最低 0.1 分起）";
     if (els.flowCostHint) {
       els.flowCostHint.textContent = txt +
         (els.flowAuto && els.flowAuto.checked ? "；从向导启动另含大纲、正文各 1 次" : "");
@@ -6879,7 +6879,7 @@
     var budget = flowBudget(!!docBody.trim());
     if (!opts.confirmed && !confirm(
       "流程作文：最多 " + flowRoundLimit() + " 轮「评分 → 按硬伤重写整篇 → 复评」，约 " + budget +
-      " 次 AI 调用，每次消耗 1 积分。\n每轮会从头重写一版完整新稿，轮次在右侧工作窗里可以随时改；分数不升会自动回退到最好的一版；中途可随时停止。继续？"
+      " 次 AI 调用，按实际用量扣积分、每次最低 0.1 分起。\n每轮会从头重写一版完整新稿，轮次在右侧工作窗里可以随时改；分数不升会自动回退到最好的一版；中途可随时停止。继续？"
     )) return;
 
     flowActive = true;
