@@ -6663,6 +6663,9 @@
           "想看句子问题或要不要改，说一句话发起讨论。";
       }
       markRunDone("评分完成");
+      // 评分也要落盘：这一步不动正文，原本不会触发任何保存，分数只活在内存里，刷新就没了。
+      // 本机现场立刻写，登录时顺带把分数随作文同步到云端，换设备也能接回来。
+      scheduleSessionSave();
     } catch (e) {
       var msg = (e && e.message) || "未知错误";
       if (e instanceof TypeError || /Failed to fetch|NetworkError/i.test(msg)) {
