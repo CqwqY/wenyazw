@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AH">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
-<link rel="stylesheet" href="assets/css/home.css?v=20261116Y">
+<link rel="stylesheet" href="assets/css/home.css?v=20261116Z">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
 </head>
 <body class="home">
@@ -96,6 +96,14 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         <span>创建作文</span>
         <span class="side-item-badge">开始</span>
+      </button>
+      <button type="button" class="side-item" data-view="topics">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10 21h4M8.5 14.5a6 6 0 1 1 7 0c-.9.6-1.5 1.4-1.5 2.5h-4c0-1.1-.6-1.9-1.5-2.5Z"/></svg>
+        <span>找作文题</span>
+      </button>
+      <button type="button" class="side-item" data-view="quotes">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H5v5h4c0 3-1.4 4.6-4 5M19 7h-4v5h4c0 3-1.4 4.6-4 5"/></svg>
+        <span>找金句</span>
       </button>
       <button type="button" class="side-item" data-view="account">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
@@ -185,7 +193,67 @@
       </div>
     </section>
 
-    <!-- 视图三：账户设置 -->
+    <!-- 视图三：找作文题（与我的作文/创建作文并列） -->
+    <section class="app-view" id="viewTopics" hidden>
+      <div class="view-head">
+        <div>
+          <h1>找作文题</h1>
+          <p>按学段、文体和方向让 AI 出一批题，挑一道直接拿去写。</p>
+        </div>
+      </div>
+      <div class="idea-panel">
+        <div class="idea-form">
+          <label class="idea-field">
+            <span>学段</span>
+            <select class="select" id="topicStage"></select>
+          </label>
+          <label class="idea-field">
+            <span>文体</span>
+            <select class="select" id="topicGenre"></select>
+          </label>
+          <label class="idea-field idea-wide">
+            <span>想要的方向（可留空）</span>
+            <input class="input" id="topicDirection" type="text" maxlength="60" placeholder="如：成长里的转折、身边的手艺人">
+          </label>
+          <label class="idea-field idea-count">
+            <span>出几条</span>
+            <select class="select" id="topicCount">
+              <option value="3">3 条</option>
+              <option value="6" selected>6 条</option>
+              <option value="9">9 条</option>
+              <option value="12">12 条</option>
+            </select>
+          </label>
+        </div>
+        <div class="idea-actions">
+          <button class="btn btn-primary" id="topicGen" type="button">出题</button>
+          <span class="idea-note">用站内模型按实际用量扣积分，最低 0.1 分起；失败自动退回。</span>
+        </div>
+        <div class="idea-status" id="topicStatus"></div>
+        <div class="idea-results" id="topicResults"></div>
+      </div>
+    </section>
+
+    <!-- 视图四：找金句 = 内置名言警句库，不联网、不扣积分 -->
+    <section class="app-view" id="viewQuotes" hidden>
+      <div class="view-head">
+        <div>
+          <h1>找金句</h1>
+          <p>内置真实名言警句，按主题挑或搜索，一键复制进作文。出处可查，不消耗积分。</p>
+        </div>
+      </div>
+      <div class="idea-panel quote-panel">
+        <label class="idea-field quote-search">
+          <span>搜索句子、作者或主题</span>
+          <input class="input" id="quoteSearch" type="text" maxlength="40" placeholder="如：坚持、海内存知己、鲁迅">
+        </label>
+        <div class="quote-themes" id="quoteThemes"></div>
+        <div class="idea-status" id="quoteStatus"></div>
+        <div class="idea-results quote-results" id="quoteResults"></div>
+      </div>
+    </section>
+
+    <!-- 视图五：账户设置 -->
     <section class="app-view" id="viewAccount" hidden>
       <div class="view-head">
         <div>
@@ -274,6 +342,14 @@
     <button type="button" class="app-tab" data-view="create">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
       <span>创建作文</span>
+    </button>
+    <button type="button" class="app-tab" data-view="topics">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 18h5M10 21h4M8.5 14.5a6 6 0 1 1 7 0c-.9.6-1.5 1.4-1.5 2.5h-4c0-1.1-.6-1.9-1.5-2.5Z"/></svg>
+      <span>找题</span>
+    </button>
+    <button type="button" class="app-tab" data-view="quotes">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H5v5h4c0 3-1.4 4.6-4 5M19 7h-4v5h4c0 3-1.4 4.6-4 5"/></svg>
+      <span>金句</span>
     </button>
     <button type="button" class="app-tab" data-view="account">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
@@ -446,6 +522,7 @@
 <script src="assets/js/poster.js?v=20261116N"></script>
 <script src="assets/js/auth.js?v=20261116P"></script>
 <script src="assets/js/mindmap.js?v=20261116A"></script>
-<script src="assets/js/home.js?v=20261116V"></script>
+<script src="assets/js/quotes-store.js?v=20261116A"></script>
+<script src="assets/js/home.js?v=20261116W"></script>
 </body>
 </html>

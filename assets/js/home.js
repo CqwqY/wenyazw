@@ -18,7 +18,10 @@
   var els = {
     guest: $("guestView"), guestFooter: $("guestFooter"), shell: $("appShell"),
     cta: $("homeCta"), heroNote: $("heroNote"),
-    views: { essays: $("viewEssays"), create: $("viewCreate"), account: $("viewAccount") },
+    views: {
+      essays: $("viewEssays"), create: $("viewCreate"),
+      topics: $("viewTopics"), quotes: $("viewQuotes"), account: $("viewAccount")
+    },
     sideItems: document.querySelectorAll(".side-item"),
     tabItems: document.querySelectorAll(".app-tab"),
     mindmap: $("mindmap"), essayMsg: $("essayMsg"), refresh: $("refreshEssays"),
@@ -32,6 +35,11 @@
     importTitle: $("importTitle"), importBody: $("importBody"), importCount: $("importCount"),
     importSave: $("importSave"), importMsg: $("importMsg"),
     importParams: $("importParams"), paramTpl: $("paramTpl"),
+    topicStage: $("topicStage"), topicGenre: $("topicGenre"),
+    topicDirection: $("topicDirection"), topicCount: $("topicCount"),
+    topicGen: $("topicGen"), topicStatus: $("topicStatus"), topicResults: $("topicResults"),
+    quoteSearch: $("quoteSearch"), quoteThemes: $("quoteThemes"),
+    quoteStatus: $("quoteStatus"), quoteResults: $("quoteResults"),
     paramsMask: $("paramsMask"), paramsForm: $("paramsForm"), paramsClose: $("paramsClose"),
     paramsSave: $("paramsSave"), paramsMsg: $("paramsMsg"), paramsHint: $("paramsHint"),
     appEmail: $("appEmail"), appUser: $("appUser"), appCredits: $("appCredits"),
@@ -77,6 +85,238 @@
     try { j = await res.json(); } catch (e) { /* 忽略非 JSON 响应 */ }
     if (!res.ok || !j.ok) throw new Error(j.error || ("请求失败（HTTP " + res.status + "）"));
     return j;
+  }
+
+  /* ---------------- 找作文题 / 找金句 ----------------
+     这两个入口和「我的作文 / 创建作文 / 账户设置」并列。
+     出题走站内模型，按实际用量扣积分、失败退回；
+     金句只读本地名言库，不联网、不扣积分。 */
+  function ideaStatus(el, text, kind) {
+    if (!el) return;
+    el.textContent = text || "";
+    el.className = "idea-status" + (kind ? " " + kind : "");
+  }
+
+  function parseIdeaJSON(raw, key) {
+    var s = String(raw || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a < 0 || b <= a) throw new Error("这次没按格式给结果，再生成一次试试。");
+    var obj;
+    try { obj = JSON.parse(s.slice(a, b + 1)); }
+    catch (e) { throw new Error("结果解析失败，再生成一次试试。"); }
+    var arr = Array.isArray(obj && obj[key]) ? obj[key] : [];
+    if (!arr.length) throw new Error("这次没有给出内容，再生成一次试试。");
+    return arr;
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) { /* 退回 execCommand */ }
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  function needLogin(msg) {
+    if (auth() && auth().open) auth().open("login");
+    throw new Error(msg);
+  }
+
+  /* 模型接口和 write.js 走同一条 /api/llm/task；这里只发任务名和变量，提示词不下发。 */
+  async function llmTask(task, vars) {
+    if (!loggedIn()) needLogin("请先登录，再用站内模型出题。");
+    var res;
+    try {
+      res = await fetch(API + "/llm/task", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token() },
+        body: JSON.stringify({
+          task: task, vars: vars, stream: false,
+          temperature: 0.7, max_tokens: 512, purpose: "找作文题"
+        })
+      });
+    } catch (e) {
+      console.warn("[wenyazw] 出题请求未能发出：", e);
+      throw new Error("暂时连不上模型服务，检查网络后再试。");
+    }
+    var j = {};
+    try { j = await res.json(); } catch (e) { /* 非 JSON 响应 */ }
+    if (res.status === 401) needLogin("登录过期了，请重新登录再出题。");
+    if (!res.ok || j.error) throw new Error(j.error || ("出题失败（HTTP " + res.status + "）"));
+    var msg = j.choices && j.choices[0] && j.choices[0].message;
+    var content = (msg && msg.content) || j.content || "";
+    if (!String(content).trim()) throw new Error("模型没返回结果，再试一次。");
+    return String(content);
+  }
+
+  var topicsInit = false;
+  function initTopics() {
+    if (topicsInit) return;
+    topicsInit = true;
+    var d = paramDefaults();
+    fillSelect(els.topicStage, d.stages, d.stage);
+    fillSelect(els.topicGenre, d.genres, d.genre);
+  }
+
+  function renderTopics(list) {
+    if (!els.topicResults) return;
+    els.topicResults.innerHTML = "";
+    list.slice(0, 12).forEach(function (item) {
+      var title = String((item && item.title) || "").trim();
+      if (!title) return;
+      var card = document.createElement("div");
+      card.className = "idea-card topic-card";
+      var text = document.createElement("div");
+      text.className = "idea-card-text";
+      text.textContent = title;
+      card.appendChild(text);
+      var bits = [];
+      if (item && item.kind) bits.push(item.kind);
+      if (item && item.hint) bits.push(item.hint);
+      if (bits.length) {
+        var meta = document.createElement("div");
+        meta.className = "idea-card-meta";
+        meta.textContent = bits.join(" · ");
+        card.appendChild(meta);
+      }
+      var acts = document.createElement("div");
+      acts.className = "idea-card-acts";
+      var go = document.createElement("a");
+      go.className = "idea-card-use is-link";
+      go.href = "write.html?topic=" + encodeURIComponent(title) + "&new=1";
+      go.textContent = "拿去写";
+      var cp = document.createElement("button");
+      cp.type = "button";
+      cp.className = "idea-card-use is-alt";
+      cp.textContent = "复制";
+      cp.addEventListener("click", async function () {
+        var ok = await copyText(title);
+        ideaStatus(els.topicStatus, ok ? "题目已复制。" : "复制失败，请手动选中文字。", ok ? "ok" : "error");
+      });
+      acts.appendChild(go);
+      acts.appendChild(cp);
+      card.appendChild(acts);
+      els.topicResults.appendChild(card);
+    });
+  }
+
+  async function generateTopics() {
+    if (!els.topicGen || els.topicGen.disabled) return;
+    initTopics();
+    els.topicGen.disabled = true;
+    els.topicGen.textContent = "出题…";
+    ideaStatus(els.topicStatus, "正在出题…", "");
+    els.topicResults.innerHTML = "";
+    try {
+      var vars = {
+        stage: els.topicStage.value,
+        genre: els.topicGenre.value || "记叙文",
+        direction: String(els.topicDirection.value || "").trim(),
+        count: Number(els.topicCount.value) || 6
+      };
+      var list = parseIdeaJSON(await llmTask("topics", vars), "topics");
+      renderTopics(list);
+      ideaStatus(els.topicStatus, "出了 " + list.length + " 道题。挑一道直接拿去写，或复制题目。", "ok");
+    } catch (e) {
+      ideaStatus(els.topicStatus, (e && e.message) || "没出成题，再试一次。", "error");
+    } finally {
+      els.topicGen.disabled = false;
+      els.topicGen.textContent = "出题";
+    }
+  }
+
+  var quotesInit = false, quotesAll = [], quotesActive = "";
+  function initQuotes() {
+    if (quotesInit) return;
+    quotesInit = true;
+    var all = Array.isArray(window.WY_QUOTES) ? window.WY_QUOTES : [];
+    quotesAll = all.filter(function (r) { return r && r[1]; });
+    var themes = [];
+    quotesAll.forEach(function (r) { if (r[0] && themes.indexOf(r[0]) < 0) themes.push(r[0]); });
+    if (!els.quoteThemes) return;
+    els.quoteThemes.innerHTML = "";
+    function addTheme(label) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "quote-theme" + (label === "全部" ? " is-on" : "");
+      b.textContent = label;
+      b.addEventListener("click", function () {
+        quotesActive = label === "全部" ? "" : label;
+        Array.prototype.forEach.call(els.quoteThemes.children, function (x) { x.classList.remove("is-on"); });
+        b.classList.add("is-on");
+        renderQuotes();
+      });
+      els.quoteThemes.appendChild(b);
+    }
+    addTheme("全部");
+    themes.forEach(addTheme);
+    renderQuotes();
+  }
+
+  function renderQuotes() {
+    if (!quotesInit || !els.quoteResults) return;
+    var kw = String(els.quoteSearch.value || "").trim().toLowerCase();
+    var list = quotesAll.filter(function (r) {
+      if (quotesActive && r[0] !== quotesActive) return false;
+      if (!kw) return true;
+      return ((r[0] || "") + (r[1] || "") + (r[2] || "")).toLowerCase().indexOf(kw) >= 0;
+    });
+    // 同一句会归到多个主题；「全部」视图去重，按主题看时保留
+    if (!quotesActive) {
+      var seen = Object.create(null);
+      list = list.filter(function (r) {
+        if (seen[r[1]]) return false;
+        seen[r[1]] = 1;
+        return true;
+      });
+    }
+    var shown = list.slice(0, 60);
+    els.quoteResults.innerHTML = "";
+    shown.forEach(function (r) {
+      var card = document.createElement("div");
+      card.className = "idea-card quote-card";
+      var text = document.createElement("div");
+      text.className = "idea-card-text quote-card-text";
+      text.textContent = r[1];
+      card.appendChild(text);
+      var meta = document.createElement("div");
+      meta.className = "idea-card-meta quote-card-meta";
+      meta.textContent = "—— " + (r[2] || "佚名") + " · " + (r[0] || "");
+      card.appendChild(meta);
+      var acts = document.createElement("div");
+      acts.className = "quote-card-acts";
+      var cp = document.createElement("button");
+      cp.type = "button";
+      cp.className = "idea-card-use";
+      cp.textContent = "复制句子";
+      cp.addEventListener("click", async function () {
+        var ok = await copyText(String(r[1]).trim());
+        ideaStatus(els.quoteStatus, ok ? "名言已复制。" : "复制失败，请手动选中文字。", ok ? "ok" : "error");
+      });
+      var withSrc = document.createElement("button");
+      withSrc.type = "button";
+      withSrc.className = "idea-card-use is-alt";
+      withSrc.textContent = "带出处";
+      withSrc.addEventListener("click", async function () {
+        var val = String(r[1]).trim() + " —— " + (r[2] || "佚名");
+        var ok = await copyText(val);
+        ideaStatus(els.quoteStatus, ok ? "名言和出处已一起复制。" : "复制失败，请手动选中文字。", ok ? "ok" : "error");
+      });
+      acts.appendChild(cp);
+      acts.appendChild(withSrc);
+      card.appendChild(acts);
+      els.quoteResults.appendChild(card);
+    });
+    ideaStatus(els.quoteStatus, list.length
+      ? ("共 " + list.length + " 条" + (list.length > shown.length ? "，显示前 " + shown.length + " 条，可继续缩小范围" : ""))
+      : "没有匹配的名言，换个词或主题试试。", list.length ? "ok" : "");
   }
 
   /* ---------------- 作文基础参数 ----------------
@@ -216,6 +456,8 @@
     if (!els.views[name]) name = "essays";
     var changed = currentView !== name;
     currentView = name;
+    if (name === "topics") initTopics();
+    if (name === "quotes") initQuotes();
     Object.keys(els.views).forEach(function (k) { els.views[k].hidden = (k !== name); });
     Array.prototype.forEach.call(els.sideItems, function (b) {
       b.classList.toggle("active", b.getAttribute("data-view") === name);
@@ -870,6 +1112,13 @@
   Array.prototype.forEach.call(els.tabItems, function (b) {
     b.addEventListener("click", function () { setView(b.getAttribute("data-view")); });
   });
+  if (els.topicGen) els.topicGen.addEventListener("click", generateTopics);
+  if (els.topicDirection) {
+    els.topicDirection.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); generateTopics(); }
+    });
+  }
+  if (els.quoteSearch) els.quoteSearch.addEventListener("input", renderQuotes);
   if (els.refresh) els.refresh.addEventListener("click", function () { loadEssays(); });
 
   bindCount(els.importBody, els.importCount);

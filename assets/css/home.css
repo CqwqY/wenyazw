@@ -301,6 +301,17 @@ body.app-on .site-footer { display: none; }
 .account-links { gap: 10px; justify-content: flex-end; }
 .account-links .btn-outline { text-decoration: none; font-size: 12.5px; padding: 6px 12px; }
 
+/* 找作文题 / 找金句：与主视图并列的独立面板，沿用工作台的 idea/quote 组件样式 */
+.idea-panel { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+.idea-panel .idea-form { margin-top: 0; }
+.idea-panel .idea-wide { grid-column: 1 / -1; }
+.idea-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.idea-note { font-size: 12px; color: var(--ink-mute); line-height: 1.6; }
+.idea-card-acts { flex: none; display: flex; align-items: center; gap: 8px; }
+.idea-card-use.is-link { display: inline-flex; align-items: center; text-decoration: none; }
+.quote-panel .quote-search { margin-top: 0; max-width: 420px; }
+.quote-panel .quote-results { max-height: none; }
+
 .app-tabs { display: none; }
 
 @media (max-width: 720px) {
@@ -334,6 +345,8 @@ body.app-on .site-footer { display: none; }
     cursor: pointer;
   }
   .app-tab.active { color: var(--brand-deep); font-weight: 600; }
+  .idea-panel { padding: 16px; }
+  .idea-card-acts { flex: 1 1 100%; justify-content: flex-start; }
   .account-hero { padding: 18px 16px; }
   .account-hero-num #appCredits { font-size: 34px; }
 }
