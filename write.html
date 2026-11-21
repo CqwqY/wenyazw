@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-bold.css">
 <link rel="stylesheet" href="assets/css/style.css?v=20261116O">
-<link rel="stylesheet" href="assets/css/write.css?v=20261116AE">
+<link rel="stylesheet" href="assets/css/write.css?v=20261116AF">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116P">
 </head>
@@ -166,6 +166,13 @@
             placeholder="先在上方选好类别，再按类别写题目"></textarea>
           <div class="chat-hint" id="topicHint">先在上方选好类别，这里会告诉你该填什么。</div>
           <div class="examples" id="topicExamples"><span class="examples-hint">选好类别后，这里会给出对应的示例。</span></div>
+          <div class="idea-row">
+            <button class="btn-outline idea-entry" id="findTopicsBtn" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M8.5 14.5a6 6 0 1 1 7 0c-.9.6-1.5 1.4-1.5 2.5h-4c0-1.1-.6-1.9-1.5-2.5Z"/></svg>
+              找作文题
+            </button>
+            <span class="idea-row-note">没思路？按学段、文体和方向让 AI 出一批题，挑一道直接用。</span>
+          </div>
         </div>
       </div>
 
@@ -243,21 +250,33 @@
     </div>
 
     <div class="studio-top">
-      <button class="btn-outline" id="backBtn">← 返回工作台</button>
+      <button class="btn-outline" id="backBtn">← 返回主界面</button>
       <div class="studio-meta" id="studioMeta"></div>
       <div class="studio-tools">
         <span class="paper-stat" id="paperStat"></span>
-        <button class="btn-outline" id="acceptAllBtn" hidden>全部采纳</button>
-        <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
-        <button class="btn-outline" id="undoRewriteBtn" hidden>恢复上一版</button>
-        <button class="btn-outline" id="diffBtn" hidden>改动对照</button>
-        <button class="btn-outline" id="paperDiffBtn" hidden>对照上一版</button>
-        <button class="btn-outline" id="editDocBtn">直接改写</button>
-        <button class="btn-outline" id="scoreBtn">AI 评分</button>
-        <a class="btn-outline" href="index.html#account" target="_blank" rel="noopener">我的文风</a>
-        <button class="btn-outline" id="copyBtn">复制</button>
-        <button class="btn-outline" id="downloadBtn">下载 txt</button>
-        <button class="btn-outline" id="posterBtn">作文海报</button>
+        <!-- 对照/版本态才出现的按钮：整组出现、整组消失 -->
+        <span class="tool-cluster" id="reviewTools">
+          <button class="btn-outline" id="acceptAllBtn" hidden>全部采纳</button>
+          <button class="btn-outline" id="ignoreAllBtn" hidden>全部忽略</button>
+          <button class="btn-outline" id="undoRewriteBtn" hidden>恢复上一版</button>
+          <button class="btn-outline" id="diffBtn" hidden>改动对照</button>
+          <button class="btn-outline" id="paperDiffBtn" hidden>对照上一版</button>
+        </span>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <!-- 编辑与评分：对当前稿子动手的一组 -->
+        <span class="tool-cluster">
+          <button class="btn-outline" id="editDocBtn">直接改写</button>
+          <button class="btn-outline" id="scoreBtn">AI 评分</button>
+          <button class="btn-outline" id="findQuotesBtn">找金句</button>
+          <a class="btn-outline" href="index.html#account" target="_blank" rel="noopener">我的文风</a>
+        </span>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <!-- 导出：把稿子拿走的一组 -->
+        <span class="tool-cluster">
+          <button class="btn-outline" id="copyBtn">复制</button>
+          <button class="btn-outline" id="downloadBtn">下载 txt</button>
+          <button class="btn-outline" id="posterBtn">作文海报</button>
+        </span>
       </div>
     </div>
 
@@ -603,7 +622,7 @@
 
 <script src="assets/js/rules.js?v=20261116N"></script>
 <script src="assets/js/poster.js?v=20261116N"></script>
-<script src="assets/js/write.js?v=20261116AN"></script>
+<script src="assets/js/write.js?v=20261116AO"></script>
 <script src="assets/js/auth.js?v=20261116O"></script>
 </body>
 </html>

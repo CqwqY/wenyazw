@@ -121,6 +121,27 @@
 
 .examples-hint { font-size: 12.5px; color: var(--ink-mute); padding: 3px 0; }
 
+/* 题目步骤里的「找作文题」入口：和示例 chip 分开一行，避免被 applyCatUI 清空 */
+.idea-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px dashed var(--line);
+}
+.idea-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: var(--brand, #1d7048);
+  color: var(--brand-deep, #155a39);
+  font-weight: 600;
+}
+.idea-entry svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.idea-row-note { font-size: 12px; color: var(--ink-mute); }
+
 /* ---------- API 配置 ---------- */
 
 .config-note {
@@ -661,7 +682,28 @@ a.account-credits:hover { background: rgba(29, 112, 72, .18); text-decoration: n
 .studio-meta .sm-words.is-ok b { color: #8fe3b0; }
 .studio-meta .sm-words.is-ok em { color: rgba(242, 249, 243, .55); }
 
-.studio-tools { display: flex; gap: 8px; align-items: center; }
+/* 工具区：独占 studio-top 的第二行。原来和分数/字数挤在一行，
+   6 个按钮被挤成「5 + 1」，最后那个孤零零掉下去。整行放开后按编辑/导出两组排，
+   组间一条细分隔，换行时也是整组换，不再掉单个。 */
+.studio-tools {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.tool-cluster { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* 非对照态时 review 组全隐藏，整组和紧跟它的分隔线都不占位 */
+#reviewTools:not(:has(.btn-outline:not([hidden]))) { display: none; }
+#reviewTools:not(:has(.btn-outline:not([hidden]))) + .tool-sep { display: none; }
+.tool-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(242, 249, 243, .28);
+  margin: 0 3px;
+  flex: none;
+}
 
 .studio-grid {
   display: grid;
@@ -3440,6 +3482,48 @@ body.run-on .studio-meta { opacity: .22; transition: opacity .2s ease; }
   border-radius: 10px;
 }
 .wy-dialog-foot { margin-top: 16px; display: flex; justify-content: flex-end; }
+
+/* ============ 找作文题 / 找金句弹层 ============ */
+.idea-dialog { width: min(560px, 92vw); max-height: 86vh; overflow-y: auto; }
+.idea-intro { white-space: normal; font-size: 13px; }
+.idea-form { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.idea-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.idea-field > span { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+.idea-field .input, .idea-field .select { width: 100%; height: 38px; }
+.idea-count { max-width: 160px; }
+.idea-status { margin-top: 14px; min-height: 18px; font-size: 12.5px; color: var(--ink-mute); }
+.idea-status.is-ok { color: #1d7048; }
+.idea-status.is-err { color: #a8322a; }
+.idea-results { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.idea-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper-2);
+}
+.idea-card-text { flex: 1; min-width: 0; font-size: 14px; color: var(--ink); line-height: 1.5; }
+.idea-card-meta { flex: none; max-width: 40%; font-size: 11.5px; color: var(--ink-mute); text-align: right; }
+.idea-card-use {
+  flex: none;
+  border: 1px solid var(--brand, #1d7048);
+  color: var(--brand-deep, #155a39);
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.idea-card-use:hover { background: var(--brand-soft); }
+@media (max-width: 560px) {
+  .idea-form { grid-template-columns: 1fr; }
+  .idea-card { flex-wrap: wrap; }
+  .idea-card-meta { max-width: 100%; text-align: left; }
+}
 
 /* 工具栏里的「我的文风」是链接不是按钮：补上 a 的盒模型，
    否则 height 对行内元素不生效，整条会顶偏、基线也对不齐 */

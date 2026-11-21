@@ -186,6 +186,27 @@ body.app-on .site-footer { display: none; }
 }
 .side-item:hover { background: var(--paper-2); }
 .side-item.active { background: var(--brand-soft); color: var(--brand-deep); font-weight: 600; }
+/* 创建作文是主操作：在三个导航项里用实心底色 + 「开始」小标突出，
+   选中态仍沿用 active 的浅底，避免和当前页冲突。 */
+.side-item-primary {
+  background: var(--brand, #1d7048);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(29, 112, 72, .18);
+}
+.side-item-primary svg { stroke: #fff; }
+.side-item-primary .side-item-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .2);
+  color: #fff;
+}
+.side-item-primary:hover { background: var(--brand-deep, #155a39); }
+.side-item-primary.active { background: var(--brand-deep, #155a39); color: #fff; }
+.side-item-primary.active .side-item-badge { background: rgba(255, 255, 255, .28); }
 .app-side-foot { margin-top: auto; font-size: 11.5px; color: var(--ink-mute); padding: 0 10px; line-height: 1.6; }
 
 .app-main { flex: 1 1 auto; min-width: 0; padding: 30px 34px 48px; }

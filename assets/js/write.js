@@ -92,6 +92,7 @@
     peTitle: $("peTitle"), peBody: $("peBody"), peCount: $("peCount"),
     peHint: $("peHint"), peSaveBtn: $("peSaveBtn"), peCancelBtn: $("peCancelBtn"),
     editDocBtn: $("editDocBtn"), aiEditApplyBtn: $("aiEditApplyBtn"),
+    findTopicsBtn: $("findTopicsBtn"), findQuotesBtn: $("findQuotesBtn"),
     paperStat: $("paperStat"), copyBtn: $("copyBtn"), downloadBtn: $("downloadBtn"),
     posterBtn: $("posterBtn"),
     acceptAllBtn: $("acceptAllBtn"), ignoreAllBtn: $("ignoreAllBtn"),
@@ -6993,6 +6994,200 @@
     }
   }
 
+  /* ---------------- 找作文题 / 找金句 ----------------
+     生成式：没有联网题库，按学段/文体/方向让模型出一批，学生挑一道或一句。
+     走的是 /api/llm/task → 站内模型按用量计费，和评分、改写同一套扣费与退回逻辑。 */
+  function parseIdeaJSON(raw, key) {
+    var s = trim(raw).replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "").trim();
+    var a = s.indexOf("{"), b = s.lastIndexOf("}");
+    if (a < 0 || b <= a) throw new Error("模型没有按格式给出结果，再生成一次试试。");
+    var obj;
+    try { obj = JSON.parse(s.slice(a, b + 1)); }
+    catch (e) { throw new Error("结果解析失败，再生成一次试试。"); }
+    var arr = Array.isArray(obj && obj[key]) ? obj[key] : [];
+    if (!arr.length) throw new Error("这次没有给出内容，再生成一次试试。");
+    return arr;
+  }
+
+  function openIdeaDialog(kind) {
+    var isTopic = kind === "topics";
+    var mask = document.createElement("div");
+    mask.className = "wy-mask is-info idea-mask";
+    var box = document.createElement("div");
+    box.className = "wy-dialog idea-dialog";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+
+    var tag = document.createElement("div");
+    tag.className = "wy-dialog-tag";
+    tag.textContent = isTopic ? "挑一道能写的题" : "挑一句能用话";
+    box.appendChild(tag);
+    var ttl = document.createElement("div");
+    ttl.className = "wy-dialog-title";
+    ttl.textContent = isTopic ? "找作文题" : "找金句";
+    box.appendChild(ttl);
+    var intro = document.createElement("div");
+    intro.className = "wy-dialog-body idea-intro";
+    intro.textContent = isTopic
+      ? "按你选的学段和文体出题。给个方向会更贴；留空也能出。"
+      : "按主题出短句，落在具体事物上，挑到的句子可以直接复制进作文。";
+    box.appendChild(intro);
+
+    var form = document.createElement("div");
+    form.className = "idea-form";
+
+    function field(labelText, placeholder, cls) {
+      var wrap = document.createElement("label");
+      wrap.className = "idea-field";
+      var lab = document.createElement("span");
+      lab.textContent = labelText;
+      var input = document.createElement("input");
+      input.type = "text";
+      input.className = "input " + (cls || "");
+      input.placeholder = placeholder;
+      input.maxLength = 60;
+      wrap.appendChild(lab);
+      wrap.appendChild(input);
+      form.appendChild(wrap);
+      return input;
+    }
+
+    var direction = field(isTopic ? "想要的方向（可留空）" : "主题 / 想写的东西",
+      isTopic ? "如：成长里的转折、身边的手艺人" : "如：旧木桌、一次没说出口的道歉");
+    var image = isTopic ? null : field("可用的实物 / 意象（可留空）", "如：台灯的光、奶奶的针线筐");
+
+    var countWrap = document.createElement("label");
+    countWrap.className = "idea-field idea-count";
+    var countLab = document.createElement("span");
+    countLab.textContent = "出几条";
+    var countSel = document.createElement("select");
+    countSel.className = "select";
+    ["3", "6", "9", "12"].forEach(function (n) {
+      var opt = document.createElement("option");
+      opt.value = n; opt.textContent = n + " 条";
+      if (n === "6") opt.selected = true;
+      countSel.appendChild(opt);
+    });
+    countWrap.appendChild(countLab);
+    countWrap.appendChild(countSel);
+    form.appendChild(countWrap);
+    box.appendChild(form);
+
+    var status = document.createElement("div");
+    status.className = "idea-status";
+    box.appendChild(status);
+    var results = document.createElement("div");
+    results.className = "idea-results";
+    box.appendChild(results);
+
+    var foot = document.createElement("div");
+    foot.className = "wy-dialog-foot is-split";
+    var cost = document.createElement("span");
+    cost.className = "wy-dialog-cost";
+    var site = isSiteMode(currentConfig());
+    cost.textContent = site ? "按实际用量扣积分 · 失败自动退回" : "自填接口：不扣站内积分";
+    foot.appendChild(cost);
+    var acts = document.createElement("div");
+    acts.className = "wy-dialog-actions";
+    var cancel = document.createElement("button");
+    cancel.type = "button"; cancel.className = "btn-outline"; cancel.textContent = "关闭";
+    var gen = document.createElement("button");
+    gen.type = "button"; gen.className = "btn btn-primary";
+    gen.textContent = isTopic ? "出题" : "出金句";
+    acts.appendChild(cancel); acts.appendChild(gen);
+    foot.appendChild(acts);
+    box.appendChild(foot);
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    requestAnimationFrame(function () { mask.classList.add("is-in"); });
+
+    var closed = false, busy = false;
+    function close() {
+      if (closed) return;
+      closed = true;
+      mask.classList.remove("is-in");
+      setTimeout(function () { if (mask.parentNode) mask.parentNode.removeChild(mask); }, 160);
+      document.removeEventListener("keydown", onKey, true);
+    }
+    function onKey(e) { if (e.key === "Escape") { e.preventDefault(); close(); } }
+    on(cancel, "click", close);
+    on(mask, "click", function (e) { if (e.target === mask) close(); });
+    document.addEventListener("keydown", onKey, true);
+    setTimeout(function () { try { direction.focus(); } catch (e) {} }, 40);
+
+    function render(list) {
+      results.innerHTML = "";
+      list.slice(0, 12).forEach(function (item, idx) {
+        var card = document.createElement("div");
+        card.className = "idea-card";
+        var text = document.createElement("div");
+        text.className = "idea-card-text";
+        var main = isTopic ? (item && item.title) : (item && item.text);
+        text.textContent = trim(main) || "（空）";
+        card.appendChild(text);
+        var meta = document.createElement("div");
+        meta.className = "idea-card-meta";
+        var bits = [];
+        if (isTopic && item && item.kind) bits.push(item.kind);
+        var note = isTopic ? (item && item.hint) : (item && item.note);
+        if (note) bits.push(note);
+        meta.textContent = bits.join(" · ");
+        if (meta.textContent) card.appendChild(meta);
+
+        var use = document.createElement("button");
+        use.type = "button";
+        use.className = "idea-card-use";
+        use.textContent = isTopic ? "用这个题" : "复制";
+        on(use, "click", function () {
+          var val = trim(main);
+          if (!val) return;
+          if (isTopic) {
+            // 半命题若没写完整，原样填入让学生自己补；填好跳回题目步骤
+            els.topic.value = val;
+            try { els.topic.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+            try { els.topic.focus(); } catch (e) {}
+            close();
+            setWizardStatus("已填入「" + val + "」，可以直接写，也可以再改。", "");
+          } else {
+            copyString(val, "金句已复制，粘到作文里就能用。");
+          }
+        });
+        card.appendChild(use);
+        results.appendChild(card);
+      });
+    }
+
+    on(gen, "click", async function () {
+      if (busy) return;
+      busy = true;
+      gen.disabled = true;
+      gen.textContent = "生成中…";
+      status.textContent = "";
+      status.className = "idea-status";
+      results.innerHTML = "";
+      try {
+        var vars = isTopic
+          ? { stage: selectedStage, genre: selectedGenre || "记叙文", cat: selectedCat || "",
+              direction: trim(direction.value), count: Number(countSel.value) }
+          : { topic: trim(direction.value), image: trim(image ? image.value : ""),
+              stage: selectedStage, count: Number(countSel.value) };
+        var raw = await fetchAnnotation(kind, vars);
+        var list = parseIdeaJSON(raw, isTopic ? "topics" : "quotes");
+        render(list);
+        status.textContent = "生成了 " + list.length + " 条，点「" + (isTopic ? "用这个题" : "复制") + "」取用。";
+        status.classList.add("is-ok");
+      } catch (e) {
+        if (e && e.name === "AbortError") return;
+        status.textContent = (e && e.message) || "没生成出来，再试一次。";
+        status.classList.add("is-err");
+      } finally {
+        busy = false;
+        gen.disabled = false;
+        gen.textContent = isTopic ? "出题" : "出金句";
+      }
+    });
+  }
+
   function copyText() {
     var text = plainOutput();
     if (!text.trim()) { setPaperHint("稿纸还是空的。"); return; }
@@ -7644,11 +7839,13 @@
 
   on(els.backBtn, "click", function () {
     if (controller) controller.abort();
-    setDrawer(false);               // 回工作台别把浮层带到向导页
-    els.studio.setAttribute("hidden", "");
-    els.wizard.removeAttribute("hidden");
-    document.body.classList.remove("studio-mode");
+    setDrawer(false);
+    // 返回主界面：稿子已随写随存到账号，直接回 index 的作思维导图，不再折回工作台向导
+    window.location.href = "index.html";
   });
+
+  on(els.findTopicsBtn, "click", function () { openIdeaDialog("topics"); });
+  on(els.findQuotesBtn, "click", function () { openIdeaDialog("quotes"); });
 
   on(els.chatInput, "keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSend();
