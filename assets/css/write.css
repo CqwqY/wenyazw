@@ -3483,7 +3483,7 @@ body.run-on .studio-meta { opacity: .22; transition: opacity .2s ease; }
 }
 .wy-dialog-foot { margin-top: 16px; display: flex; justify-content: flex-end; }
 
-/* ============ 找作文题 / 找金句弹层 ============ */
+/* ============ 找作文题弹层 ============ */
 .idea-dialog { width: min(560px, 92vw); max-height: 86vh; overflow-y: auto; }
 .idea-intro { white-space: normal; font-size: 13px; }
 .idea-form { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -3523,6 +3523,40 @@ body.run-on .studio-meta { opacity: .22; transition: opacity .2s ease; }
   .idea-form { grid-template-columns: 1fr; }
   .idea-card { flex-wrap: wrap; }
   .idea-card-meta { max-width: 100%; text-align: left; }
+}
+
+/* ============ 找金句 = 内置名言警句库（独立功能，不调 AI、不扣分） ============ */
+.quote-dialog { width: min(640px, 94vw); }
+.quote-intro { white-space: normal; font-size: 13px; }
+.quote-search { margin-top: 16px; }
+.quote-themes { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.quote-theme {
+  flex: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.quote-theme:hover { border-color: var(--brand, #1d7048); color: var(--brand-deep, #155a39); }
+.quote-theme.is-on {
+  background: var(--brand, #1d7048);
+  border-color: var(--brand, #1d7048);
+  color: #fff;
+  font-weight: 600;
+}
+.quote-results { max-height: 44vh; overflow-y: auto; padding-right: 2px; }
+.quote-card { align-items: flex-start; flex-wrap: wrap; }
+.quote-card-text { flex: 1 1 100%; font-size: 14.5px; }
+.quote-card-meta { flex: 1 1 100%; max-width: 100%; text-align: left; }
+.quote-card-acts { flex: 1 1 100%; display: flex; gap: 8px; margin-top: 2px; }
+.idea-card-use.is-alt { border-color: var(--line); color: var(--ink-soft); }
+.idea-card-use.is-alt:hover {
+  background: var(--paper-2);
+  border-color: var(--brand, #1d7048);
+  color: var(--brand-deep, #155a39);
 }
 
 /* 工具栏里的「我的文风」是链接不是按钮：补上 a 的盒模型，

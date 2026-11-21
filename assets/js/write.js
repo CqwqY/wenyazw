@@ -7188,6 +7188,156 @@
     });
   }
 
+  /* 找金句 = 名言警句库：内置真实名句，本地检索，不联网、不调 AI、不消耗积分。
+     与「找作文题」完全独立：不共享弹层、不共享提示词、不共享积分通道。 */
+  function openQuoteDialog() {
+    var all = Array.isArray(window.WY_QUOTES) ? window.WY_QUOTES : [];
+    var mask = document.createElement("div");
+    mask.className = "wy-mask is-info quote-mask";
+    var box = document.createElement("div");
+    box.className = "wy-dialog quote-dialog";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+
+    var tag = document.createElement("div");
+    tag.className = "wy-dialog-tag";
+    tag.textContent = "名言警句 · 出处可查";
+    box.appendChild(tag);
+    var ttl = document.createElement("div");
+    ttl.className = "wy-dialog-title";
+    ttl.textContent = "找金句";
+    box.appendChild(ttl);
+    var intro = document.createElement("div");
+    intro.className = "wy-dialog-body quote-intro";
+    intro.textContent = "内置的真实名言警句，按主题挑选或搜索，一键复制进作文。不消耗积分。";
+    box.appendChild(intro);
+
+    var searchWrap = document.createElement("label");
+    searchWrap.className = "idea-field quote-search";
+    var searchLab = document.createElement("span");
+    searchLab.textContent = "搜索句子、作者或主题";
+    var search = document.createElement("input");
+    search.type = "text";
+    search.className = "input";
+    search.placeholder = "如：坚持、海内存知己、鲁迅";
+    search.maxLength = 40;
+    searchWrap.appendChild(searchLab);
+    searchWrap.appendChild(search);
+    box.appendChild(searchWrap);
+
+    var themes = [];
+    all.forEach(function (r) { if (r && r[0] && themes.indexOf(r[0]) < 0) themes.push(r[0]); });
+    var themeWrap = document.createElement("div");
+    themeWrap.className = "quote-themes";
+    var active = "";
+    function themeBtn(label) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "quote-theme" + (label === "全部" ? " is-on" : "");
+      b.textContent = label;
+      on(b, "click", function () {
+        active = label === "全部" ? "" : label;
+        Array.prototype.forEach.call(themeWrap.children, function (x) { x.classList.remove("is-on"); });
+        b.classList.add("is-on");
+        render();
+      });
+      themeWrap.appendChild(b);
+    }
+    themeBtn("全部");
+    themes.forEach(themeBtn);
+    box.appendChild(themeWrap);
+
+    var status = document.createElement("div");
+    status.className = "idea-status";
+    box.appendChild(status);
+    var results = document.createElement("div");
+    results.className = "idea-results quote-results";
+    box.appendChild(results);
+
+    var foot = document.createElement("div");
+    foot.className = "wy-dialog-foot is-split";
+    var cost = document.createElement("span");
+    cost.className = "wy-dialog-cost";
+    cost.textContent = "内置名言库 · 不消耗积分 · 出处可查";
+    foot.appendChild(cost);
+    var acts = document.createElement("div");
+    acts.className = "wy-dialog-actions";
+    var cancel = document.createElement("button");
+    cancel.type = "button"; cancel.className = "btn-outline"; cancel.textContent = "关闭";
+    acts.appendChild(cancel);
+    foot.appendChild(acts);
+    box.appendChild(foot);
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    requestAnimationFrame(function () { mask.classList.add("is-in"); });
+
+    var closed = false;
+    function close() {
+      if (closed) return;
+      closed = true;
+      mask.classList.remove("is-in");
+      setTimeout(function () { if (mask.parentNode) mask.parentNode.removeChild(mask); }, 160);
+      document.removeEventListener("keydown", onKey, true);
+    }
+    function onKey(e) { if (e.key === "Escape") { e.preventDefault(); close(); } }
+    on(cancel, "click", close);
+    on(mask, "click", function (e) { if (e.target === mask) close(); });
+    document.addEventListener("keydown", onKey, true);
+    on(search, "input", render);
+
+    function render() {
+      var kw = trim(search.value).toLowerCase();
+      var list = all.filter(function (r) {
+        if (!r || !r[1]) return false;
+        if (active && r[0] !== active) return false;
+        if (!kw) return true;
+        return ((r[0] || "") + (r[1] || "") + (r[2] || "")).toLowerCase().indexOf(kw) >= 0;
+      });
+      // 同一句会归到多个主题；「全部」视图去重，按主题看时保留
+      if (!active) {
+        var seen = Object.create(null);
+        list = list.filter(function (r) {
+          if (seen[r[1]]) return false;
+          seen[r[1]] = 1;
+          return true;
+        });
+      }
+      results.innerHTML = "";
+      var shown = list.slice(0, 80);
+      shown.forEach(function (r) {
+        var card = document.createElement("div");
+        card.className = "idea-card quote-card";
+        var text = document.createElement("div");
+        text.className = "idea-card-text quote-card-text";
+        text.textContent = r[1];
+        card.appendChild(text);
+        var meta = document.createElement("div");
+        meta.className = "idea-card-meta quote-card-meta";
+        meta.textContent = "—— " + (r[2] || "佚名") + " · " + (r[0] || "");
+        card.appendChild(meta);
+        var cardActs = document.createElement("div");
+        cardActs.className = "quote-card-acts";
+        var cp = document.createElement("button");
+        cp.type = "button"; cp.className = "idea-card-use"; cp.textContent = "复制句子";
+        on(cp, "click", function () { copyString(trim(r[1]), "名言已复制。"); });
+        var cpSrc = document.createElement("button");
+        cpSrc.type = "button"; cpSrc.className = "idea-card-use is-alt"; cpSrc.textContent = "带出处";
+        on(cpSrc, "click", function () {
+          copyString(trim(r[1]) + " —— " + (r[2] || "佚名"), "名言和出处已一起复制。");
+        });
+        cardActs.appendChild(cp); cardActs.appendChild(cpSrc);
+        card.appendChild(cardActs);
+        results.appendChild(card);
+      });
+      status.textContent = list.length
+        ? ("共 " + list.length + " 条" + (list.length > shown.length ? "，显示前 " + shown.length + " 条，可继续缩小范围" : ""))
+        : "没有匹配的名言，换个词或主题试试。";
+      status.className = "idea-status" + (list.length ? " is-ok" : "");
+    }
+    render();
+    setTimeout(function () { try { search.focus(); } catch (e) {} }, 40);
+  }
+
   function copyText() {
     var text = plainOutput();
     if (!text.trim()) { setPaperHint("稿纸还是空的。"); return; }
@@ -7845,7 +7995,8 @@
   });
 
   on(els.findTopicsBtn, "click", function () { openIdeaDialog("topics"); });
-  on(els.findQuotesBtn, "click", function () { openIdeaDialog("quotes"); });
+  // 找金句已独立为内置名言警句库，不再走 AI 生成、不扣积分
+  on(els.findQuotesBtn, "click", function () { openQuoteDialog(); });
 
   on(els.chatInput, "keydown", function (e) {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSend();
