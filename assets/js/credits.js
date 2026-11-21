@@ -6,11 +6,20 @@
   function $(id) { return document.getElementById(id); }
   var els = {
     notLogged: $("notLogged"), logged: $("loggedPanel"),
-    balance: $("creditBalance"), heroTip: $("creditHeroTip"),
+    balance: $("creditBalance"),
     form: $("redeemForm"), input: $("redeemInput"), redeemBtn: $("redeemBtn"),
     msg: $("redeemMsg"), log: $("creditLog"), refresh: $("refreshBtn"),
     openLogin: $("openLogin")
   };
+
+  /* 积分最小粒度 0.1：REAL 列做小数运算会留 13.299999999999995 这种尾巴，
+     显示时一律收到 1 位小数。内部计算不动，只管显示。 */
+  function fmtCredits(n) {
+    if (n === null || n === undefined) return "—";
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    return String(Math.round(v * 10) / 10);
+  }
 
   var lastToken = "";
 
@@ -149,12 +158,12 @@
     try {
       var j = await api("/api/pay/claim", { method: "POST", body: { orderNo: no } });
       if (j.already) {
-        setClaim("这笔订单之前已经充过了，当前余额 " + j.credits + " 分。", "warn");
+        setClaim("这笔订单之前已经充过了，当前余额 " + fmtCredits(j.credits) + " 分。", "warn");
       } else {
-        setClaim("到账成功，加 " + j.added + " 积分，现在共 " + j.credits + " 分。", "ok");
+        setClaim("到账成功，加 " + fmtCredits(j.added) + " 积分，现在共 " + fmtCredits(j.credits) + " 分。", "ok");
       }
       pay.input.value = "";
-      els.balance.textContent = String(j.credits);
+      els.balance.textContent = fmtCredits(j.credits);
       if (window.WY_AUTH && window.WY_AUTH.setCredits) window.WY_AUTH.setCredits(j.credits);
       try { renderLog((await api("/api/credits")).log); } catch (e2) { /* ignore */ }
     } catch (e) {
@@ -240,7 +249,7 @@
       var d = document.createElement("span");
       var delta = Number(r.delta) || 0;
       d.className = "credit-delta " + (delta > 0 ? "plus" : "minus");
-      d.innerHTML = COIN + "<span>" + (delta > 0 ? "+" : "") + delta + "</span>";
+      d.innerHTML = COIN + "<span>" + (delta > 0 ? "+" : "") + fmtCredits(delta) + "</span>";
 
       row.appendChild(t);
       row.appendChild(why);
@@ -253,13 +262,8 @@
     if (!token()) return;
     try {
       var j = await api("/api/credits");
-      els.balance.textContent = String(j.credits);
+      els.balance.textContent = fmtCredits(j.credits);
       if (window.WY_AUTH && window.WY_AUTH.setCredits) window.WY_AUTH.setCredits(j.credits);
-      if (els.heroTip) {
-        var min = j.minCharge || 0.1;
-        els.heroTip.textContent = (j.billingLabel || "按用量计费") + " · 最低 " + min +
-          " 分起 · 生成失败自动退回 · 用自己的接口不消耗";
-      }
       renderLog(j.log);
       if (els.balance.textContent === "0") {
         setMsg("积分用完了。可以输入兑换码，或回到工作台切到「自填 Key」用自己的接口。", "warn");
@@ -282,9 +286,9 @@
     setMsg("", "");
     try {
       var j = await api("/api/redeem", { method: "POST", body: { code: code } });
-      setMsg("兑换成功，加 " + j.added + " 积分，现在共 " + j.credits + " 分。", "ok");
+      setMsg("兑换成功，加 " + fmtCredits(j.added) + " 积分，现在共 " + fmtCredits(j.credits) + " 分。", "ok");
       els.input.value = "";
-      els.balance.textContent = String(j.credits);
+      els.balance.textContent = fmtCredits(j.credits);
       if (window.WY_AUTH && window.WY_AUTH.setCredits) window.WY_AUTH.setCredits(j.credits);
       // 明细刷新失败不影响「兑换成功」这个结论
       try { renderLog((await api("/api/credits")).log); } catch (e2) { /* ignore */ }

@@ -8,6 +8,13 @@
   var RESUME_KEY = "wy.resume.v1";
 
   function $(id) { return document.getElementById(id); }
+  /* 积分最小粒度 0.1，REAL 列算完带浮点尾巴；显示收 1 位小数 */
+  function fmtCredits(n) {
+    if (n === null || n === undefined) return "—";
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    return String(Math.round(v * 10) / 10);
+  }
   var els = {
     guest: $("guestView"), guestFooter: $("guestFooter"), shell: $("appShell"),
     cta: $("homeCta"), heroNote: $("heroNote"),
@@ -568,7 +575,7 @@
     if (els.appCredits) els.appCredits.textContent = "…";
     try {
       var n = auth().refreshCredits ? await auth().refreshCredits() : null;
-      if (els.appCredits) els.appCredits.textContent = (n === null || n === undefined) ? "—" : String(n);
+      if (els.appCredits) els.appCredits.textContent = (n === null || n === undefined) ? "—" : fmtCredits(n);
     } catch (e) {
       if (els.appCredits) els.appCredits.textContent = "—";
     }

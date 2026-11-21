@@ -92,6 +92,29 @@ h1, h2, h3, h4 { color: var(--g-900); }
 }
 .site-header a.account-credits:hover { background: rgba(207, 230, 215, .28); }
 
+/* 积分旁的统一说明角标：深色栏里继承浅字，浅色标题旁继承深字。
+   说明写在 title 上，鼠标悬停即显示，不再到处铺文字。 */
+.credit-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 2px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: var(--sans);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: 1px;
+  opacity: .7;
+  cursor: help;
+  user-select: none;
+}
+.credit-help:hover { opacity: 1; }
+.site-header .credit-help { width: 13px; height: 13px; font-size: 9px; vertical-align: 0; }
+
 .site-footer {
   margin-top: 0;
   background: linear-gradient(160deg, var(--g-900), var(--g-950));

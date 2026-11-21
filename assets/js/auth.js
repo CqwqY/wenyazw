@@ -61,6 +61,16 @@
     els.pwSetMsg.className = "auth-msg" + (kind ? " " + kind : "");
   }
 
+  var CREDIT_TIP = "站内模型按实际用量扣积分，最低 0.1 分起，用得越多扣得越多；生成失败自动退回。换成自己填的接口不消耗积分。";
+
+  /* 最小计费 0.1，REAL 列算完会带浮点尾巴；显示收 1 位小数 */
+  function fmtCredits(n) {
+    if (n === null || n === undefined) return "—";
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    return String(Math.round(v * 10) / 10);
+  }
+
   function setCredits(n) {
     try {
       if (n === null || n === undefined) localStorage.removeItem(KEY_CREDITS);
@@ -69,7 +79,7 @@
     var c = credits();
     if (c !== null && els.area) {
       var el = els.area.querySelector(".account-credits");
-      if (el) el.textContent = "积分 " + c;
+      if (el) el.textContent = "积分 " + fmtCredits(c);
     }
     listeners.forEach(function (fn) {
       try { fn(user()); } catch (e) { /* ignore */ }
@@ -133,8 +143,13 @@
       var cEl = document.createElement("a");
       cEl.className = "account-credits";
       cEl.href = "credits.html";
-      cEl.textContent = "积分 " + cr;
-      cEl.title = "查看积分明细与兑换码";
+      cEl.appendChild(document.createTextNode("积分 " + fmtCredits(cr) + " "));
+      var cHelp = document.createElement("span");
+      cHelp.className = "credit-help";
+      cHelp.textContent = "?";
+      cHelp.title = CREDIT_TIP + " 点这里看明细与兑换码。";
+      cEl.appendChild(cHelp);
+      cEl.title = "";
       els.area.appendChild(cEl);
     }
     var out = document.createElement("button");

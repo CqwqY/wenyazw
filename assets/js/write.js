@@ -1443,21 +1443,11 @@
     syncCostBadges();
   }
 
-  /* 站内模式下，凡是会扣分的按钮都挂一个角标（CSS 画，避免改 textContent 时被清掉） */
-  var COST_BTN_KEYS = [
-    "startBtn", "outlineAiBtn", "outlineRetryBtn", "writeEssayBtn",
-    "sendBtn", "scoreBtn", "criticApplyBtn", "flowRerunBtn", "testBtn"
-  ];
+  /* 按用量计费后单次成本不固定，按钮上不再挂死的「1」角标。
+     积分说明统一收进顶栏积分旁的 ? 悬停角标，这里只保留站点态标记供其它样式用。 */
   function syncCostBadges() {
     var site = els.preset.value === "site";
     var logged = !!(window.WY_AUTH && window.WY_AUTH.loggedIn && window.WY_AUTH.loggedIn());
-    COST_BTN_KEYS.forEach(function (k) {
-      var el = els[k];
-      if (!el) return;
-      el.classList.add("cost-btn");
-      if (!el.getAttribute("data-cost")) el.setAttribute("data-cost", "1");
-    });
-    syncCriticCostBadge();
     if (document.body) document.body.classList.toggle("cost-on", site && logged);
   }
 
@@ -1482,11 +1472,18 @@
     }, function () { creditsSyncing = false; });
   }
 
+  function fmtCredits(n) {
+    if (n === null || n === undefined) return "—";
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    return String(Math.round(v * 10) / 10);
+  }
+
   function refreshCreditLine() {
     if (!els.cfgCredits) return;
     var n = window.WY_AUTH && window.WY_AUTH.credits ? window.WY_AUTH.credits() : null;
-    var txt = n === null ? "剩余积分：登录后显示" : ("剩余积分 " + n + " · 按用量计费，最低 0.1 分起");
-    els.cfgCredits.textContent = txt;
+    els.cfgCredits.textContent = n === null ? "剩余积分：登录后显示" : ("剩余积分 " + fmtCredits(n));
+    els.cfgCredits.title = "站内模型按实际用量扣积分，最低 0.1 分起，用得越多扣得越多；生成失败自动退回。换成自己填的接口不消耗积分。";
   }
 
   fillForm(readConfig());
@@ -5969,12 +5966,8 @@
     return debateRounds > 0 ? (1 + debateRounds * 2) : 1;
   }
 
-  /* 评改按钮上的积分角标：轮数一改就变成真实的调用次数，别一直写死 1。
-     关掉上限后只给「起步价」，实际按谈的轮数算。 */
-  function syncCriticCostBadge() {
-    if (els.scoreBtn) els.scoreBtn.setAttribute("data-cost", "1");
-    if (els.criticApplyBtn) els.criticApplyBtn.setAttribute("data-cost", "1");
-  }
+  /* 按用量计费后单次不固定，评分/评改按钮不再挂数字角标。保留空函数避免改动调用点。 */
+  function syncCriticCostBadge() {}
 
   function syncDebateCost() {
     if (!els.debateCost) return;
