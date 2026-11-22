@@ -18,7 +18,7 @@
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AH">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/home.css?v=20261116Z">
-<link rel="stylesheet" href="assets/css/memory.css?v=20261122A">
+<link rel="stylesheet" href="assets/css/memory.css?v=20261122B">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
 </head>
 <body class="home">
@@ -104,11 +104,7 @@
       </button>
       <button type="button" class="side-item" data-view="quotes">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H5v5h4c0 3-1.4 4.6-4 5M19 7h-4v5h4c0 3-1.4 4.6-4 5"/></svg>
-        <span>找金句</span>
-      </button>
-      <button type="button" class="side-item" data-view="memory">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M8 7h7M8 10.5h5"/></svg>
-        <span>记一记</span>
+        <span>金句与成语</span>
         <span class="side-item-tag" id="sideDueTag" hidden>复习</span>
       </button>
       <button type="button" class="side-item" data-view="account">
@@ -240,44 +236,39 @@
       </div>
     </section>
 
-    <!-- 视图四：找金句 = 内置名言警句库，不联网、不扣积分 -->
+    <!-- 视图四：金句与成语（上方记一记，下方词库与学习记录） -->
     <section class="app-view" id="viewQuotes" hidden>
       <div class="view-head">
         <div>
-          <h1>找金句</h1>
-          <p>内置真实名言警句，按主题挑或搜索，一键复制进作文。出处可查，不消耗积分。</p>
-        </div>
-      </div>
-      <div class="idea-panel quote-panel">
-        <label class="idea-field quote-search">
-          <span>搜索句子、作者或主题</span>
-          <input class="input" id="quoteSearch" type="text" maxlength="40" placeholder="如：坚持、海内存知己、鲁迅">
-        </label>
-        <div class="quote-themes" id="quoteThemes"></div>
-        <div class="idea-status" id="quoteStatus"></div>
-        <div class="idea-results quote-results" id="quoteResults"></div>
-      </div>
-    </section>
-
-    <!-- 视图五：记一记（记忆模式，句子/成语，朗读→挖空→排序→次日复习） -->
-    <section class="app-view" id="viewMemory" hidden>
-      <div class="view-head">
-        <div>
-          <h1>记一记</h1>
-          <p>像背单词一样记句子和成语：先听读两遍，再挖空选、排序拼，隔天回来复习。</p>
+          <h1>金句与成语</h1>
+          <p>上面记一记，下面翻词库。名言带白话解释，成语带释义；登录后进度自动存云端。</p>
         </div>
         <span class="mem-count" id="memCount"></span>
       </div>
 
-      <div class="mem-setup" id="memSetup">
+      <!-- 大卡：记一记 -->
+      <div class="mem-hero" id="memSetup">
+        <div class="mem-hero-main">
+          <span class="mem-hero-kicker">先想意思，再看原句，记得更深</span>
+          <strong class="mem-hero-title">记一记</strong>
+          <span class="mem-hero-sub" id="memPickTitle">选好内容，开始记</span>
+        </div>
+        <div class="mem-hero-batch">
+          <label for="memBatchRange">一轮条数 <b id="memBatchValue">5</b> 条</label>
+          <input id="memBatchRange" type="range" min="1" max="20" step="1" value="5" aria-label="一轮记多少条">
+          <span class="mem-batch-hint">滑一滑调整；这个设置也会跟着账号走</span>
+        </div>
+        <div class="mem-hero-actions">
+          <button class="btn btn-primary" id="memStartBtn" type="button">开始记一记</button>
+          <button class="btn-outline" id="memReviewBtn" type="button" hidden>开始复习</button>
+        </div>
         <div class="mem-due" id="memDue" hidden>
           <div>
             <strong id="memDueTitle">有内容要复习</strong>
             <p id="memDueDesc"></p>
           </div>
-          <button class="btn btn-primary" id="memReviewBtn" type="button">开始复习</button>
+          <button class="btn btn-primary" id="memReviewInlineBtn" type="button">开始复习</button>
         </div>
-
         <div class="mem-filters">
           <div class="mem-filter-row">
             <span class="mem-filter-label">内容</span>
@@ -292,14 +283,27 @@
             <div class="mem-chips" id="memThemeChips"></div>
           </div>
         </div>
+        <div class="mem-sync-note" id="memSyncNote"></div>
+      </div>
 
-        <div class="mem-start">
-          <div>
-            <strong id="memPickTitle">选好内容，开始记</strong>
-            <p class="mem-start-hint">读两遍 → 挖空选词 → 排序成句，一轮约 5 分钟。进度只存在这台设备上。</p>
-          </div>
-          <button class="btn btn-primary" id="memStartBtn" type="button">开始记一记</button>
+      <!-- 词库 -->
+      <div class="quote-section">
+        <h2 class="section-title">词库</h2>
+        <div class="idea-panel quote-panel">
+          <label class="idea-field quote-search">
+            <span>搜索句子、作者、解释或主题</span>
+            <input class="input" id="quoteSearch" type="text" maxlength="40" placeholder="如：坚持、海内存知己、鲁迅">
+          </label>
+          <div class="quote-themes" id="quoteThemes"></div>
+          <div class="idea-status" id="quoteStatus"></div>
+          <div class="idea-results quote-results" id="quoteResults"></div>
         </div>
+      </div>
+
+      <!-- 学习记录 -->
+      <div class="mem-records">
+        <h2 class="section-title">学习记录 <span id="memRecordStat"></span></h2>
+        <div class="mem-record-list" id="memRecordList"></div>
       </div>
     </section>
 
@@ -330,6 +334,20 @@
             <div class="mem-actions">
               <button class="btn-outline" id="memReplayBtn" type="button">重听</button>
               <button class="btn btn-primary" id="memNextBtn" type="button">下一条</button>
+            </div>
+          </div>
+
+          <!-- 主动回想：先看意思，自己想原句，再揭开对照 -->
+          <div class="mem-panel mem-recall" id="memRecallPanel" hidden>
+            <div class="mem-prompt">先看意思，自己在心里想一遍原句</div>
+            <div class="mem-recall-card">
+              <div class="mem-recall-theme" id="memRecallTheme"></div>
+              <div class="mem-recall-meaning" id="memRecallMeaning"></div>
+              <div class="mem-recall-text" id="memRecallText" hidden></div>
+            </div>
+            <div class="mem-actions">
+              <button class="btn btn-primary" id="memRecallReveal" type="button">想好了，看原句</button>
+              <button class="btn btn-primary" id="memRecallNext" type="button" hidden>下一条</button>
             </div>
           </div>
 
@@ -460,11 +478,7 @@
     </button>
     <button type="button" class="app-tab" data-view="quotes">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H5v5h4c0 3-1.4 4.6-4 5M19 7h-4v5h4c0 3-1.4 4.6-4 5"/></svg>
-      <span>金句</span>
-    </button>
-    <button type="button" class="app-tab" data-view="memory">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M8 7h7M8 10.5h5"/></svg>
-      <span>记一记</span>
+      <span>金句成语</span>
     </button>
     <button type="button" class="app-tab" data-view="account">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
@@ -638,7 +652,7 @@
 <script src="assets/js/auth.js?v=20261116P"></script>
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
-<script src="assets/js/memory.js?v=20261122A"></script>
-<script src="assets/js/home.js?v=20261122X"></script>
+<script src="assets/js/memory.js?v=20261122B"></script>
+<script src="assets/js/home.js?v=20261122Y"></script>
 </body>
 </html>

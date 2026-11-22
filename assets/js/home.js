@@ -20,8 +20,7 @@
     cta: $("homeCta"), heroNote: $("heroNote"),
     views: {
       essays: $("viewEssays"), create: $("viewCreate"),
-      topics: $("viewTopics"), quotes: $("viewQuotes"),
-      memory: $("viewMemory"), account: $("viewAccount")
+      topics: $("viewTopics"), quotes: $("viewQuotes"), account: $("viewAccount")
     },
     sideItems: document.querySelectorAll(".side-item"),
     tabItems: document.querySelectorAll(".app-tab"),
@@ -458,7 +457,6 @@
     var changed = currentView !== name;
     currentView = name;
     if (name === "topics") initTopics();
-    if (name === "quotes") initQuotes();
     Object.keys(els.views).forEach(function (k) { els.views[k].hidden = (k !== name); });
     Array.prototype.forEach.call(els.sideItems, function (b) {
       b.classList.toggle("active", b.getAttribute("data-view") === name);
@@ -1119,7 +1117,6 @@
       if (e.key === "Enter") { e.preventDefault(); generateTopics(); }
     });
   }
-  if (els.quoteSearch) els.quoteSearch.addEventListener("input", renderQuotes);
   if (els.refresh) els.refresh.addEventListener("click", function () { loadEssays(); });
 
   bindCount(els.importBody, els.importCount);

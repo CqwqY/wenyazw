@@ -129,14 +129,81 @@ body.mem-open { overflow: hidden; }
 .mem-feedback.ok { color: var(--g-700, #1d7048); font-weight: 600; }
 .mem-feedback.no { color: #b04a3c; font-weight: 600; }
 
+/* 主动回想 */
+.mem-recall-card {
+  width: min(640px, 94vw); min-height: 190px; padding: 28px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+}
+.mem-recall-theme { font-size: 12px; color: var(--ink-mute); letter-spacing: .08em; }
+.mem-recall-meaning { font-family: var(--serif); font-size: clamp(20px, 3.4vw, 30px); line-height: 1.6; color: var(--ink); text-align: center; }
+.mem-recall-text { font-family: var(--serif); font-size: clamp(18px, 3vw, 26px); line-height: 1.6; color: var(--g-700, #1d7048); text-align: center; }
+
 /* 完成 */
 .mem-done-mark { font-family: var(--serif); font-size: 40px; font-weight: 700; color: var(--g-700, #1d7048); }
 .mem-done-line { font-size: 18px; color: var(--ink); margin: 0; }
 .mem-done-sub { font-size: 13px; color: var(--ink-soft); margin: 0; }
+
+/* 合并页：上方大卡 */
+.section-title { font-family: var(--serif); font-size: 18px; color: var(--ink); margin: 0 0 12px; }
+.section-title span { font-family: inherit; font-size: 12px; font-weight: 400; color: var(--ink-mute); margin-left: 8px; }
+.quote-section, .mem-records { margin-top: 26px; }
+.mem-hero {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--g-50, rgba(29,112,72,.07)), var(--card));
+  border: 1px solid var(--line); border-radius: 18px; padding: 30px 28px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center;
+}
+.mem-hero::after {
+  content: ""; position: absolute; right: -40px; top: -60px; width: 180px; height: 180px;
+  border-radius: 50%; background: var(--g-100, rgba(29,112,72,.10)); pointer-events: none;
+}
+.mem-hero-main { display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 1; }
+.mem-hero-kicker { font-size: 12px; color: var(--ink-mute); letter-spacing: .06em; }
+.mem-hero-title { font-family: var(--serif); font-size: clamp(36px, 7vw, 62px); line-height: 1.15; letter-spacing: .12em; color: var(--g-700, #1d7048); }
+.mem-hero-sub { font-size: 13px; color: var(--ink-soft); }
+.mem-hero-batch { width: min(420px, 100%); display: flex; flex-direction: column; gap: 6px; z-index: 1; }
+.mem-hero-batch label { font-size: 13px; color: var(--ink-soft); }
+.mem-hero-batch label b { color: var(--g-700, #1d7048); font-size: 17px; }
+.mem-hero-batch input[type="range"] { width: 100%; accent-color: var(--g-700, #1d7048); cursor: pointer; }
+.mem-batch-hint { font-size: 11.5px; color: var(--ink-mute); }
+.mem-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; z-index: 1; }
+.mem-sync-note { font-size: 12px; color: var(--ink-mute); z-index: 1; }
+.mem-hero .mem-due, .mem-hero .mem-filters { width: min(680px, 100%); text-align: left; z-index: 1; }
+.mem-hero .mem-due { background: var(--card); border-radius: 12px; }
+.mem-hero .mem-filters { background: var(--card); }
+
+/* 词库卡片补充信息 */
+.quote-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.quote-kind {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: var(--g-100, rgba(29,112,72,.12)); color: var(--g-700, #1d7048);
+}
+.quote-theme-tag, .quote-learned { font-size: 11.5px; color: var(--ink-mute); }
+.quote-learned { margin-left: auto; }
+.quote-source { font-size: 11.5px; color: var(--ink-mute); margin-top: 6px; }
+.quote-more { margin: 16px auto 0; display: block; }
+.quote-empty { font-size: 13px; color: var(--ink-mute); padding: 18px 4px; text-align: center; }
+.mem-cloze-text.is-meaning { font-size: clamp(19px, 3vw, 27px); }
+
+/* 学习记录 */
+.mem-record-list {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 6px 18px; max-height: 420px; overflow-y: auto;
+}
+.mem-record { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.mem-record:last-child { border-bottom: 0; }
+.mem-record-main { font-family: var(--serif); font-size: 15px; color: var(--ink); }
+.mem-record-meta { font-size: 11.5px; color: var(--ink-mute); white-space: nowrap; }
+.mem-record.is-ok .mem-record-meta { color: var(--g-700, #1d7048); }
+.mem-record.is-no .mem-record-meta { color: #b04a3c; }
 
 @media (max-width: 720px) {
   .mem-stage { padding: 14px 14px 24px; }
   .mem-card { min-height: 200px; padding: 26px 18px; }
   .mem-options { gap: 8px; }
   .mem-option, .mem-tile { font-size: 17px; }
+  .mem-hero { padding: 24px 16px 20px; gap: 16px; }
+  .mem-record { flex-direction: column; gap: 4px; }
+  .mem-recall-card { padding: 22px 16px; }
 }
