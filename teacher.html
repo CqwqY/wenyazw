@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="assets/img/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="assets/img/wenya-icon.svg">
+<meta name="theme-color" content="#123F2C">
+<title>教师控制台 - 文芽作文</title>
+<meta name="description" content="文芽作文教师控制台：批量给作文评分，AI 汇总全班共性问题与讲评稿，导出可编辑的讲评幻灯片。不保存学生正文。">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-webfont/1.6.0/lxgwwenkai-regular.css">
+<link rel="stylesheet" href="assets/css/style.css?v=20261116O">
+<link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
+<link rel="stylesheet" href="assets/css/teacher.css?v=20261122A">
+</head>
+<body class="page-stick">
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <img class="brand-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="30" height="30">
+      <span>文芽作文</span>
+    </a>
+    <div class="account-area" id="accountArea"></div>
+  </div>
+</header>
+
+<main class="wrap teacher-wrap">
+
+  <div class="tool-head">
+    <div>
+      <h1>教师控制台<span class="credit-help" title="批量评分按实际用量扣积分；讲评稿只在内存里生成，不保存学生正文。粘贴前请先去掉姓名、班级、学校。">?</span></h1>
+      <p>把一批作文贴进来，AI 逐篇评分，再汇总成一份能直接上课用的讲评稿。</p>
+    </div>
+    <a class="btn btn-ghost" href="index.html">返回主界面</a>
+  </div>
+
+  <div class="privacy-note">
+    <strong>先脱敏再粘贴。</strong>请删掉学生姓名、班级、学校等信息。本页不保存作文正文，关闭或刷新后即从本机清除。
+  </div>
+
+  <section class="tc-card" id="notLogged" hidden>
+    <h2>请先登录</h2>
+    <p>教师控制台和账号绑定，登录后才能批量评分。</p>
+    <button class="btn btn-primary" id="openLogin" type="button">登录 / 注册</button>
+  </section>
+
+  <section class="tc-card" id="gateCard" hidden>
+    <h2>教师身份验证</h2>
+    <p>这个控制台只对教师开放。输入管理员给的邀请码即可开启，不用重新注册。</p>
+    <div class="tc-gate-row">
+      <input class="input" id="gateCode" type="text" maxlength="64" placeholder="输入教师邀请码" autocomplete="off">
+      <button class="btn btn-primary" id="gateApply" type="button">验证</button>
+    </div>
+    <div class="tc-status" id="gateMsg"></div>
+  </section>
+
+  <section id="teacherPanel" hidden>
+
+    <div class="tc-card tc-setup">
+      <div class="tc-setup-head">
+        <h2>第一步 · 填这次作文</h2>
+        <span class="tc-provinces-ok" id="tableState"></span>
+      </div>
+      <label class="tc-field">
+        <span>作文题目 / 题材</span>
+        <input class="input" id="tcTopic" type="text" maxlength="120" placeholder="如：那一刻我长大了">
+      </label>
+      <label class="tc-field">
+        <span>用哪张评分表</span>
+        <select class="input" id="tcProvince"></select>
+      </label>
+      <label class="tc-field">
+        <span>粘贴作文，每篇之间单独一行写 <code>====</code> 分隔</span>
+        <textarea class="input tc-essays" id="tcEssays" rows="12" placeholder="第一篇作文正文……&#10;====&#10;第二篇作文正文……&#10;====&#10;第三篇作文正文……"></textarea>
+      </label>
+      <div class="tc-setup-foot">
+        <div class="tc-count" id="tcCount">还没识别到作文</div>
+        <div class="tc-cost">站内模型按用量扣积分，最低 0.1 分起；失败自动退回。</div>
+      </div>
+      <button class="btn btn-primary" id="tcScoreBtn" type="button">开始逐篇评分</button>
+      <div class="tc-status" id="tcScoreMsg"></div>
+    </div>
+
+    <div class="tc-card tc-results" id="resultsCard" hidden>
+      <h2>第二步 · 这一批的分数</h2>
+      <div class="tc-table-wrap">
+        <table class="tc-score-table">
+          <thead><tr><th>篇</th><th>总评</th><th>分数</th><th>主要扣分</th></tr></thead>
+          <tbody id="scoreRows"></tbody>
+        </table>
+      </div>
+      <div class="tc-results-foot">
+        <button class="btn btn-primary" id="tcReviewBtn" type="button">生成班级讲评稿</button>
+        <span class="tc-hint">汇总共性问题和改法，再扣一次用量。</span>
+      </div>
+      <div class="tc-status" id="tcReviewMsg"></div>
+    </div>
+
+    <div class="tc-card tc-review" id="reviewCard" hidden>
+      <div class="tc-review-head">
+        <h2>第三步 · 讲评稿</h2>
+        <div class="tc-review-actions">
+          <button class="btn btn-outline" id="tcEditBtn" type="button">编辑</button>
+          <button class="btn btn-primary" id="tcPptxBtn" type="button">导出 PPTX</button>
+          <button class="btn btn-ghost" id="tcCopyBtn" type="button">复制文字</button>
+        </div>
+      </div>
+      <div class="tc-review-body" id="reviewBody" contenteditable="false" spellcheck="false"></div>
+      <div class="tc-status" id="tcReviewDone"></div>
+    </div>
+
+  </section>
+</main>
+
+<script src="assets/js/rules.js?v=20261116E"></script>
+<script src="assets/js/auth.js?v=20261116P"></script>
+<script src="assets/vendor/pptxgen.bundle.js"></script>
+<script src="assets/js/teacher.js?v=20261122A"></script>
+</body>
+</html>

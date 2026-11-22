@@ -1,0 +1,78 @@
+/* 文芽作文：教师控制台。使用主题变量，深浅色都能读。 */
+.teacher-wrap { max-width: 960px; padding-bottom: 60px; }
+
+.privacy-note {
+  margin: 14px 0 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border-secondary, #d8d2c4);
+  border-left: 3px solid var(--g-700, #1d7048);
+  border-radius: var(--border-radius-md, 8px);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-soft, #5a6b60);
+  background: var(--color-background-secondary, rgba(0, 0, 0, 0.02));
+}
+.privacy-note strong { color: var(--ink, #24372c); }
+
+.tc-card {
+  background: var(--card, var(--color-background-primary, #fff));
+  border: 1px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.12));
+  border-radius: var(--border-radius-lg, 12px);
+  padding: 22px 24px;
+  margin-bottom: 18px;
+}
+.tc-card h2 { font-size: 18px; font-weight: 600; margin: 0 0 8px; color: var(--ink, #24372c); }
+.tc-card p { font-size: 13px; line-height: 1.7; color: var(--ink-soft, #5a6b60); margin: 0 0 14px; }
+
+.tc-gate-row { display: flex; gap: 10px; max-width: 480px; }
+.tc-gate-row .input { flex: 1; }
+
+.tc-status { font-size: 12.5px; line-height: 1.6; color: var(--ink-mute, #8a968e); margin-top: 10px; min-height: 18px; }
+.tc-status-ok { color: var(--g-700, #1d7048); }
+.tc-status-err { color: #b23b3b; }
+.tc-status-warn { color: #a8660b; }
+
+.tc-setup-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.tc-provinces-ok { font-size: 12px; color: var(--g-700, #1d7048); }
+
+.tc-field { display: block; margin-top: 16px; }
+.tc-field > span { display: block; font-size: 13px; font-weight: 500; color: var(--ink, #24372c); margin-bottom: 6px; }
+.tc-field code { font-family: var(--font-mono, monospace); padding: 1px 5px; border-radius: 4px; background: var(--color-background-tertiary, rgba(0, 0, 0, 0.05)); font-size: 12px; }
+.tc-essays { width: 100%; resize: vertical; line-height: 1.7; font-size: 14px; }
+select.input { width: 100%; max-width: 320px; }
+
+.tc-setup-foot { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; margin: 12px 0 16px; }
+.tc-count { font-size: 13px; font-weight: 500; color: var(--ink-soft, #5a6b60); }
+.tc-count-ok { color: var(--g-700, #1d7048); }
+.tc-cost { font-size: 12px; color: var(--ink-mute, #8a968e); }
+
+.tc-table-wrap { width: 100%; overflow-x: auto; margin: 12px 0 16px; }
+.tc-score-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tc-score-table th, .tc-score-table td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.1)); vertical-align: top; }
+.tc-score-table th { font-weight: 500; color: var(--ink-soft, #5a6b60); font-size: 12px; }
+.tc-score-table td:first-child { width: 40px; color: var(--ink-mute, #8a968e); }
+.tc-score-table td:nth-child(3) { white-space: nowrap; color: var(--g-700, #1d7048); }
+.tc-results-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.tc-hint { font-size: 12px; color: var(--ink-mute, #8a968e); }
+
+.tc-review-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tc-review-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.tc-review-body { margin-top: 14px; outline: none; }
+.tc-review-body[contenteditable="true"] { border: 1px dashed var(--color-border-secondary, #d8d2c4); border-radius: 8px; padding: 14px; }
+.tc-r-headline { font-family: var(--serif, serif); font-size: 20px; font-weight: 600; color: var(--brand-deep, #123f2c); padding-bottom: 12px; border-bottom: 1px solid var(--color-border-tertiary, rgba(0, 0, 0, 0.12)); }
+.tc-r-block { margin-top: 18px; }
+.tc-r-block h3 { font-size: 15px; font-weight: 600; color: var(--g-700, #1d7048); margin: 0 0 8px; }
+.tc-r-block p, .tc-r-block li { font-size: 14px; line-height: 1.8; color: var(--ink, #24372c); margin: 4px 0; }
+.tc-r-block ul { padding-left: 20px; }
+.tc-r-issue { padding: 10px 0; border-bottom: 1px dashed var(--color-border-tertiary, rgba(0, 0, 0, 0.1)); }
+.tc-r-issue h4 { font-size: 14px; font-weight: 600; margin: 0 0 4px; color: var(--ink, #24372c); }
+.tc-r-why { color: var(--ink-soft, #5a6b60) !important; }
+.tc-r-fix { color: var(--g-700, #1d7048) !important; }
+.tc-r-closing { margin-top: 20px; font-family: var(--serif, serif); font-size: 15px; color: var(--brand-deep, #123f2c); }
+
+@media (max-width: 720px) {
+  .teacher-wrap { padding-left: 14px; padding-right: 14px; }
+  .tc-card { padding: 16px; }
+  .tc-gate-row { flex-direction: column; }
+  .tc-review-actions .btn { flex: 1 1 auto; }
+}
