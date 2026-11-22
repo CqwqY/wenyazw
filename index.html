@@ -149,11 +149,11 @@
       </div>
 
       <div class="create-grid">
-        <a class="create-card create-ai" href="write.html">
+        <a class="create-card create-ai" id="createSmartBtn" href="write.html">
           <span class="create-no">01</span>
           <h2>AI 生成作文</h2>
-          <p>选类别、文体和题目，先拟大纲再写正文，写完逐句评改。</p>
-          <span class="create-go">进入工作台</span>
+          <p>给个题目，AI 先翻你的旧稿：有能撑起它的素材就借来派生，没有就从零写。之后拟大纲、写正文、逐句评改。</p>
+          <span class="create-go">判断后开写</span>
         </a>
 
         <div class="create-card create-import">
@@ -559,7 +559,8 @@
       <button class="btn btn-primary" id="deriveNewBtn" type="button">按这个题目写新文</button>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-primary" id="deriveGo" type="button">开始派生</button>
+      <button class="btn btn-outline" id="deriveSkipBtn" type="button">直接写新文，不派生</button>
+      <button class="btn btn-primary" id="deriveGo" type="button">判断并派生</button>
     </div>
   </div>
 </div>
@@ -653,6 +654,6 @@
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
 <script src="assets/js/memory.js?v=20261122C"></script>
-<script src="assets/js/home.js?v=20261122Z"></script>
+<script src="assets/js/home.js?v=20261122ZA"></script>
 </body>
 </html>

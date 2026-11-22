@@ -30,7 +30,8 @@
     deriveTopic: $("deriveTopic"), deriveWords: $("deriveWords"), deriveGenre: $("deriveGenre"),
     deriveGo: $("deriveGo"), deriveMsg: $("deriveMsg"),
     deriveNoMatch: $("deriveNoMatch"), deriveNoMatchWhy: $("deriveNoMatchWhy"),
-    deriveNewBtn: $("deriveNewBtn"),
+    deriveNewBtn: $("deriveNewBtn"), deriveSkipBtn: $("deriveSkipBtn"),
+    createSmartBtn: $("createSmartBtn"),
     importType: $("importType"), importBoard: $("importBoard"),
     importTitle: $("importTitle"), importBody: $("importBody"), importCount: $("importCount"),
     importSave: $("importSave"), importMsg: $("importMsg"),
@@ -53,6 +54,8 @@
 
   var currentView = "essays";
   var pending = false;
+  var pendingDerive = false;
+  var deriveFromCreate = false;
   var editingId = 0;
 
   function auth() { return window.WY_AUTH; }
@@ -610,6 +613,7 @@
 
   function hideNoMatch() {
     if (els.deriveNoMatch) els.deriveNoMatch.setAttribute("hidden", "");
+    if (els.deriveSkipBtn) els.deriveSkipBtn.removeAttribute("hidden");
   }
 
   function showNoMatch(reason) {
@@ -617,12 +621,32 @@
       els.deriveNoMatchWhy.textContent = String(reason || "旧稿里没有能撑起这个题目的场面，硬拼反而写散了。").trim().slice(0, 160);
     }
     if (els.deriveNoMatch) els.deriveNoMatch.removeAttribute("hidden");
+    if (els.deriveSkipBtn) els.deriveSkipBtn.setAttribute("hidden", "");
   }
 
   /* 派生不下去就转正常新文流程：题目带进工作台，不让用户再敲一遍。 */
   function goNewEssay() {
+    deriveFromCreate = false;
     var topic = els.deriveTopic ? els.deriveTopic.value.trim() : "";
     location.href = "write.html?new=1&topic=" + encodeURIComponent(topic);
+  }
+
+  /* 创建作文时明确不派生：跳过判断，直接进全新写作流程。 */
+  function skipDerive() {
+    deriveFromCreate = false;
+    closeDerive();
+    location.href = "write.html?new=1";
+  }
+
+  /* 创建作文入口：先登录，再进派生判断弹层。登录成功后自动续上。 */
+  function openCreateSmart() {
+    deriveFromCreate = true;
+    if (!loggedIn()) {
+      pendingDerive = true;
+      if (auth()) auth().open("login");
+      return;
+    }
+    openDerive();
   }
 
   function openDerive() {
@@ -661,12 +685,23 @@
         return;
       }
       setMsg(els.deriveMsg, "派生好了《" + esc(j.title || "无题") + "》。", "ok");
-      window.setTimeout(closeDerive, 1000);
-      await loadEssays();
+      await loadEssays(true);
       var tail = (j.note ? " " + String(j.note) : "");
       setMsg(els.essayMsg, "《" + esc(j.title || "无题") + "》已进导图，金色虚线连着借过的 " +
         ((j.sourceIds || []).length || 1) + " 篇素材。" + tail, "ok");
       if (auth() && auth().refreshCredits) auth().refreshCredits();
+      /* 从「创建作文」进来：判断完直接打开派生稿接着写；
+         从「我的作文」导图进来：留在原地看新连的虚线。 */
+      if (deriveFromCreate) {
+        deriveFromCreate = false;
+        var eid = j.id;
+        window.setTimeout(function () {
+          if (eid) location.href = "write.html?essay=" + encodeURIComponent(eid);
+          else closeDerive();   // 后端没给 id 就留在原地，不跳到 ?essay=undefined
+        }, 900);
+      } else {
+        window.setTimeout(closeDerive, 1000);
+      }
     } catch (e) {
       hideNoMatch();
       setMsg(els.deriveMsg, "派生失败：" + ((e && e.message) || "未知错误"), "error");
@@ -1068,10 +1103,18 @@
     }
   });
   if (els.classifyBtn) els.classifyBtn.addEventListener("click", classifyAll);
-  if (els.deriveOpen) els.deriveOpen.addEventListener("click", openDerive);
+  if (els.deriveOpen) els.deriveOpen.addEventListener("click", function () {
+    deriveFromCreate = false;
+    openDerive();
+  });
+  if (els.createSmartBtn) els.createSmartBtn.addEventListener("click", function (e) {
+    if (e) e.preventDefault();   // 保留 href 只作无 JS 降级，正常走判断流程
+    openCreateSmart();
+  });
   if (els.deriveClose) els.deriveClose.addEventListener("click", closeDerive);
   if (els.deriveGo) els.deriveGo.addEventListener("click", runDerive);
   if (els.deriveNewBtn) els.deriveNewBtn.addEventListener("click", goNewEssay);
+  if (els.deriveSkipBtn) els.deriveSkipBtn.addEventListener("click", skipDerive);
   if (els.deriveMask) {
     els.deriveMask.addEventListener("click", function (e) { if (e.target === els.deriveMask) closeDerive(); });
   }
@@ -1141,6 +1184,7 @@
       auth().onChange(function (user) {
         syncShell();
         if (user && pending) { pending = false; location.href = "write.html"; }
+        if (user && pendingDerive) { pendingDerive = false; openDerive(); }
       });
     }
   });
