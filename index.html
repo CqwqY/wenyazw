@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AH">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/home.css?v=20261116Z">
+<link rel="stylesheet" href="assets/css/memory.css?v=20261122A">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
 </head>
 <body class="home">
@@ -104,6 +105,11 @@
       <button type="button" class="side-item" data-view="quotes">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H5v5h4c0 3-1.4 4.6-4 5M19 7h-4v5h4c0 3-1.4 4.6-4 5"/></svg>
         <span>找金句</span>
+      </button>
+      <button type="button" class="side-item" data-view="memory">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M8 7h7M8 10.5h5"/></svg>
+        <span>记一记</span>
+        <span class="side-item-tag" id="sideDueTag" hidden>复习</span>
       </button>
       <button type="button" class="side-item" data-view="account">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
@@ -253,7 +259,112 @@
       </div>
     </section>
 
-    <!-- 视图五：账户设置 -->
+    <!-- 视图五：记一记（记忆模式，句子/成语，朗读→挖空→排序→次日复习） -->
+    <section class="app-view" id="viewMemory" hidden>
+      <div class="view-head">
+        <div>
+          <h1>记一记</h1>
+          <p>像背单词一样记句子和成语：先听读两遍，再挖空选、排序拼，隔天回来复习。</p>
+        </div>
+        <span class="mem-count" id="memCount"></span>
+      </div>
+
+      <div class="mem-setup" id="memSetup">
+        <div class="mem-due" id="memDue" hidden>
+          <div>
+            <strong id="memDueTitle">有内容要复习</strong>
+            <p id="memDueDesc"></p>
+          </div>
+          <button class="btn btn-primary" id="memReviewBtn" type="button">开始复习</button>
+        </div>
+
+        <div class="mem-filters">
+          <div class="mem-filter-row">
+            <span class="mem-filter-label">内容</span>
+            <div class="mem-chips" id="memKindChips">
+              <button class="mem-chip is-on" data-kind="all" type="button">全部</button>
+              <button class="mem-chip" data-kind="quote" type="button">名言警句</button>
+              <button class="mem-chip" data-kind="idiom" type="button">成语</button>
+            </div>
+          </div>
+          <div class="mem-filter-row">
+            <span class="mem-filter-label">主题</span>
+            <div class="mem-chips" id="memThemeChips"></div>
+          </div>
+        </div>
+
+        <div class="mem-start">
+          <div>
+            <strong id="memPickTitle">选好内容，开始记</strong>
+            <p class="mem-start-hint">读两遍 → 挖空选词 → 排序成句，一轮约 5 分钟。进度只存在这台设备上。</p>
+          </div>
+          <button class="btn btn-primary" id="memStartBtn" type="button">开始记一记</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 记忆模式全屏层 -->
+    <div class="mem-mask" id="memMask" hidden>
+      <div class="mem-stage" role="dialog" aria-modal="true" aria-label="记忆模式">
+        <div class="mem-top">
+          <div class="mem-top-left">
+            <span class="mem-phase" id="memPhase">读一遍</span>
+            <span class="mem-progress" id="memProgress">1 / 10</span>
+          </div>
+          <div class="mem-top-right">
+            <button class="mem-icon-btn" id="memSoundBtn" type="button" title="朗读开关">声音：开</button>
+            <button class="mem-icon-btn" id="memExitBtn" type="button">退出</button>
+          </div>
+        </div>
+
+        <div class="mem-body">
+          <div class="mem-step-dots" id="memDots"></div>
+
+          <!-- 认读：中央大字 + 语音，点击/长按下一条 -->
+          <div class="mem-panel mem-read" id="memReadPanel">
+            <div class="mem-card" id="memCard" title="点击下一条，长按重听">
+              <div class="mem-card-text" id="memCardText"></div>
+              <div class="mem-card-hint" id="memCardHint"></div>
+            </div>
+            <div class="mem-tip" id="memReadTip">点卡片下一条 · 长按重听 · 空格键也可以</div>
+            <div class="mem-actions">
+              <button class="btn-outline" id="memReplayBtn" type="button">重听</button>
+              <button class="btn btn-primary" id="memNextBtn" type="button">下一条</button>
+            </div>
+          </div>
+
+          <!-- 挖空选择 -->
+          <div class="mem-panel mem-cloze" id="memClozePanel" hidden>
+            <div class="mem-prompt">把空补上</div>
+            <div class="mem-cloze-text" id="memClozeText"></div>
+            <div class="mem-card-hint" id="memClozeHint"></div>
+            <div class="mem-options" id="memOptions"></div>
+            <div class="mem-feedback" id="memClozeFeedback"></div>
+          </div>
+
+          <!-- 排序成句 -->
+          <div class="mem-panel mem-order" id="memOrderPanel" hidden>
+            <div class="mem-prompt">按顺序点，把句子拼回来</div>
+            <div class="mem-order-slots" id="memOrderSlots"></div>
+            <div class="mem-order-bank" id="memOrderBank"></div>
+            <div class="mem-feedback" id="memOrderFeedback"></div>
+            <button class="btn-outline" id="memOrderReset" type="button">重排</button>
+          </div>
+
+          <!-- 完成 -->
+          <div class="mem-panel mem-done" id="memDonePanel" hidden>
+            <div class="mem-done-mark">完成</div>
+            <p class="mem-done-line" id="memDoneLine"></p>
+            <p class="mem-done-sub" id="memDoneSub"></p>
+            <div class="mem-actions">
+              <button class="btn btn-primary" id="memDoneBtn" type="button">返回记一记</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 视图六：账户设置 -->
     <section class="app-view" id="viewAccount" hidden>
       <div class="view-head">
         <div>
@@ -350,6 +461,10 @@
     <button type="button" class="app-tab" data-view="quotes">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7H5v5h4c0 3-1.4 4.6-4 5M19 7h-4v5h4c0 3-1.4 4.6-4 5"/></svg>
       <span>金句</span>
+    </button>
+    <button type="button" class="app-tab" data-view="memory">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M8 7h7M8 10.5h5"/></svg>
+      <span>记一记</span>
     </button>
     <button type="button" class="app-tab" data-view="account">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
@@ -523,6 +638,7 @@
 <script src="assets/js/auth.js?v=20261116P"></script>
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
-<script src="assets/js/home.js?v=20261116W"></script>
+<script src="assets/js/memory.js?v=20261122A"></script>
+<script src="assets/js/home.js?v=20261122X"></script>
 </body>
 </html>

@@ -20,7 +20,8 @@
     cta: $("homeCta"), heroNote: $("heroNote"),
     views: {
       essays: $("viewEssays"), create: $("viewCreate"),
-      topics: $("viewTopics"), quotes: $("viewQuotes"), account: $("viewAccount")
+      topics: $("viewTopics"), quotes: $("viewQuotes"),
+      memory: $("viewMemory"), account: $("viewAccount")
     },
     sideItems: document.querySelectorAll(".side-item"),
     tabItems: document.querySelectorAll(".app-tab"),

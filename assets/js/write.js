@@ -3184,6 +3184,8 @@
     var ps = body.querySelectorAll("p");
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
+      // 差异视图顶上的说明条不是稿纸正文，不能按格子拉高，否则会撑出空行
+      if (p.classList.contains("paper-diff-legend")) continue;
       p.style.height = "";
       var h = p.getBoundingClientRect().height;
       var rows = Math.max(1, Math.round(h / cell));
@@ -3347,7 +3349,8 @@
       if (o.t === "eq") {
         var pe = document.createElement("p");
         pe.className = "paper-diff-eq";
-        pe.textContent = pa[o.a];
+        pe.appendChild(charSpans(pa[o.a]));
+        groupPunctIn(pe);
         els.paperBody.appendChild(pe);
         i++;
         continue;
@@ -3365,32 +3368,36 @@
           var pp = document.createElement("p");
           pp.className = "paper-diff-p";
           charDiff(aTxt, bTxt).forEach(function (c) {
-            if (c.t === "eq") pp.appendChild(document.createTextNode(c.s));
+            if (c.t === "eq") pp.appendChild(charSpans(c.s));
             else {
               var sp = document.createElement("span");
               sp.className = c.t === "add" ? "diff-ins" : "diff-del-inline";
-              sp.textContent = c.s;
+              sp.appendChild(charSpans(c.s));
               pp.appendChild(sp);
             }
           });
+          groupPunctIn(pp);
           els.paperBody.appendChild(pp);
         } else {
           if (aTxt != null) {
             var pd = document.createElement("p");
             pd.className = "paper-diff-del";
-            pd.textContent = aTxt;
+            pd.appendChild(charSpans(aTxt));
+            groupPunctIn(pd);
             els.paperBody.appendChild(pd);
           }
           if (bTxt != null) {
             var pa2 = document.createElement("p");
             pa2.className = "paper-diff-add";
-            pa2.textContent = bTxt;
+            pa2.appendChild(charSpans(bTxt));
+            groupPunctIn(pa2);
             els.paperBody.appendChild(pa2);
           }
         }
       }
     }
     els.paperStat.textContent = diffStat(diffPrevBody, docBody);
+    alignPaperGrid();
   }
 
   function renderAnnotated() {
