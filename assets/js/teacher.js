@@ -26,20 +26,32 @@
 
   /* ---------- 身份 ---------- */
   async function loadStatus() {
+    if (!auth().loggedIn()) {
+      $("notLogged").hidden = false;
+      $("gateCard").hidden = true;
+      $("teacherPanel").hidden = true;
+      return;
+    }
     var res, j = {};
     try {
-      res = await fetch(API + "/api/teacher/status", { headers: { "Accept": "application/json" } });
+      res = await fetch(API + "/api/teacher/status", {
+        headers: { "Accept": "application/json", "Authorization": "Bearer " + auth().token() }
+      });
       try { j = await res.json(); } catch (e) { /* ignore */ }
     } catch (e) {
       setMsg($("gateMsg"), "连不上服务，检查网络后再试。", "err");
+      $("notLogged").hidden = true;
+      $("gateCard").hidden = false;
+      $("teacherPanel").hidden = true;
       return;
     }
     state.enabled = !!(j && j.enabled);
     state.teacher = !!(j && j.teacher);
-    $("notLogged").hidden = !!auth().loggedIn();
-    $("gateCard").hidden = !auth().loggedIn() || state.teacher || !state.enabled;
-    $("teacherPanel").hidden = !auth().loggedIn() || !state.teacher;
-    if (!state.enabled) {
+    $("notLogged").hidden = true;
+    /* 没授权的人只看到邀请码门，看不到工作台；已授权直接进工作台。 */
+    $("gateCard").hidden = state.teacher || !state.enabled;
+    $("teacherPanel").hidden = !state.teacher;
+    if (!state.teacher && !state.enabled) {
       setMsg($("gateMsg"), "教师控制台还没有开放。", "err");
     }
   }

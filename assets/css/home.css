@@ -814,3 +814,6 @@ body.app-on .site-footer { display: none; }
   .map-boards { gap: 12px; }
   .map-node-board { margin-left: 0; }
 }
+
+/* 教师控制台入口：仅授权教师可见，需盖掉 .side-item 的 display:flex */
+.side-item[hidden], .account-links .btn-outline[hidden] { display: none; }

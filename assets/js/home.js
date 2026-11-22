@@ -45,6 +45,7 @@
     paramsSave: $("paramsSave"), paramsMsg: $("paramsMsg"), paramsHint: $("paramsHint"),
     appEmail: $("appEmail"), appUser: $("appUser"), appCredits: $("appCredits"),
     appPassword: $("appPassword"), appLogout: $("appLogout"),
+    teacherSideLink: $("teacherSideLink"), teacherAccountLink: $("teacherAccountLink"),
     styleVerdict: $("styleVerdict"), styleSummary: $("styleSummary"), styleTags: $("styleTags"),
     styleEmpty: $("styleEmpty"), styleMarkList: $("styleMarkList"), styleAddMark: $("styleAddMark"),
     styleSave: $("styleSave"), styleMsg: $("styleMsg"), styleScan: $("styleScan"),
@@ -485,6 +486,24 @@
      每次都重新 setView 会把它自己拉回顶部，还会和 loadAccount 互相递归。 */
   var shellOn = null;
 
+  /* 教师控制台入口只对授权教师显示。查身份必须带上 token，
+     否则服务端读不到登录账号，会把所有人都判成学生。 */
+  var teacherGateCheckedFor = null;
+  async function refreshTeacherGate() {
+    var who = loggedIn() ? (auth().email ? auth().email() : "in") : "out";
+    if (who === teacherGateCheckedFor) return;
+    var show = false;
+    if (loggedIn()) {
+      try {
+        var j = await api("/api/teacher/status");
+        show = !!(j && j.teacher);
+      } catch (e) { show = false; }
+    }
+    if (els.teacherSideLink) els.teacherSideLink.hidden = !show;
+    if (els.teacherAccountLink) els.teacherAccountLink.hidden = !show;
+    teacherGateCheckedFor = who;
+  }
+
   function syncShell() {
     var on = loggedIn();
     document.body.classList.toggle("app-on", on);
@@ -497,6 +516,7 @@
         ? "已登录。进工作台后直接写，模型由站内直连。"
         : "生成需要登录：密码登录，或邮箱验证码登录后补设密码。";
     }
+    refreshTeacherGate();
     // 只有从未登录变为已登录（或首次进来）才切视图；单纯的积分更新不动滚动位置
     if (on && shellOn !== true) setView(viewFromHash(), true);
     shellOn = on;
