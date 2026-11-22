@@ -64,4 +64,21 @@ eq(ord.segs.length, 4, 'idiom order tiles');
 const ord2 = f.makeOrder(pool[4]);
 if (ord2.segs.length < 2) throw new Error('quote order tiles bad');
 console.log('OK quote order tiles', ord2.segs.join('|'));
+// 错题重测：错的条目挪到队尾，直到答对才出队
+function answer(queue, ok) {
+  if (ok) return queue.shift();
+  queue.push(queue.shift());
+  return null;
+}
+let cloze = ['a', 'b'];
+eq(answer(cloze, false), null, 'wrong answer does not leave queue');
+eq(cloze.join(','), 'b,a', 'wrong answer moves to tail');
+eq(answer(cloze, true), 'b', 'correct answer leaves queue');
+eq(cloze.join(','), 'a', 'retry item still queued');
+let single = ['a'];
+answer(single, false);
+answer(single, false);
+eq(single.join(','), 'a', 'single wrong item stays until correct');
+eq(answer(single, true), 'a', 'single item finally passes');
+eq(single.length, 0, 'queue empty after pass');
 console.log('ALL MEMORY LOGIC TESTS PASSED');

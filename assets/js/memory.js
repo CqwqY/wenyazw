@@ -306,8 +306,12 @@
   /* ---------------- 一轮流程 ---------------- */
   function startSession(items, mode) {
     if (!items || !items.length) return;
+    var batch = items.slice(0, settings.batch);
     state = {
-      items: items.slice(0, settings.batch),
+      items: batch,
+      // 错题不出队：挪到队尾，这一轮里反复考到答对为止
+      queues: { cloze: batch.slice(), order: batch.slice() },
+      mistakes: 0,
       mode: mode || "new",
       stage: "read", idx: 0, pass: 0, results: []
     };
@@ -326,12 +330,23 @@
   function renderStep() {
     if (!state) return;
     var s = state;
-    var item = s.items[s.idx];
+    var item;
+    if (s.stage === "read" || s.stage === "recall") {
+      item = s.items[s.idx];
+    } else {
+      var queue = s.queues[s.stage];
+      if (!queue || !queue.length) {
+        if (s.stage === "cloze") { s.stage = "order"; renderStep(); return; }
+        finish(); return;
+      }
+      item = queue[0];
+    }
     if (!item) { finish(); return; }
     var labels = { read: "读两遍", recall: "先想原句", cloze: "挖空选词", order: "排序成句" };
     els.memPhase.textContent = s.mode === "review" ? ("复习 · " + labels[s.stage]) : labels[s.stage];
-    els.memProgress.textContent = (s.idx + 1) + " / " + s.items.length +
-      (s.stage === "read" ? (" · 第 " + (s.pass + 1) + " 遍") : "");
+    els.memProgress.textContent = (s.stage === "read" || s.stage === "recall")
+      ? ((s.idx + 1) + " / " + s.items.length + (s.stage === "read" ? (" · 第 " + (s.pass + 1) + " 遍") : ""))
+      : ("还剩 " + s.queues[s.stage].length + " 条" + (s.mistakes ? (" · 重测 " + s.mistakes + " 次") : ""));
     els.memDots.innerHTML = "";
     ["read", "recall", "cloze", "order"].forEach(function (k) {
       var d = document.createElement("span");
@@ -408,18 +423,24 @@
       b.addEventListener("click", function () {
         var ok = opt === q.answer;
         mark(item.id, ok, "cloze", item);
-        state.results.push(ok);
-        els.memClozeFeedback.textContent = ok ? "对了" : ("答案是「" + q.answer + "」");
-        els.memClozeFeedback.className = "mem-feedback " + (ok ? "ok" : "no");
-        Array.prototype.forEach.call(els.memOptions.children, function (x) { x.disabled = true; });
-        speak(item.text);
         var cur = state;
+        Array.prototype.forEach.call(els.memOptions.children, function (x) { x.disabled = true; });
+        if (ok) {
+          state.results.push(true);
+          els.memClozeFeedback.textContent = "对了";
+          els.memClozeFeedback.className = "mem-feedback ok";
+        } else {
+          state.mistakes++;
+          els.memClozeFeedback.textContent = "还不对，答案是「" + q.answer + "」，这条待会儿再考你一次";
+          els.memClozeFeedback.className = "mem-feedback no";
+        }
+        speak(item.text);
         setTimeout(function () {
           if (state !== cur) return;
-          state.idx++;
-          if (state.idx >= state.items.length) { state.stage = "order"; state.idx = 0; }
+          if (ok) cur.queues.cloze.shift();
+          else cur.queues.cloze.push(cur.queues.cloze.shift());
           renderStep();
-        }, ok ? 700 : 1300);
+        }, ok ? 700 : 1500);
       });
       els.memOptions.appendChild(b);
     });
@@ -455,25 +476,31 @@
   }
   function checkOrder() {
     var q = state.current;
-    var item = state.items[state.idx];
+    var item = state.queues.order[0];
     var ok = q.picked.every(function (v, i) { return v === i; });
     mark(item.id, ok, "order", item);
-    state.results.push(ok);
-    els.memOrderFeedback.textContent = (ok ? "拼对了 · " : ("原句是：" + item.text + " · ")) + (item.meaning || "");
-    els.memOrderFeedback.className = "mem-feedback " + (ok ? "ok" : "no");
-    speak(item.text);
     var cur = state;
+    if (ok) {
+      state.results.push(true);
+      els.memOrderFeedback.textContent = ( "拼对了 · " ) + (item.meaning || "");
+      els.memOrderFeedback.className = "mem-feedback ok";
+    } else {
+      state.mistakes++;
+      els.memOrderFeedback.textContent = "原句是：" + item.text + " · " + (item.meaning || "") + "，这条待会儿再拼一次";
+      els.memOrderFeedback.className = "mem-feedback no";
+    }
+    speak(item.text);
     setTimeout(function () {
       if (state !== cur) return;
-      state.idx++;
-      if (state.idx >= state.items.length) finish();
-      else renderStep();
-    }, ok ? 800 : 1500);
+      if (ok) cur.queues.order.shift();
+      else cur.queues.order.push(cur.queues.order.shift());
+      renderStep();
+    }, ok ? 800 : 1700);
   }
   function finish() {
     var s = state;
-    var right = s.results.filter(Boolean).length;
-    var total = s.results.length || 1;
+    var passed = s.results.filter(Boolean).length;
+    var expected = s.items.length * 2;
     stopSpeak();
     s.stage = "done";
     ["memReadPanel", "memRecallPanel", "memClozePanel", "memOrderPanel"].forEach(function (id) { els[id].hidden = true; });
@@ -481,10 +508,10 @@
     els.memPhase.textContent = "完成";
     els.memProgress.textContent = "";
     els.memDots.innerHTML = "";
-    els.memDoneLine.textContent = "这一轮答对 " + right + " / " + total + " 题";
-    els.memDoneSub.textContent = right === total
-      ? "全对，隔天再来一遍就更牢了。"
-      : "错的地方明天会排进复习，再来一次就行。";
+    els.memDoneLine.textContent = "全部过关 · " + passed + " / " + expected + " 题";
+    els.memDoneSub.textContent = s.mistakes
+      ? ("中间重测了 " + s.mistakes + " 次，错过的地方会排进明天的复习。")
+      : "一遍全对，隔天再来一遍就更牢了。";
     syncNow();
   }
 

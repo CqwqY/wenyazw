@@ -134,7 +134,7 @@
     if (!loggedIn()) needLogin("请先登录，再用站内模型出题。");
     var res;
     try {
-      res = await fetch(API + "/llm/task", {
+      res = await fetch(API + "/api/llm/task", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token() },
         body: JSON.stringify({

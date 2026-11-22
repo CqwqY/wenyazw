@@ -1432,7 +1432,7 @@
         if (f) f.hidden = site;
       });
     if (els.keyToggle) els.keyToggle.disabled = site;
-    // 站内模式不需要「记住 Key」，隐藏掉免得误解；测试连接会扣 1 分，按钮上写明
+    // 站内模式不需要「记住 Key」，隐藏掉免得误解；测试连接按用量扣积分，按钮上写明
     var rememberWrap = els.remember && els.remember.closest("label");
     // 这行 label 上有内联 display:flex，光加 hidden 属性压不住，得直接改 display
     if (rememberWrap) rememberWrap.style.display = site ? "none" : "flex";
