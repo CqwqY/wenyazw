@@ -9,7 +9,15 @@
 
   var API = "https://back.wenyazw.top";
   var $ = function (id) { return document.getElementById(id); };
-  function auth() { return window.WY_AUTH; }
+  /* auth.js 正常加载会挂 WY_AUTH；万一缺失，返回只读空壳，避免整页崩溃。 */
+  function auth() {
+    return window.WY_AUTH || {
+      loggedIn: function () { return false; },
+      token: function () { return ""; },
+      open: function () { location.href = "index.html"; },
+      onChange: function () {}
+    };
+  }
   function trim(s) { return String(s == null ? "" : s).trim(); }
   function esc(s) {
     return trim(s).replace(/[&<>"']/g, function (c) {
