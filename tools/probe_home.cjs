@@ -123,6 +123,10 @@ const get = (p) => new Promise((res, rej) => {
   }
 
   fs.mkdirSync(OUT, { recursive: true });
+  if (process.env.WY_SCROLL) {
+    await evalJS(`(function(){var e=document.querySelector('${process.env.WY_SCROLL}');if(e){var y=e.getBoundingClientRect().top+window.pageYOffset-16;window.scrollTo({top:y,behavior:'instant'});}return e?window.pageYOffset:'missing';})()`);
+    await new Promise(r => setTimeout(r, 500));
+  }
   const shot = await send('Page.captureScreenshot', {
     format: 'png', captureBeyondViewport: process.env.WY_FULL === '1'
   });

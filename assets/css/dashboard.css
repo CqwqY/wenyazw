@@ -301,7 +301,8 @@
   color: var(--ink-soft, #4a5d51);
 }
 
-/* ---------- 全部功能：分组文字入口，不用卡片网格 ---------- */
+/* ---------- 全部功能：图标 + 文字入口 ---------- */
+.dash-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 .dash-all { margin-top: 44px; }
 .dash-all-note {
   font-size: 12px;
@@ -317,17 +318,39 @@
 .dash-group { min-width: 0; }
 .dash-group.dash-wide { grid-column: 1 / -1; }
 .dash-group-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--serif, serif);
   font-size: 15px;
   font-weight: 600;
   color: var(--g-700, #1b6142);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+}
+.dash-group-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--g-100, #e4f2e9);
+  color: var(--g-700, #1b6142);
+}
+.dash-group-badge svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .dash-link {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
   width: 100%;
   padding: 10px 4px;
   border: 0;
@@ -340,7 +363,20 @@
   cursor: pointer;
   transition: color .16s ease, padding-left .16s ease;
 }
+.dash-ico {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--g-600, #1d7048);
+  opacity: .72;
+  transition: transform .18s ease, opacity .18s ease;
+}
 .dash-link:hover { color: var(--g-700, #1b6142); padding-left: 9px; }
+.dash-link:hover .dash-ico { transform: translateX(2px) scale(1.06); opacity: 1; }
 .dash-link-hint {
   font-size: 11.5px;
   color: var(--ink-mute, #5e7165);
@@ -379,8 +415,9 @@
   .dash-row { grid-template-columns: 1fr; gap: 6px; }
   .dash-row-meta { font-size: 11.5px; }
   .dash-groups { grid-template-columns: 1fr; row-gap: 24px; }
-  .dash-link { flex-wrap: wrap; gap: 2px 12px; }
-  .dash-link-hint { text-align: left; }
+  .dash-link { grid-template-columns: 20px minmax(0, 1fr); gap: 3px 11px; padding: 11px 2px; }
+  .dash-ico { grid-row: span 2; align-self: start; margin-top: 2px; }
+  .dash-link-hint { grid-column: 2; text-align: left; white-space: normal; overflow: visible; line-height: 1.5; }
 }
 @media (prefers-reduced-motion: reduce) {
   .dash.is-animated .dash-hero-title .hero-char,
@@ -394,4 +431,5 @@
     clip-path: none;
   }
   .dash-paper { transition: none; }
+  .dash-ico, .dash-link { transition: none; }
 }
