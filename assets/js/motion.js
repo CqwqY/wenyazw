@@ -27,10 +27,16 @@
     Array.prototype.forEach.call(document.querySelectorAll(".spotlight"), function (card) {
       if (card.dataset.spotBound) return;
       card.dataset.spotBound = "1";
+      var pending = 0, px = 0, py = 0;
       card.addEventListener("pointermove", function (e) {
-        var r = card.getBoundingClientRect();
-        card.style.setProperty("--sx", ((e.clientX - r.left) / r.width * 100).toFixed(1) + "%");
-        card.style.setProperty("--sy", ((e.clientY - r.top) / r.height * 100).toFixed(1) + "%");
+        px = e.clientX; py = e.clientY;
+        if (pending) return;
+        pending = requestAnimationFrame(function () {
+          pending = 0;
+          var r = card.getBoundingClientRect();
+          card.style.setProperty("--sx", ((px - r.left) / r.width * 100).toFixed(1) + "%");
+          card.style.setProperty("--sy", ((py - r.top) / r.height * 100).toFixed(1) + "%");
+        });
       });
       card.addEventListener("pointerleave", function () {
         card.style.setProperty("--sx", "50%");

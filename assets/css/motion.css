@@ -1,12 +1,12 @@
-/* 全站轻量动效样式（配合 motion.js） */
+/* 全站轻量动效样式（配合 motion.js）
+   只动 opacity / transform；不用 blur、不用 backdrop-filter，避免滚动掉帧。 */
 .motion-in {
   opacity: 0;
-  transform: translateY(14px);
-  filter: blur(3px);
-  transition: opacity .58s cubic-bezier(.22,.68,0,1), transform .58s cubic-bezier(.22,.68,0,1), filter .58s ease;
+  transform: translateY(10px);
+  transition: opacity .32s ease-out, transform .32s cubic-bezier(.22, .68, 0, 1);
   transition-delay: var(--motion-delay, 0ms);
 }
-.motion-in.is-in { opacity: 1; transform: none; filter: none; }
+.motion-in.is-in { opacity: 1; transform: none; }
 
 .spotlight { position: relative; isolation: isolate; --sx: 50%; --sy: 50%; }
 .spotlight::before {
@@ -15,9 +15,9 @@
   inset: 0;
   z-index: -1;
   border-radius: inherit;
-  background: radial-gradient(320px circle at var(--sx) var(--sy), rgba(255,255,255,.55), transparent 62%);
+  background: radial-gradient(280px circle at var(--sx) var(--sy), rgba(255, 255, 255, .5), transparent 62%);
   opacity: 0;
-  transition: opacity .28s ease;
+  transition: opacity .24s ease;
   pointer-events: none;
 }
 .spotlight:hover::before { opacity: 1; }
@@ -28,7 +28,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .motion-in { opacity: 1; transform: none; filter: none; transition: none; }
+  .motion-in { opacity: 1; transform: none; transition: none; }
   .spotlight::before { display: none; }
   .btn:active, .btn-outline:active, .ec-btn:active, .esv:active, .rs__item:active { transform: none; }
 }

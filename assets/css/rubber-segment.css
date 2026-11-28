@@ -1,5 +1,5 @@
 /* RubberSegment - React Bits 风格的橡胶分段控件（原生 CSS 移植）
-   低开销：只动 clip-path/transform，不用 WebGL；尊重 prefers-reduced-motion。 */
+   滑块是纯背景 pill，用 transform 过渡；按钮文字始终真实可见，不做副本裁切。 */
 .rs {
   --rs-track: var(--g-100, #e4f2e9);
   --rs-thumb: var(--paper, #fffdf8);
@@ -12,8 +12,8 @@
   --rs-pad: 14px;
   --rs-min: 64px;
   --rs-thumb-radius: 9px;
-  --rs-idle: .72;
-  --rs-hover: .92;
+  --rs-idle: .86;
+  --rs-hover: 1;
   position: relative;
   display: inline-grid;
   grid-auto-flow: column;
@@ -58,49 +58,39 @@
   white-space: nowrap;
   cursor: pointer;
   outline: none;
-  transition: opacity 160ms ease, transform 160ms cubic-bezier(.23, 1, .32, 1);
+  transition: opacity .16s ease, color .16s ease, transform .16s cubic-bezier(.23, 1, .32, 1);
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.rs__item[aria-checked="true"] { color: var(--rs-ink-active); opacity: 1; font-weight: 650; }
 .rs__item[data-pressed] { transform: scale(.96); }
 .rs__item:focus-visible { outline: 2px solid var(--g-500, #2a8a5b); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) {
   .rs__item[aria-checked="false"]:hover { opacity: var(--rs-hover); }
 }
 
-/* 橡胶滑块：用 clip-path 裁切一份与按钮同构的标签副本，露出部分自动反色 */
+/* 橡胶滑块：只画底，不复制文字；位移交给 transform，避免逐帧重排 */
 .rs__thumb {
   position: absolute;
-  inset: var(--rs-inset);
-  z-index: 2;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  background: var(--rs-thumb);
-  color: var(--rs-ink-active);
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 0;
   border-radius: var(--rs-thumb-radius);
-  box-shadow: 0 2px 8px -3px rgba(12, 46, 32, .28), 0 0 0 1px rgba(12, 46, 32, .05);
+  background: var(--rs-thumb);
+  box-shadow: 0 2px 8px -3px rgba(12, 46, 32, .18), 0 0 0 1px rgba(12, 46, 32, .05);
   pointer-events: none;
-  will-change: clip-path;
-  clip-path: inset(0 100% 0 0 round var(--rs-thumb-radius));
+  transform: translate3d(0, 0, 0);
+  transition: none;
+  will-change: transform;
 }
-.rs[data-equal="false"] .rs__thumb { grid-auto-columns: auto; }
-.rs__copy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 100%;
-  padding: 0 var(--rs-pad);
-  min-width: var(--rs-min);
-  opacity: 1;
-  color: inherit;
-  font: inherit;
-  font-size: var(--rs-font);
-  font-weight: 650;
-  white-space: nowrap;
-  overflow: hidden;
+.rs[data-anim="1"] .rs__thumb {
+  transition: transform .26s cubic-bezier(.2, .9, .2, 1), width .26s cubic-bezier(.2, .9, .2, 1), height .26s cubic-bezier(.2, .9, .2, 1);
 }
+.rs[data-held] .rs__thumb { transition: none; }
+/* 兼容旧 DOM：不再使用文字副本 */
+.rs__copy { display: none !important; }
 
 /* 尺寸档 */
 .rs[data-size="sm"] { --rs-h: 32px; --rs-font: 12px; --rs-pad: 10px; --rs-min: 52px; --rs-radius: 10px; --rs-thumb-radius: 7px; }
@@ -115,7 +105,7 @@
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, .14);
 }
 
-/* 纵向变体：桌面侧边栏用，thumb 沿 Y 轴滑动 */
+/* 纵向变体：桌面侧边栏用 */
 .rs[data-orientation="vertical"] {
   display: inline-grid;
   grid-auto-flow: row;
@@ -126,14 +116,9 @@
   --rs-pad: 12px;
   --rs-thumb-radius: var(--rs-radius);
 }
-.rs[data-orientation="vertical"] .rs__thumb {
-  grid-auto-flow: row;
-  grid-auto-rows: auto;
-  grid-template-columns: minmax(0, 1fr);
-}
-.rs[data-orientation="vertical"] .rs__item,
-.rs[data-orientation="vertical"] .rs__copy { justify-content: flex-start; width: 100%; }
+.rs[data-orientation="vertical"] .rs__item { justify-content: flex-start; width: 100%; }
 
 @media (prefers-reduced-motion: reduce) {
-  .rs__item { transition: opacity 160ms ease; }
+  .rs__item { transition: opacity .16s ease, color .16s ease; }
+  .rs[data-anim="1"] .rs__thumb { transition: none; }
 }

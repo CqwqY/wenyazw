@@ -1,13 +1,18 @@
 /* 侧边栏 / 手机底栏 = RubberSegment 橡胶分段导航
-   保留 .side-item / .app-tab 原类名，只覆盖视觉，不碰事件绑定。 */
+   保留 .side-item / .app-tab 原类名与事件绑定，只覆盖视觉。
+   深色轨道上的默认字必须是浅色，选中字更亮；禁止再被旧 :hover 规则反转。 */
 
-/* ---------- 桌面侧栏：纵向分段，滑块沿 Y 轴移动 ---------- */
+/* ---------- 桌面侧栏：纵向，深绿轨道 + 亮字 ---------- */
 .app-side-nav.rubber-nav {
+  --rs-track: rgba(242, 249, 243, .10);
+  --rs-thumb: rgba(242, 249, 243, .18);
+  --rs-ink: var(--on-green-mute, #b7d4c2);
+  --rs-ink-active: var(--on-green, #f2f9f3);
   display: grid;
   grid-auto-flow: row;
   gap: 0;
   padding: 3px;
-  background: var(--paper-2, #f3efe6);
+  background: var(--rs-track);
   border-radius: 14px;
 }
 .app-side-nav.rubber-nav .side-item {
@@ -16,56 +21,71 @@
   height: 44px;
   padding: 0 12px;
   border-radius: 11px;
+  background: transparent;
+  color: var(--rs-ink);
+  opacity: 1;
   font-size: 14px;
-  opacity: .78;
-  background: transparent;
-  transition: opacity .18s ease, transform .18s cubic-bezier(.23, 1, .32, 1);
+  transition: color .16s ease, opacity .16s ease, background .16s ease;
 }
-/* 选中项的视觉完全交给上层滑块副本，底层按钮只保留点击热区 */
-.app-side-nav.rubber-nav .side-item[aria-checked="true"] {
-  color: transparent;
+.app-side-nav.rubber-nav .side-item::before { display: none; }
+.app-side-nav.rubber-nav .side-item svg { stroke: currentColor; opacity: 1; }
+.app-side-nav.rubber-nav .side-item-badge { opacity: 1; }
+@media (hover: hover) and (pointer: fine) {
+  .app-side-nav.rubber-nav .side-item:hover {
+    background: rgba(242, 249, 243, .08);
+    color: var(--on-green, #f2f9f3);
+    opacity: 1;
+  }
+}
+.app-side-nav.rubber-nav .side-item[aria-checked="true"],
+.app-side-nav.rubber-nav .side-item[aria-checked="true"]:hover {
+  background: transparent;
+  color: var(--rs-ink-active);
+  opacity: 1;
   font-weight: 650;
-  background: transparent;
-  box-shadow: none;
 }
-.app-side-nav.rubber-nav .side-item[aria-checked="true"] svg { opacity: 0; }
-.app-side-nav.rubber-nav .side-item[aria-checked="true"] .side-item-badge { opacity: 0; }
-.app-side-nav.rubber-nav .side-item:hover { opacity: 1; background: transparent; }
-.app-side-nav.rubber-nav .side-item-primary { opacity: 1; color: var(--ink); font-weight: 650; }
-.app-side-nav.rubber-nav .side-item-primary svg { stroke: currentColor; }
-.app-side-nav.rubber-nav .side-item-primary .side-item-badge {
+/* 创建作文是主操作：始终白字绿底，选中态也不反色 */
+.app-side-nav.rubber-nav .side-item-primary,
+.app-side-nav.rubber-nav .side-item-primary:hover,
+.app-side-nav.rubber-nav .side-item-primary[aria-checked="true"] {
   background: var(--brand, #1d7048);
   color: #fff;
+  opacity: 1;
 }
-.app-side-nav.rubber-nav .rs__thumb { z-index: 2; }
-.app-side-nav.rubber-nav .rs__copy {
-  display: flex; align-items: center; gap: 10px;
-  height: 44px; padding: 0 12px; width: 100%;
-  min-width: 0; flex: 0 0 auto;
-  font-size: 14px; font-weight: 650; color: var(--brand-deep, #123f2c);
-  white-space: nowrap; overflow: visible;
+.app-side-nav.rubber-nav .side-item-primary svg,
+.app-side-nav.rubber-nav .side-item-primary[aria-checked="true"] svg { stroke: #fff; }
+.app-side-nav.rubber-nav .side-item-primary .side-item-badge,
+.app-side-nav.rubber-nav .side-item-primary[aria-checked="true"] .side-item-badge {
+  background: rgba(255, 255, 255, .22);
+  color: #fff;
 }
-.app-side-nav.rubber-nav .rs__copy svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .side-teacher-link {
   margin-top: 10px;
   border: 1px dashed var(--line-strong, #6e9a7c);
-  color: var(--brand-deep, #123f2c);
+  color: var(--on-green-mute, #b7d4c2);
 }
 .side-teacher-link[hidden] { display: none !important; }
-.app-side-nav.rubber-nav .side-item.side-item-primary[aria-checked="true"] { color: var(--brand-deep, #123f2c); }
-.app-side-nav.rubber-nav .side-item.side-item-primary[aria-checked="true"] .side-item-badge { background: var(--brand-soft, #e4f2e9); color: var(--brand-deep, #123f2c); }
 
-/* ---------- 手机底栏：横向分段，深绿轨道 ---------- */
+/* ---------- 手机底栏：横向，深绿轨道 + 浅字，选中块浅底深字 ---------- */
 /* 本文件在 home.css 之后加载，必须显式隐藏桌面端底栏 */
 @media (min-width: 721px) {
   .app-tabs.rubber-nav { display: none !important; }
 }
 .app-tabs.rubber-nav {
+  --rs-track: linear-gradient(100deg, var(--g-900, #123f2c), var(--g-800, #174e35));
+  --rs-thumb: var(--g-50, #f1f8f3);
+  --rs-ink: var(--on-green-mute, #b7d4c2);
+  --rs-ink-active: var(--g-900, #123f2c);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   gap: 0;
-  padding: 3px;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
   border-radius: 14px;
   overflow: visible;
 }
@@ -83,25 +103,20 @@
   border: 0;
   border-radius: 11px;
   background: transparent;
-  color: var(--on-green-mute, #b7d4c2);
-  opacity: .8;
+  color: var(--rs-ink);
+  opacity: 1;
   font-size: 10.5px;
-  transition: opacity .18s ease, transform .18s cubic-bezier(.23, 1, .32, 1);
+  transition: color .16s ease, opacity .16s ease;
 }
-.app-tabs.rubber-nav .app-tab svg { width: 20px; height: 20px; }
-.app-tabs.rubber-nav .app-tab[aria-checked="true"] { opacity: 1; color: transparent; font-weight: 650; }
-.app-tabs.rubber-nav .app-tab[aria-checked="true"] svg { opacity: 0; }
+.app-tabs.rubber-nav .app-tab svg { width: 20px; height: 20px; stroke: currentColor; opacity: 1; }
+.app-tabs.rubber-nav .app-tab[aria-checked="true"] {
+  color: var(--rs-ink-active);
+  opacity: 1;
+  font-weight: 650;
+}
 .app-tabs.rubber-nav .app-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-.app-tabs.rubber-nav .rs__thumb { z-index: 2; }
-.app-tabs.rubber-nav .rs__copy {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; height: 100%; padding: 0 2px; min-width: 0;
-  font-size: 10.5px; font-weight: 650; color: var(--g-900, #123f2c);
-}
-.app-tabs.rubber-nav .rs__copy svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.app-tabs.rubber-nav .rs__copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 
 @media (max-width: 360px) {
-  .app-tabs.rubber-nav .app-tab, .app-tabs.rubber-nav .rs__copy { font-size: 9.5px; }
-  .app-tabs.rubber-nav .app-tab svg, .app-tabs.rubber-nav .rs__copy svg { width: 18px; height: 18px; }
+  .app-tabs.rubber-nav .app-tab { font-size: 9.5px; }
+  .app-tabs.rubber-nav .app-tab svg { width: 18px; height: 18px; }
 }

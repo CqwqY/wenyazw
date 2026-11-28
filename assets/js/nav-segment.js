@@ -32,6 +32,9 @@
 
     function onChange(v) {
       window.WY_NAV.setView(v);
+      /* 拖拽手势会吞掉 click，这里保证侧栏与底栏滑块始终同步 */
+      if (window.WY_SEG_SIDE && window.WY_SEG_SIDE.value() !== v) window.WY_SEG_SIDE.set(v);
+      if (window.WY_SEG_TAB && window.WY_SEG_TAB.value() !== v) window.WY_SEG_TAB.set(v);
     }
 
     if (side) {
