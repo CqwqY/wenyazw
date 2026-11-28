@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/home.css?v=20261122ZB">
 <link rel="stylesheet" href="assets/css/landing.css?v=20261128A">
-<link rel="stylesheet" href="assets/css/dashboard.css?v=20261128D">
+<link rel="stylesheet" href="assets/css/dashboard.css?v=20261128E">
 <link rel="stylesheet" href="assets/css/memory.css?v=20261122B">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
 </head>
@@ -244,17 +244,45 @@
         </div>
       </section>
 
-      <section class="dash-section dash-paths">
+      <section class="dash-section dash-all">
         <div class="dash-section-head">
-          <h2 class="dash-section-title">换个方式开始</h2>
+          <h2 class="dash-section-title">全部功能</h2>
+          <span class="dash-all-note">写、理、记、管，一处直达</span>
         </div>
-        <div class="dash-path-list">
-          <button type="button" class="dash-path" data-go="topics"><span>找作文题</span><span class="dash-path-hint">按学段、文体出题 →</span></button>
-          <button type="button" class="dash-path" data-go="quotes"><span>金句与成语</span><span class="dash-path-hint">名言带解释，成语带释义 →</span></button>
-          <button type="button" class="dash-path" data-go="import"><span>录入已有作文</span><span class="dash-path-hint">写好的稿子照样润色评改 →</span></button>
-          <button type="button" class="dash-path" data-go="style"><span>我的文风</span><span class="dash-path-hint">AI 读你的稿子认出习惯 →</span></button>
-          <button type="button" class="dash-path" data-go="essays"><span>作文导图</span><span class="dash-path-hint">按题材摊成板块 →</span></button>
-          <button type="button" class="dash-path" data-go="teacher" id="dashTeacher" hidden><span>教师控制台</span><span class="dash-path-hint">批量讲评，导出幻灯片 →</span></button>
+        <div class="dash-groups">
+          <div class="dash-group">
+            <h3 class="dash-group-title">写起来</h3>
+            <button type="button" class="dash-link" data-action="create"><span>AI 生成作文</span><span class="dash-link-hint">题目、大纲、正文分步走 →</span></button>
+            <button type="button" class="dash-link" data-action="import"><span>录入已有作文</span><span class="dash-link-hint">写好的稿子照样润色评改 →</span></button>
+            <button type="button" class="dash-link" data-action="derive"><span>从旧稿派生</span><span class="dash-link-hint">借自己的素材写新题 →</span></button>
+            <button type="button" class="dash-link" data-action="resume"><span>继续改上一篇</span><span class="dash-link-hint">回到上次停下的地方 →</span></button>
+          </div>
+          <div class="dash-group">
+            <h3 class="dash-group-title">理清楚</h3>
+            <button type="button" class="dash-link" data-action="essays"><span>我的作文与导图</span><span class="dash-link-hint">按题材摊成板块 →</span></button>
+            <button type="button" class="dash-link" data-action="classify"><span>一键归类</span><span class="dash-link-hint">把没归类的稿子放进板块 →</span></button>
+            <button type="button" class="dash-link" data-action="refresh"><span>刷新导图</span><span class="dash-link-hint">重新取最新的作文 →</span></button>
+            <button type="button" class="dash-link" data-action="topics"><span>找作文题</span><span class="dash-link-hint">按学段、文体出题 →</span></button>
+          </div>
+          <div class="dash-group">
+            <h3 class="dash-group-title">攒素材</h3>
+            <button type="button" class="dash-link" data-action="quotes"><span>金句与成语</span><span class="dash-link-hint">名言带解释，成语带释义 →</span></button>
+            <button type="button" class="dash-link" data-action="mem"><span>开始记一记</span><span class="dash-link-hint">朗读、回想、挖空、排序 →</span></button>
+            <button type="button" class="dash-link" id="dashReview" data-action="review"><span>复习旧知识</span><span class="dash-link-hint" id="dashReviewHint">过一遍昨天学过的 →</span></button>
+            <button type="button" class="dash-link" data-action="bank"><span>词库与学习记录</span><span class="dash-link-hint">389 条，按主题翻 →</span></button>
+          </div>
+          <div class="dash-group">
+            <h3 class="dash-group-title">我的</h3>
+            <button type="button" class="dash-link" data-action="style"><span>我的文风</span><span class="dash-link-hint">让 AI 读稿认出习惯 →</span></button>
+            <button type="button" class="dash-link" data-action="credits"><span>积分与兑换</span><span class="dash-link-hint">余额、明细、兑换码 →</span></button>
+            <button type="button" class="dash-link" data-action="password"><span>设置 / 修改密码</span><span class="dash-link-hint">账号安全 →</span></button>
+            <button type="button" class="dash-link" data-action="teacher" id="dashTeacher" hidden><span>教师控制台</span><span class="dash-link-hint">批量讲评，导出幻灯片 →</span></button>
+            <button type="button" class="dash-link" data-action="logout"><span>退出登录</span><span class="dash-link-hint">回到未登录主页 →</span></button>
+          </div>
+          <div class="dash-group dash-wide">
+            <h3 class="dash-group-title">写作台里</h3>
+            <button type="button" class="dash-link" data-action="studio"><span>打开写作台</span><span class="dash-link-hint">AI 评分 · 局部改写 · 名言警句 · 改动对照 · 复制 · 下载 txt · 作文海报 →</span></button>
+          </div>
         </div>
       </section>
     </section>
@@ -797,6 +825,6 @@
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
 <script src="assets/js/memory.js?v=20261122C"></script>
-<script src="assets/js/home.js?v=20261128E"></script>
+<script src="assets/js/home.js?v=20261128F"></script>
 </body>
 </html>

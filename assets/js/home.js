@@ -22,11 +22,13 @@
     dashStart: $("dashStart"), dashResume: $("dashResume"),
     dashLine: $("dashHeroLine"), dashSub: $("dashHeroSub"), dashTitle: $("dashHeroTitle"),
     dashRecent: $("dashRecent"), dashTeacher: $("dashTeacher"),
+    dashReviewHint: $("dashReviewHint"),
+    dashAllLinks: document.querySelectorAll(".dash-link[data-action]"),
     dashPaper: $("dashPaper"), dashPaperStage: $("dashPaperStage"),
     dashPaperTitle: $("dashPaperTitle"), dashPaperBody: $("dashPaperBody"),
     dashPaperWords: $("dashPaperWords"), dashPaperTime: $("dashPaperTime"),
     dashPaperNote: $("dashPaperNote"), dashPaperOpen: $("dashPaperOpen"),
-    dashEntries: document.querySelectorAll(".dash-path, .dash-section-more[data-go]"),
+    dashEntries: document.querySelectorAll(".dash-section-more[data-go]"),
     views: {
       home: $("viewHome"), essays: $("viewEssays"), create: $("viewCreate"),
       topics: $("viewTopics"), quotes: $("viewQuotes"), account: $("viewAccount")
@@ -581,10 +583,10 @@
     if (!loggedIn()) return;
     if (auth() && auth().refreshCredits && auth().credits) {
       var creditText = function (n) {
-        if (els.dashLine) {
-          var parts = els.dashLine.dataset.parts || "";
-          els.dashLine.textContent = parts + (n === null || n === undefined ? " · 积分暂不可用" : " · 可用积分 " + fmtCredits(n));
-        }
+        if (!els.dashLine) return;
+        var parts = els.dashLine.dataset.parts || "";
+        if (!parts) return;
+        els.dashLine.textContent = parts + (n === null || n === undefined ? " · 积分暂不可用" : " · 可用积分 " + fmtCredits(n));
       };
       auth().refreshCredits().then(creditText);
     }
@@ -608,6 +610,12 @@
       if (els.dashResume) {
         els.dashResume.hidden = !count;
         els.dashResume.onclick = count ? function () { openEssay(rows[0].id); } : null;
+      }
+      dashLatestId = rows.length ? rows[0].id : null;
+      if (els.dashReviewHint) {
+        var dueTag = $("sideDueTag"), dueTitle = $("memDueTitle");
+        var dueText = (dueTag && !dueTag.hidden && dueTitle) ? dueTitle.textContent : "";
+        els.dashReviewHint.textContent = dueText ? (dueText + " →") : "过一遍昨天学过的 →";
       }
       renderPaper(rows);
       renderDashRecent(rows.slice(0, 5));
@@ -694,6 +702,51 @@
   Array.prototype.forEach.call(els.dashEntries, function (b) {
     b.addEventListener("click", function () { goLanding(b.getAttribute("data-go")); });
   });
+
+  /* 主页「全部功能」：复用各视图已有的按钮与逻辑，不另写一套业务。 */
+  var dashLatestId = null;
+  function goAction(action) {
+    if (!loggedIn()) { if (auth()) auth().open("login"); return; }
+    var clickLater = function (id) {
+      window.setTimeout(function () { var el = $(id); if (el && !el.disabled) el.click(); }, 90);
+    };
+    switch (action) {
+      case "create": setView("create"); break;
+      case "import": goLanding("import"); break;
+      case "resume":
+        if (dashLatestId) openEssay(dashLatestId);
+        else setView("create");
+        break;
+      case "derive": setView("essays"); clickLater("deriveOpen"); break;
+      case "essays": setView("essays"); break;
+      case "classify": setView("essays"); break;
+      case "refresh": setView("essays"); clickLater("refreshEssays"); break;
+      case "topics": setView("topics"); break;
+      case "quotes": setView("quotes"); break;
+      case "mem": setView("quotes"); clickLater("memStartBtn"); break;
+      case "review": setView("quotes"); clickLater("memReviewBtn"); break;
+      case "bank":
+        setView("quotes");
+        window.setTimeout(function () { var b = $("quoteSearch"); if (b) b.scrollIntoView({ block: "start" }); }, 90);
+        break;
+      case "style": goLanding("style"); break;
+      case "credits": location.href = "credits.html"; break;
+      case "password": setView("account"); clickLater("appPassword"); break;
+      case "teacher": location.href = "teacher.html"; break;
+      case "logout":
+        if (window.confirm("确定退出登录？")) { setView("account"); clickLater("appLogout"); }
+        break;
+      case "studio":
+        if (dashLatestId) openEssay(dashLatestId);
+        else setView("create");
+        break;
+      default: break;
+    }
+  }
+  Array.prototype.forEach.call(els.dashAllLinks, function (b) {
+    b.addEventListener("click", function () { goAction(b.getAttribute("data-action")); });
+  });
+
   if (els.dashStart) {
     els.dashStart.addEventListener("click", function () {
       if (!loggedIn()) { if (auth()) auth().open("login"); return; }

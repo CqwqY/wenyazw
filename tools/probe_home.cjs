@@ -96,13 +96,31 @@ const get = (p) => new Promise((res, rej) => {
       paperTransform: paper ? getComputedStyle(paper).transform : null,
       rows: rows.length,
       firstRow: rows[0] ? rows[0].textContent.replace(/\\s+/g,' ').slice(0,120) : null,
-      paths: document.querySelectorAll('.dash-path').length,
+      links: document.querySelectorAll('.dash-link[data-action]').length,
+      actions: Array.from(document.querySelectorAll('.dash-link[data-action]')).map(function(b){return b.dataset.action;}).join(','),
+      reviewHint: q('#dashReviewHint') ? q('#dashReviewHint').textContent : null,
       teacherHidden: q('#dashTeacher') ? q('#dashTeacher').hidden : null,
       docHeight: document.documentElement.scrollHeight
     };
   })()`);
   console.log('STATE=' + JSON.stringify(state, null, 2));
   console.log('LOGS=' + JSON.stringify(logs));
+
+  if (process.env.WY_TEST_ACTIONS === '1') {
+    const results = [];
+    const cases = [
+      ['create', 'viewCreate'], ['derive', 'viewEssays'], ['classify', 'viewEssays'],
+      ['topics', 'viewTopics'], ['quotes', 'viewQuotes'], ['mem', 'viewQuotes'],
+      ['bank', 'viewQuotes'], ['style', 'viewAccount']
+    ];
+    for (const [action, view] of cases) {
+      await evalJS(`(function(){var h=document.querySelector('.side-item[data-view="home"]');if(h)h.click();var b=document.querySelector('[data-action="${action}"]');if(b)b.click();return 1;})()`);
+      await new Promise(r => setTimeout(r, 450));
+      const ok = await evalJS(`(function(){var v=document.getElementById('${view}');return v && !v.hidden ? 'ok' : 'hidden';})()`);
+      results.push(action + ':' + ok);
+    }
+    console.log('ACTIONS=' + results.join(' '));
+  }
 
   fs.mkdirSync(OUT, { recursive: true });
   const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
