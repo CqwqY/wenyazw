@@ -123,9 +123,12 @@ const get = (p) => new Promise((res, rej) => {
   }
 
   fs.mkdirSync(OUT, { recursive: true });
-  const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  const shot = await send('Page.captureScreenshot', {
+    format: 'png', captureBeyondViewport: process.env.WY_FULL === '1'
+  });
   if (shot.result && shot.result.data) {
-    const file = path.join(OUT, WIDTH < 700 ? 'mobile.png' : 'desktop.png');
+    const base = WIDTH < 700 ? 'mobile' : 'desktop';
+    const file = path.join(OUT, process.env.WY_FULL === '1' ? base + '-full.png' : base + '.png');
     fs.writeFileSync(file, Buffer.from(shot.result.data, 'base64'));
     console.log('SHOT=' + file);
   }
