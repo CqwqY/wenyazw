@@ -19,8 +19,12 @@
     guest: $("guestView"), guestFooter: $("guestFooter"), shell: $("appShell"),
     cta: $("homeCta"), heroNote: $("heroNote"),
     lpTeacherLink: $("lpTeacherLink"), lpEntries: document.querySelectorAll(".lp-entry, .lp-entry-list button"),
+    dashStart: $("dashStart"), dashCredits: $("dashCredits"), dashGreet: $("dashGreet"),
+    dashEssayCount: $("dashEssayCount"), dashWordCount: $("dashWordCount"),
+    dashBoardCount: $("dashBoardCount"), dashRecent: $("dashRecent"), dashTeacher: $("dashTeacher"),
+    dashEntries: document.querySelectorAll(".dash-entry, .dash-section-more[data-go]"),
     views: {
-      essays: $("viewEssays"), create: $("viewCreate"),
+      home: $("viewHome"), essays: $("viewEssays"), create: $("viewCreate"),
       topics: $("viewTopics"), quotes: $("viewQuotes"), account: $("viewAccount")
     },
     sideItems: document.querySelectorAll(".side-item"),
@@ -54,7 +58,7 @@
     styleRuleList: $("styleRuleList"), styleRuleEmpty: $("styleRuleEmpty")
   };
 
-  var currentView = "essays";
+  var currentView = "home";
   var pending = false;
   var pendingDerive = false;
   var pendingLanding = null;
@@ -456,16 +460,94 @@
     }
   }
 
+  /* ---------------- 登录后的主页 ----------------
+     统计和最近作文走 /api/essays（同一份数据，不另开接口）；
+     积分读本地缓存，进主页时顺手向服务端刷一次。 */
+  function fmtNum(n) {
+    var v = Number(n);
+    if (!isFinite(v)) return "0";
+    return v >= 10000 ? (Math.round(v / 1000) / 10) + "万" : String(Math.round(v));
+  }
+  function fmtRecentTime(s) {
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return "";
+    var diff = Date.now() - d.getTime();
+    if (diff < 60000) return "刚刚";
+    if (diff < 3600000) return Math.floor(diff / 60000) + " 分钟前";
+    if (diff < 86400000) return Math.floor(diff / 3600000) + " 小时前";
+    if (diff < 604800000) return Math.floor(diff / 86400000) + " 天前";
+    return String(s).slice(0, 10);
+  }
+
+  async function loadDashboard() {
+    if (!loggedIn()) return;
+    var who = (auth() && auth().user && auth().user()) || "";
+    if (els.dashGreet) els.dashGreet.textContent = who ? (who + "，欢迎回来") : "欢迎回来";
+    if (els.dashCredits) els.dashCredits.textContent = "…";
+    if (auth() && auth().refreshCredits) {
+      auth().refreshCredits().then(function (n) {
+        if (els.dashCredits) els.dashCredits.textContent = (n === null || n === undefined) ? "—" : fmtCredits(n);
+      });
+    }
+    try {
+      var j = await api("/api/essays");
+      var rows = (j && j.essays) || [];
+      var boards = (j && j.boards) || [];
+      var words = rows.reduce(function (a, r) { return a + (Number(r.word_count) || 0); }, 0);
+      if (els.dashEssayCount) els.dashEssayCount.textContent = String(rows.length);
+      if (els.dashWordCount) els.dashWordCount.textContent = fmtNum(words);
+      if (els.dashBoardCount) els.dashBoardCount.textContent = String(boards.length);
+      renderDashRecent(rows.slice(0, 4));
+    } catch (e) {
+      if (els.dashEssayCount) els.dashEssayCount.textContent = "—";
+      if (els.dashWordCount) els.dashWordCount.textContent = "—";
+      if (els.dashBoardCount) els.dashBoardCount.textContent = "—";
+      if (els.dashRecent) els.dashRecent.innerHTML = '<div class="dash-empty">作文列表暂时加载失败，去「我的作文」里刷新试试。</div>';
+    }
+  }
+
+  function renderDashRecent(rows) {
+    var box = els.dashRecent;
+    if (!box) return;
+    if (!rows || !rows.length) {
+      box.innerHTML = '<div class="dash-empty">还没有作文。点上面的「写篇新作文」，给个题目就能开始。</div>';
+      return;
+    }
+    box.innerHTML = "";
+    rows.forEach(function (r) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "dash-card";
+      b.setAttribute("data-essay-id", String(r.id));
+      var t = document.createElement("span");
+      t.className = "dash-card-title";
+      t.textContent = r.title || "无题";
+      var m = document.createElement("span");
+      m.className = "dash-card-meta";
+      var bits = [];
+      if (r.category) bits.push(String(r.category));
+      if (r.word_count) bits.push(fmtNum(r.word_count) + " 字");
+      if (r.updated_at) bits.push(fmtRecentTime(r.updated_at));
+      m.textContent = bits.join(" · ") || "继续修改";
+      b.appendChild(t);
+      b.appendChild(m);
+      b.addEventListener("click", function () { openEssay(r.id); });
+      box.appendChild(b);
+    });
+  }
+
   /* ---------------- 落地页功能入口 ----------------
      未登录点入口：先记下目标，登录成功后自动落到对应视图；
      已登录点入口：直接切视图。「写篇新作文」走新建流程，和顶部按钮一致。 */
   var LANDING_VIEW = {
     create: "create", essays: "essays", topics: "topics",
-    quotes: "quotes", import: "create", style: "account"
+    quotes: "quotes", import: "create", style: "account",
+    teacher: "home"
   };
 
   function goLanding(target) {
-    var view = LANDING_VIEW[target] || "essays";
+    if (target === "teacher") { location.href = "teacher.html"; return; }
+    var view = LANDING_VIEW[target] || "home";
     if (!loggedIn()) {
       pendingLanding = target;
       if (auth()) auth().open("login");
@@ -485,6 +567,15 @@
   Array.prototype.forEach.call(els.lpEntries, function (b) {
     b.addEventListener("click", function () { goLanding(b.getAttribute("data-go")); });
   });
+  Array.prototype.forEach.call(els.dashEntries, function (b) {
+    b.addEventListener("click", function () { goLanding(b.getAttribute("data-go")); });
+  });
+  if (els.dashStart) {
+    els.dashStart.addEventListener("click", function () {
+      if (!loggedIn()) { if (auth()) auth().open("login"); return; }
+      setView("create");
+    });
+  }
 
   /* ---------------- 视图切换 ---------------- */
 
@@ -503,6 +594,7 @@
     if (!noHash && window.history && history.replaceState) {
       try { history.replaceState(null, "", "#" + name); } catch (e) { /* ignore */ }
     }
+    if (name === "home" && loggedIn()) loadDashboard();
     if (name === "essays" && loggedIn()) loadEssays();
     if (name === "account" && loggedIn()) { loadAccount(); loadStyle(); }
     // 只有真的换了视图才回到顶部，重复渲染同一视图不动滚动位置
@@ -511,7 +603,7 @@
 
   function viewFromHash() {
     var h = (location.hash || "").replace("#", "");
-    return els.views[h] ? h : "essays";
+    return els.views[h] ? h : "home";
   }
 
   /* 只把「换没换人」记下来：积分刷新也会走 onChange 广播，
@@ -534,6 +626,7 @@
     if (els.teacherSideLink) els.teacherSideLink.hidden = !show;
     if (els.teacherAccountLink) els.teacherAccountLink.hidden = !show;
     if (els.lpTeacherLink) els.lpTeacherLink.hidden = !show;
+    if (els.dashTeacher) els.dashTeacher.hidden = !show;
     teacherGateCheckedFor = who;
   }
 
