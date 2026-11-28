@@ -501,17 +501,22 @@
     var body = els.dashPaperBody;
     if (!body) return;
     body.textContent = "";
-    var paras = String(top.excerpt || "").replace(/\r/g, "").split(/\n+/).filter(function (s) { return s.trim(); });
+    var title = String(top.title || "").trim();
+    var paras = String(top.excerpt || "").replace(/\r/g, "").split(/\n+/)
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s && s !== title; });
     if (!paras.length) paras = ["这篇还没有正文，打开就能接着写。"];
-    paras.slice(0, 3).forEach(function (p, i) {
+    var marked = false;
+    paras.slice(0, 3).forEach(function (p) {
       var line = document.createElement("p");
-      if (i === 0 && p.length > 14) {
+      if (!marked && p.length > 14) {
         var cut = p.length - 14;
         line.appendChild(document.createTextNode(p.slice(0, cut)));
         var mark = document.createElement("span");
         mark.className = "dash-paper-mark";
         mark.textContent = p.slice(cut);
         line.appendChild(mark);
+        marked = true;
       } else {
         line.textContent = p;
       }
@@ -631,7 +636,10 @@
       t.textContent = r.title || "无题";
       var ex = document.createElement("span");
       ex.className = "dash-row-excerpt";
-      ex.textContent = String(r.excerpt || "").replace(/\s+/g, " ").trim().slice(0, 72) || (r.category || "点开继续写");
+      var excerpt = String(r.excerpt || "").replace(/\s+/g, " ").trim();
+      var rowTitle = String(r.title || "").trim();
+      if (rowTitle && excerpt.indexOf(rowTitle) === 0) excerpt = excerpt.slice(rowTitle.length).trim();
+      ex.textContent = excerpt.slice(0, 72) || (r.category || "点开继续写");
       main.appendChild(t);
       main.appendChild(ex);
       var meta = document.createElement("span");

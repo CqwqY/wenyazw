@@ -59,7 +59,9 @@ const get = (p) => new Promise((res, rej) => {
   await send('Page.enable');
   await send('Network.enable');
   await send('Network.setBlockedURLs', { urls: ['*cdnjs.cloudflare.com*', '*fonts.googleapis.com*'] });
-  await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+  const WIDTH = Number(process.env.WY_WIDTH || 1440);
+  const HEIGHT = Number(process.env.WY_HEIGHT || 1000);
+  await send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: 1, mobile: WIDTH < 700 });
 
   await send('Page.navigate', { url: BASE + '/' });
   await new Promise(r => setTimeout(r, 2200));
@@ -105,7 +107,7 @@ const get = (p) => new Promise((res, rej) => {
   fs.mkdirSync(OUT, { recursive: true });
   const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   if (shot.result && shot.result.data) {
-    const file = path.join(OUT, 'desktop.png');
+    const file = path.join(OUT, WIDTH < 700 ? 'mobile.png' : 'desktop.png');
     fs.writeFileSync(file, Buffer.from(shot.result.data, 'base64'));
     console.log('SHOT=' + file);
   }
