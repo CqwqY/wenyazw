@@ -1,0 +1,62 @@
+/* 文芽作文 - 积分账单页 */
+.bill-wrap { max-width: 880px; }
+
+.bill-hero {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 22px 26px; margin: 18px 0 16px;
+  background: linear-gradient(135deg, rgba(47,125,91,.10), rgba(47,125,91,.02));
+  border: 1px solid var(--line, rgba(0,0,0,.08)); border-radius: 12px;
+}
+.bill-hero-label { display: block; font-size: 13px; opacity: .7; margin-bottom: 6px; }
+.bill-hero-num { display: flex; align-items: center; gap: 8px; font-size: 34px; font-weight: 700; }
+.bill-hero-unit { font-size: 15px; font-weight: 400; opacity: .75; }
+
+.bill-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.bill-stat {
+  background: var(--card, #fff); border: 1px solid var(--line, rgba(0,0,0,.08));
+  border-radius: 10px; padding: 14px 16px;
+}
+.bill-stat span { display: block; font-size: 13px; opacity: .7; margin-bottom: 6px; }
+.bill-stat strong { font-size: 22px; }
+
+.bill-panel {
+  background: var(--card, #fff); border: 1px solid var(--line, rgba(0,0,0,.08));
+  border-radius: 12px; padding: 8px 24px 20px;
+}
+.bill-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding: 14px 0; border-bottom: 1px solid var(--line, rgba(0,0,0,.08));
+}
+.bill-panel-head h2 { font-size: 18px; margin: 0; }
+.bill-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bill-filter {
+  border: 1px solid var(--line, rgba(0,0,0,.12)); background: transparent;
+  color: inherit; padding: 5px 12px; border-radius: 999px; cursor: pointer; font-size: 13px;
+}
+.bill-filter.active { background: var(--accent, #2f7d5b); color: #fff; border-color: var(--accent, #2f7d5b); }
+
+.bill-group h3 { font-size: 14px; opacity: .7; margin: 18px 0 6px; font-weight: 500; }
+.bill-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 0; border-bottom: 1px dashed var(--line, rgba(0,0,0,.07));
+}
+.bill-row-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.bill-kind {
+  flex: none; font-size: 12px; padding: 3px 9px; border-radius: 999px;
+  background: rgba(0,0,0,.05); min-width: 40px; text-align: center;
+}
+.bill-kind-spend { background: rgba(200,80,60,.12); color: #b3412f; }
+.bill-kind-income { background: rgba(47,125,91,.12); color: #2f7d5b; }
+.bill-kind-refund { background: rgba(210,160,60,.15); color: #9a7415; }
+.bill-reason { line-height: 1.5; word-break: break-word; }
+.bill-sub { font-size: 12px; opacity: .6; margin-top: 3px; }
+.bill-delta { flex: none; font-size: 16px; }
+.bill-delta.pos { color: #2f7d5b; }
+.bill-delta.neg { color: #b3412f; }
+
+@media (max-width: 640px) {
+  .bill-hero { padding: 18px; }
+  .bill-stats { grid-template-columns: 1fr 1fr; }
+  .bill-panel { padding: 6px 14px 16px; }
+  .bill-delta { font-size: 15px; }
+}

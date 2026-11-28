@@ -1,0 +1,51 @@
+/* 文芽作文 - 重做后的账户页（index.html #viewAccount） */
+
+.acct-hero {
+  display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: center;
+  padding: 24px 28px; margin: 18px 0 16px;
+  background: linear-gradient(135deg, rgba(47,125,91,.12), rgba(47,125,91,.02));
+  border: 1px solid var(--line); border-radius: 16px;
+}
+.acct-label { display: block; font-size: 13px; color: var(--ink-soft); margin-bottom: 8px; }
+.acct-num { display: flex; align-items: center; gap: 9px; color: var(--ink); }
+.acct-num #appCredits { font-size: 40px; font-weight: 700; line-height: 1; font-family: var(--serif); }
+.acct-num .credit-coin { flex: none; position: relative; top: 3px; }
+.acct-unit { font-size: 15px; color: var(--ink-soft); }
+.acct-hint { display: block; margin-top: 10px; font-size: 12px; color: var(--ink-soft); line-height: 1.6; }
+
+.acct-hero-links { display: flex; gap: 12px; flex-wrap: wrap; }
+.acct-link {
+  display: flex; align-items: center; gap: 10px; min-width: 150px;
+  padding: 12px 16px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 12px; text-decoration: none; color: var(--ink);
+  transition: border-color .18s, transform .18s;
+}
+.acct-link:hover { border-color: var(--accent, #2f7d5b); transform: translateY(-2px); }
+.acct-link-ico {
+  flex: none; width: 34px; height: 34px; border-radius: 9px;
+  display: grid; place-items: center; background: rgba(47,125,91,.1);
+  color: var(--accent, #2f7d5b); font-size: 14px; font-weight: 700;
+}
+.acct-link strong { display: block; font-size: 14px; }
+.acct-link small { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+.acct-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.acct-panel {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px;
+}
+.acct-panel h2 { font-size: 17px; margin: 0 0 14px; font-family: var(--serif); }
+.acct-line {
+  display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.acct-line span { color: var(--ink-soft); }
+.acct-line strong { font-weight: 600; word-break: break-all; text-align: right; }
+.acct-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.acct-note { font-size: 13px; line-height: 1.8; color: var(--ink-soft); }
+
+@media (max-width: 720px) {
+  .acct-hero { grid-template-columns: 1fr; padding: 20px 18px; }
+  .acct-grid { grid-template-columns: 1fr; }
+  .acct-hero-links { width: 100%; }
+  .acct-link { flex: 1 1 140px; }
+}

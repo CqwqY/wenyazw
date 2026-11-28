@@ -36,6 +36,7 @@
     <div>
       <h1>积分<span class="credit-help" title="站内模型按实际用量扣积分，最低 0.1 分起，用得越多扣得越多；生成失败自动退回。换成自己填的接口不消耗积分。">?</span></h1>
     </div>
+    <a class="btn btn-ghost" href="bill.html">看积分账单</a>
     <a class="btn btn-ghost" href="write.html">返回工作台</a>
   </div>
 
@@ -100,7 +101,7 @@
         <ul class="credit-rules">
           <li>注册即送 15 积分。</li>
           <li>站内模型按实际用量扣积分、最低 0.1 分起：用得多扣得多，用得少扣得少；拟大纲、写正文、AI 增补、批改、评改、提问、测试连接都算。</li>
-          <li>整次请求失败（所有模型都没出内容）会自动把预扣的积分退回，明细里能看到「退回」记录。</li>
+          <li>一次调用只在账单里记一条净扣，不再分开显示预扣和补扣。整次请求失败全额退回，且不留扣费记录。</li>
           <li>切到「自填 Key」用自己的接口，不消耗积分。</li>
         </ul>
       </div>
@@ -123,6 +124,7 @@
   <div class="wrap">
     <div class="copyright">
       <span>文芽作文 · 保留所有权利</span>
+      <a href="terms.html">服务条款与免责声明</a>
       <span>积分不折现，仅用于站内 AI 服务</span>
     </div>
   </div>
@@ -213,5 +215,6 @@
 
 <script src="assets/js/auth.js?v=20261116P"></script>
 <script src="assets/js/credits.js?v=20261116R"></script>
+<script src="assets/js/terms.js?v=20261128G"></script>
 </body>
 </html>

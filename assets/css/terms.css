@@ -1,0 +1,50 @@
+/* 文芽作文 - 服务条款页与确认弹窗 */
+
+.terms-wrap { max-width: 860px; }
+
+.terms-notice {
+  margin: 18px 0 22px;
+  padding: 16px 18px;
+  border-left: 4px solid var(--accent, #2f7d5b);
+  background: var(--card, rgba(47,125,91,.06));
+  border-radius: 6px;
+  line-height: 1.8;
+}
+
+.terms-doc {
+  background: var(--card, #fff);
+  border: 1px solid var(--line, rgba(0,0,0,.08));
+  border-radius: 10px;
+  padding: 8px 28px 24px;
+}
+
+.terms-doc section { padding: 14px 0; border-bottom: 1px dashed var(--line, rgba(0,0,0,.08)); }
+.terms-doc section:last-child { border-bottom: 0; }
+.terms-doc h2 { font-size: 18px; margin: 8px 0 10px; }
+.terms-doc p, .terms-doc li { line-height: 1.9; color: var(--ink-2, #3a4a42); }
+.terms-doc ul { margin: 6px 0 6px 20px; }
+
+.terms-action {
+  margin-top: 22px;
+  padding: 22px 26px;
+  background: var(--card, #fff);
+  border: 1px solid var(--line, rgba(0,0,0,.08));
+  border-radius: 10px;
+}
+.terms-action h2 { font-size: 20px; margin: 0 0 8px; }
+.terms-action p { line-height: 1.8; margin: 0 0 16px; }
+
+.terms-check { display: flex; align-items: center; gap: 9px; cursor: pointer; margin: 6px 0 16px; line-height: 1.6; }
+.terms-check input { width: 17px; height: 17px; accent-color: var(--accent, #2f7d5b); flex: none; }
+
+.terms-modal { max-width: 520px; }
+.terms-modal-body { padding: 4px 2px 8px; max-height: 54vh; overflow-y: auto; }
+.terms-modal-body p { line-height: 1.8; margin: 0 0 10px; }
+.terms-modal-body a { color: var(--accent, #2f7d5b); text-decoration: underline; }
+.terms-modal-body ul { margin: 0 0 14px 18px; }
+.terms-modal-body li { line-height: 1.9; color: var(--ink-2, #3a4a42); }
+
+@media (max-width: 640px) {
+  .terms-doc { padding: 6px 16px 16px; }
+  .terms-action { padding: 18px; }
+}

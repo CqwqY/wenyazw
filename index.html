@@ -22,6 +22,9 @@
 <link rel="stylesheet" href="assets/css/dashboard.css?v=20261128F">
 <link rel="stylesheet" href="assets/css/memory.css?v=20261122B">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
+<link rel="stylesheet" href="assets/css/account.css?v=20261128G">
+<link rel="stylesheet" href="assets/css/terms.css?v=20261128G">
+<link rel="stylesheet" href="assets/css/derive-wizard.css?v=20261128G">
 </head>
 <body class="home">
 
@@ -175,6 +178,7 @@
   <div class="wrap">
     <div class="copyright">
       <span>文芽作文 · 保留所有权利</span>
+      <a href="terms.html">服务条款与免责声明</a>
       <span>生成内容仅供参考，请勿直接抄袭提交</span>
     </div>
   </div>
@@ -580,35 +584,49 @@
     <section class="app-view" id="viewAccount" hidden>
       <div class="view-head">
         <div>
-          <h1>账户设置</h1>
-          <p>账号、积分与登录管理。</p>
-        </div>
-      </div>
-      <div class="account-hero">
-        <div class="account-hero-main">
-          <span class="account-hero-label">当前余额</span>
-          <div class="account-hero-num">
-            <svg class="credit-coin" viewBox="0 0 16 16" width="30" height="30" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="#d9a441" stroke="#a97b1f" stroke-width="1"/><circle cx="8" cy="8" r="2.6" fill="#fdf3dd"/></svg>
-            <span id="appCredits">—</span><span class="account-hero-unit">积分</span>
-            <span class="credit-help" title="站内模型按实际用量扣积分，最低 0.1 分起，用得越多扣得越多；生成失败自动退回。换成自己填的接口不消耗积分。">?</span>
-          </div>
+          <h1>我的账户</h1>
+          <p>余额、账号安全、积分去向与文风偏好。</p>
         </div>
       </div>
 
-      <div class="account-card">
-        <div class="account-row">
-          <span class="account-label">当前账号</span>
-          <strong id="appEmail">—</strong>
-          <span class="account-sep">·</span>
-          <span id="appUser"></span>
+      <div class="acct-hero">
+        <div class="acct-hero-balance">
+          <span class="acct-label">可用积分</span>
+          <div class="acct-num">
+            <svg class="credit-coin" viewBox="0 0 16 16" width="28" height="28" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="#d9a441" stroke="#a97b1f" stroke-width="1"/><circle cx="8" cy="8" r="2.6" fill="#fdf3dd"/></svg>
+            <span id="appCredits">—</span><span class="acct-unit">分</span>
+          </div>
+          <span class="acct-hint">按用量扣，一次调用只记一条净扣；失败全额退回</span>
         </div>
-        <div class="account-row account-links">
-          <a class="btn-outline" href="credits.html">积分与兑换</a>
-          <a class="btn-outline" href="teacher.html" id="teacherAccountLink" hidden>教师控制台</a>
+        <div class="acct-hero-links">
+          <a class="acct-link" href="bill.html">
+            <span class="acct-link-ico">账</span>
+            <span><strong>积分账单</strong><small>每一笔去向</small></span>
+          </a>
+          <a class="acct-link" href="credits.html">
+            <span class="acct-link-ico">充</span>
+            <span><strong>充值与兑换</strong><small>买积分 / 兑换码</small></span>
+          </a>
         </div>
-        <div class="account-row account-links">
-          <button class="btn-outline" id="appPassword" type="button">设置 / 修改密码</button>
-          <button class="btn-outline" id="appLogout" type="button">退出登录</button>
+      </div>
+
+      <div class="acct-grid">
+        <div class="acct-panel">
+          <h2>账号</h2>
+          <div class="acct-line"><span>登录邮箱</span><strong id="appEmail">—</strong></div>
+          <div class="acct-line"><span>用户名</span><strong id="appUser">—</strong></div>
+          <div class="acct-actions">
+            <button class="btn-outline" id="appPassword" type="button">设置 / 修改密码</button>
+            <a class="btn-outline" href="teacher.html" id="teacherAccountLink" hidden>教师控制台</a>
+          </div>
+        </div>
+        <div class="acct-panel">
+          <h2>安全与条款</h2>
+          <div class="acct-note">积分不折现、不转赠。AI 生成内容请自行核对，是否作为作业提交由你和学校判断。</div>
+          <div class="acct-actions">
+            <a class="btn-outline" href="terms.html">服务条款与免责声明</a>
+            <button class="btn-outline" id="appLogout" type="button">退出登录</button>
+          </div>
         </div>
       </div>
 
@@ -731,31 +749,55 @@
       <h2 id="deriveTitle">素材派生</h2>
       <button class="modal-close" id="deriveClose" type="button" aria-label="关闭">×</button>
     </div>
-    <div class="auth-hint">给一个新题目，AI 会先判断你写过的作文里有没有真能撑起这个题目的素材：默认只借最贴题的一篇，挑不到就不硬拼，直接告诉你要作新文。派生稿会存进「我的作文」，并连回借过的那几篇。</div>
-    <div class="derive-form">
-      <div class="field">
-        <label for="deriveTopic">新题目</label>
-        <input class="input" id="deriveTopic" type="text" maxlength="120" placeholder="例：旧物里的光">
+    <ol class="derive-steps" id="deriveSteps">
+      <li class="active" data-dstep="1"><span class="dot">1</span>文体</li>
+      <li data-dstep="2"><span class="dot">2</span>题目与字数</li>
+      <li data-dstep="3"><span class="dot">3</span>确认派生</li>
+    </ol>
+    <div class="derive-step" data-dscreen="1">
+      <div class="derive-step-head"><span class="derive-step-no">1</span><h3>选文体</h3></div>
+      <p class="derive-step-tip">派生稿按这个文体搭骨架。选错文体，AI 会按错的写法套旧素材。</p>
+      <div class="derive-genres" id="deriveGenres">
+        <button type="button" class="derive-genre active" data-genre="记叙文">记叙文</button>
+        <button type="button" class="derive-genre" data-genre="议论文">议论文</button>
+        <button type="button" class="derive-genre" data-genre="散文">散文</button>
+        <button type="button" class="derive-genre" data-genre="说明文">说明文</button>
       </div>
-      <div class="field">
-        <label for="deriveWords">目标字数</label>
-        <input class="input" id="deriveWords" type="number" min="300" max="1600" step="50" value="700">
-      </div>
-      <div class="field">
-        <label for="deriveGenre">文体倾向 <span class="opt">（可不填）</span></label>
+      <div class="field derive-custom-genre">
+        <label for="deriveGenre">或自己填 <span class="opt">（可不填，填了以这个为准）</span></label>
         <input class="input" id="deriveGenre" type="text" maxlength="20" placeholder="例：记叙文">
       </div>
     </div>
-    <p class="derive-cost">派生按实际用量扣积分、最低 0.1 分起；没挑到合适素材、或模型没跑通，都会原路退回。</p>
+    <div class="derive-step" data-dscreen="2" hidden>
+      <div class="derive-step-head"><span class="derive-step-no">2</span><h3>新题目与字数</h3></div>
+      <p class="derive-step-tip">AI 先翻你写过的稿子，判断有没有真能撑起这个题目的素材：只借最贴的一两篇，挑不到就不硬拼，直接告诉你另写新文。</p>
+      <div class="derive-form">
+        <div class="field">
+          <label for="deriveTopic">新题目</label>
+          <input class="input" id="deriveTopic" type="text" maxlength="120" placeholder="例：旧物里的光">
+        </div>
+        <div class="field">
+          <label for="deriveWords">目标字数</label>
+          <input class="input" id="deriveWords" type="number" min="300" max="1600" step="50" value="700">
+        </div>
+      </div>
+    </div>
+    <div class="derive-step" data-dscreen="3" hidden>
+      <div class="derive-step-head"><span class="derive-step-no">3</span><h3>确认派生</h3></div>
+      <div class="derive-summary" id="deriveSummary"></div>
+      <p class="derive-cost">派生按实际用量扣积分、最低 0.1 分起；一次调用只记一条净扣。没挑到合适素材、或模型没跑通，都会原路退回且不留账单。</p>
+    </div>
     <div class="auth-msg" id="deriveMsg"></div>
     <div class="derive-no-match" id="deriveNoMatch" hidden>
       <p class="dn-title">作文素材暂无符合，要作新文</p>
       <p class="dn-reason" id="deriveNoMatchWhy"></p>
       <button class="btn btn-primary" id="deriveNewBtn" type="button">按这个题目写新文</button>
     </div>
-    <div class="modal-actions">
-      <button class="btn btn-outline" id="deriveSkipBtn" type="button">直接写新文，不派生</button>
-      <button class="btn btn-primary" id="deriveGo" type="button">判断并派生</button>
+    <div class="modal-actions derive-actions">
+      <button class="btn-outline" id="deriveSkipBtn" type="button">直接写新文，不派生</button>
+      <button class="btn-outline" id="derivePrev" type="button" hidden>上一步</button>
+      <button class="btn btn-primary" id="deriveNext" type="button">下一步</button>
+      <button class="btn btn-primary" id="deriveGo" type="button" hidden>判断并派生</button>
     </div>
   </div>
 </div>
@@ -849,6 +891,7 @@
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
 <script src="assets/js/memory.js?v=20261122C"></script>
-<script src="assets/js/home.js?v=20261128F"></script>
+<script src="assets/js/home.js?v=20261128G"></script>
+<script src="assets/js/terms.js?v=20261128G"></script>
 </body>
 </html>

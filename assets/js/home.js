@@ -40,6 +40,9 @@
     deriveOpen: $("deriveOpen"), deriveMask: $("deriveMask"), deriveClose: $("deriveClose"),
     deriveTopic: $("deriveTopic"), deriveWords: $("deriveWords"), deriveGenre: $("deriveGenre"),
     deriveGo: $("deriveGo"), deriveMsg: $("deriveMsg"),
+    deriveNext: $("deriveNext"), derivePrev: $("derivePrev"),
+    deriveSteps: $("deriveSteps"), deriveSummary: $("deriveSummary"),
+    deriveGenres: $("deriveGenres"),
     deriveNoMatch: $("deriveNoMatch"), deriveNoMatchWhy: $("deriveNoMatchWhy"),
     deriveNewBtn: $("deriveNewBtn"), deriveSkipBtn: $("deriveSkipBtn"),
     createSmartBtn: $("createSmartBtn"),
@@ -67,6 +70,8 @@
   var currentView = "home";
   var pending = false;
   var pendingDerive = false;
+  var deriveStep = 1;
+  var deriveGenrePick = "记叙文";
   var pendingLanding = null;
   var deriveFromCreate = false;
   var editingId = 0;
@@ -972,12 +977,71 @@
     openDerive();
   }
 
+  /* 派生改成和创建作文一样的三步：文体 → 题目字数 → 确认。 */
+  function pickedDeriveGenre() {
+    var custom = els.deriveGenre ? els.deriveGenre.value.trim() : "";
+    return custom || deriveGenrePick || "";
+  }
+
+  function setDeriveStep(n) {
+    deriveStep = Math.max(1, Math.min(3, Number(n) || 1));
+    document.querySelectorAll("#deriveMask .derive-step").forEach(function (el) {
+      var s = parseInt(el.getAttribute("data-dscreen"), 10);
+      if (s === deriveStep) el.removeAttribute("hidden"); else el.setAttribute("hidden", "");
+    });
+    if (els.deriveSteps) {
+      els.deriveSteps.querySelectorAll("li").forEach(function (li) {
+        var s = parseInt(li.getAttribute("data-dstep"), 10);
+        if (s === deriveStep) li.classList.add("active"); else li.classList.remove("active");
+        if (s < deriveStep) li.classList.add("done"); else li.classList.remove("done");
+      });
+    }
+    if (els.derivePrev) els.derivePrev.hidden = deriveStep === 1;
+    if (els.deriveNext) els.deriveNext.hidden = deriveStep === 3;
+    if (els.deriveGo) els.deriveGo.hidden = deriveStep !== 3;
+    if (deriveStep === 3) {
+      var topic = els.deriveTopic ? els.deriveTopic.value.trim() : "";
+      var words = parseInt(els.deriveWords ? els.deriveWords.value : "700", 10) || 700;
+      if (els.deriveSummary) {
+        /* 用 DOM 文本节点拼，不用 innerHTML：题目是用户自己填的，不能当 HTML 解析 */
+        els.deriveSummary.textContent = "";
+        [["文体", pickedDeriveGenre() || "跟随旧稿"],
+         ["新题目", topic || "（未填）"],
+         ["目标字数", words + " 字"]].forEach(function (pair) {
+          var row = document.createElement("div");
+          var k = document.createElement("span"); k.textContent = pair[0];
+          var v = document.createElement("strong"); v.textContent = pair[1];
+          row.appendChild(k); row.appendChild(v);
+          els.deriveSummary.appendChild(row);
+        });
+      }
+    }
+  }
+
+  function nextDeriveStep() {
+    if (deriveStep === 1) {
+      if (els.deriveGenres) {
+        els.deriveGenres.querySelectorAll(".derive-genre").forEach(function (b) {
+          if (b.classList.contains("active")) deriveGenrePick = b.getAttribute("data-genre") || "记叙文";
+        });
+      }
+      setDeriveStep(2);
+      return;
+    }
+    if (deriveStep === 2) {
+      var topic = els.deriveTopic ? els.deriveTopic.value.trim() : "";
+      if (!topic) { setMsg(els.deriveMsg, "先写一个新题目。", "error"); return; }
+      setMsg(els.deriveMsg, "");
+      setDeriveStep(3);
+    }
+  }
+
   function openDerive() {
     if (!loggedIn()) { if (auth()) auth().open("login"); return; }
     setMsg(els.deriveMsg, "");
     hideNoMatch();
+    setDeriveStep(1);
     if (els.deriveMask) els.deriveMask.removeAttribute("hidden");
-    if (els.deriveTopic) els.deriveTopic.focus();
   }
 
   function closeDerive() {
@@ -997,7 +1061,7 @@
         body: {
           topic: topic,
           words: Math.max(300, Math.min(1600, n)),
-          genre: els.deriveGenre ? els.deriveGenre.value.trim() : ""
+          genre: pickedDeriveGenre()
         }
       });
       /* 挑不到素材是正常结论：不出稿、不扣分，直接给新文入口。 */
@@ -1435,6 +1499,17 @@
     openCreateSmart();
   });
   if (els.deriveClose) els.deriveClose.addEventListener("click", closeDerive);
+  if (els.deriveNext) els.deriveNext.addEventListener("click", nextDeriveStep);
+  if (els.derivePrev) els.derivePrev.addEventListener("click", function () { setDeriveStep(deriveStep - 1); });
+  if (els.deriveGenres) {
+    els.deriveGenres.addEventListener("click", function (e) {
+      var b = e.target && e.target.closest ? e.target.closest(".derive-genre") : null;
+      if (!b) return;
+      els.deriveGenres.querySelectorAll(".derive-genre").forEach(function (x) { x.classList.remove("active"); });
+      b.classList.add("active");
+      deriveGenrePick = b.getAttribute("data-genre") || "记叙文";
+    });
+  }
   if (els.deriveGo) els.deriveGo.addEventListener("click", runDerive);
   if (els.deriveNewBtn) els.deriveNewBtn.addEventListener("click", goNewEssay);
   if (els.deriveSkipBtn) els.deriveSkipBtn.addEventListener("click", skipDerive);
