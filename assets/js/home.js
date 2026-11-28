@@ -18,6 +18,7 @@
   var els = {
     guest: $("guestView"), guestFooter: $("guestFooter"), shell: $("appShell"),
     cta: $("homeCta"), heroNote: $("heroNote"),
+    lpTeacherLink: $("lpTeacherLink"), lpEntries: document.querySelectorAll(".lp-entry, .lp-entry-list button"),
     views: {
       essays: $("viewEssays"), create: $("viewCreate"),
       topics: $("viewTopics"), quotes: $("viewQuotes"), account: $("viewAccount")
@@ -56,6 +57,7 @@
   var currentView = "essays";
   var pending = false;
   var pendingDerive = false;
+  var pendingLanding = null;
   var deriveFromCreate = false;
   var editingId = 0;
 
@@ -454,6 +456,36 @@
     }
   }
 
+  /* ---------------- 落地页功能入口 ----------------
+     未登录点入口：先记下目标，登录成功后自动落到对应视图；
+     已登录点入口：直接切视图。「写篇新作文」走新建流程，和顶部按钮一致。 */
+  var LANDING_VIEW = {
+    create: "create", essays: "essays", topics: "topics",
+    quotes: "quotes", import: "create", style: "account"
+  };
+
+  function goLanding(target) {
+    var view = LANDING_VIEW[target] || "essays";
+    if (!loggedIn()) {
+      pendingLanding = target;
+      if (auth()) auth().open("login");
+      return;
+    }
+    setView(view);
+    if (target === "import") {
+      var body = els.importBody;
+      if (body) window.setTimeout(function () { body.focus(); }, 0);
+    }
+    if (target === "style") {
+      var block = $("styleBlock");
+      if (block) window.setTimeout(function () { block.scrollIntoView({ block: "start" }); }, 0);
+    }
+  }
+
+  Array.prototype.forEach.call(els.lpEntries, function (b) {
+    b.addEventListener("click", function () { goLanding(b.getAttribute("data-go")); });
+  });
+
   /* ---------------- 视图切换 ---------------- */
 
   function setView(name, noHash) {
@@ -501,6 +533,7 @@
     }
     if (els.teacherSideLink) els.teacherSideLink.hidden = !show;
     if (els.teacherAccountLink) els.teacherAccountLink.hidden = !show;
+    if (els.lpTeacherLink) els.lpTeacherLink.hidden = !show;
     teacherGateCheckedFor = who;
   }
 
@@ -1205,6 +1238,12 @@
         syncShell();
         if (user && pending) { pending = false; location.href = "write.html"; }
         if (user && pendingDerive) { pendingDerive = false; openDerive(); }
+        if (user && pendingLanding) {
+          var target = pendingLanding;
+          pendingLanding = null;
+          /* syncShell 已经切到工作台，再落到入口指定的视图 */
+          goLanding(target);
+        }
       });
     }
   });

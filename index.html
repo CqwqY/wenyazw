@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="assets/css/write.css?v=20261116AH">
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/home.css?v=20261122ZB">
+<link rel="stylesheet" href="assets/css/landing.css?v=20261128A">
 <link rel="stylesheet" href="assets/css/memory.css?v=20261122B">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
 </head>
@@ -35,38 +36,112 @@
 
 <!-- 未登录：介绍页 -->
 <main class="home-main" id="guestView">
-  <div class="wrap home-inner">
+  <div class="wrap">
 
-    <img class="home-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="64" height="64">
-    <h1 class="home-title">先想清楚，再写下去</h1>
-    <p class="home-lead">
-      不给你一键成稿。先陪你把题目拆开、把大纲立起来，你点头之后才写正文；<br class="home-br">
-      写完像老师一样用红笔批，改不改由你定。
-    </p>
+    <section class="lp-hero" aria-labelledby="heroTitle">
+      <div class="lp-hero-copy">
+        <img class="home-mark" src="assets/img/wenya-icon.svg" alt="文芽作文" width="56" height="56">
+        <h1 class="home-title" id="heroTitle">先想清楚，<br>再写下去</h1>
+        <p class="home-lead">
+          不给你一键成稿。先陪你把题目拆开、把大纲立起来，你点头之后才写正文；<br class="home-br">
+          写完像老师一样用红笔批，改不改由你定。
+        </p>
+        <div class="home-actions">
+          <button class="btn btn-primary btn-lg" id="homeCta" type="button">开始写作</button>
+          <a class="home-link" href="#howItWorks">看看一篇作文怎么走完</a>
+        </div>
+        <p class="home-note" id="heroNote">生成需要登录，邮箱验证码即可，不设密码。</p>
+      </div>
 
-    <div class="home-actions">
-      <button class="btn btn-primary btn-lg" id="homeCta" type="button">开始写作</button>
-      <a class="home-link" href="#essays">我的作文</a>
-    </div>
-    <p class="home-note" id="heroNote">生成需要登录，邮箱验证码即可，不设密码。</p>
+      <!-- 真稿件预览：让产品自己说话。示例文案，非真实学生作文。 -->
+      <div class="lp-paper" aria-label="示例：大纲确认后的正文与红笔批注">
+        <div class="lp-paper-head">
+          <span class="lp-paper-tag">写作中</span>
+          <span class="lp-paper-title">那一刻，我长大了</span>
+          <span class="lp-paper-meta">记叙文 · 初中 · 600 字</span>
+        </div>
+        <div class="lp-paper-cols">
+          <div class="lp-paper-col">
+            <span class="lp-paper-label">大纲 · 逐条可改</span>
+            <ol class="lp-outline">
+              <li>开头：雨夜校门口等父亲</li>
+              <li>中间：看见他袖口的伤，话到嘴边又咽回去</li>
+              <li>结尾：第一次替他撑伞</li>
+            </ol>
+            <span class="lp-outline-ok">已确认，才开始写正文</span>
+          </div>
+          <div class="lp-paper-col lp-paper-prose">
+            <span class="lp-paper-label">正文 · 第二节</span>
+            <p>那晚雨下得急，校门口的灯把水洼照得发白<span class="lp-red">。这里加一个声音，画面就活了</span>。父亲来得比平时晚，裤脚全湿了，却先把伞塞给我。我看着他袖口那道新伤，想问，话到嘴边又咽了回去<span class="lp-red">。动作再慢一点，读者才看得见</span>。</p>
+          </div>
+        </div>
+        <div class="lp-paper-foot">
+          <span class="lp-paper-count">红笔 2 处 · 采纳 1 处</span>
+          <span>示例内容</span>
+        </div>
+      </div>
+    </section>
 
-    <div class="home-points">
-      <div class="home-point">
-        <span class="home-point-no">01</span>
-        <h3>大纲先行</h3>
-        <p>分几段、每段写什么，逐条可改可增补，确认了才落笔。</p>
+    <section class="lp-flow" id="howItWorks" aria-labelledby="flowTitle">
+      <h2 class="lp-section-title" id="flowTitle">一篇作文，走三步</h2>
+      <ol class="lp-flow-list">
+        <li>
+          <span class="lp-flow-step">01</span>
+          <strong>拆题，立大纲</strong>
+          <p>分几段、每段写什么，逐条改、逐条增，你点头了才落笔。</p>
+        </li>
+        <li>
+          <span class="lp-flow-step">02</span>
+          <strong>照着大纲写正文</strong>
+          <p>写的时候能回到任何一段，AI 顺着你的思路接，不替你决定。</p>
+        </li>
+        <li>
+          <span class="lp-flow-step">03</span>
+          <strong>红笔批，你来定</strong>
+          <p>五种修改符号标在原文上，不遮字；逐条采纳或忽略，改不改由你。</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="lp-feature" id="essays" aria-labelledby="featureTitle">
+      <h2 class="lp-section-title" id="featureTitle">从这里开始</h2>
+
+      <div class="lp-feature-lead">
+        <button type="button" class="lp-entry lp-entry-main" data-go="create">
+          <span class="lp-entry-head">
+            <strong>写篇新作文</strong>
+            <span class="lp-entry-arrow" aria-hidden="true">→</span>
+          </span>
+          <span class="lp-entry-desc">给个题目。AI 先翻你的旧稿，有能撑起它的素材就借来派生，没有就从零写；之后拟大纲、写正文、逐句评改。</span>
+          <span class="lp-entry-mini">
+            <span>题目</span><i></i><span>旧稿</span><i></i><span>大纲</span><i></i><span>正文</span><i></i><span>红笔</span>
+          </span>
+        </button>
+
+        <button type="button" class="lp-entry lp-entry-map" data-go="essays">
+          <span class="lp-entry-head">
+            <strong>我的作文</strong>
+            <span class="lp-entry-arrow" aria-hidden="true">→</span>
+          </span>
+          <span class="lp-entry-desc">按写的是什么摊成板块，点节点接着改。写过的稿子还能派生新篇，借过哪几篇会连起来。</span>
+          <span class="lp-entry-nodes" aria-hidden="true">
+            <b></b><b></b><b></b><b></b><b></b>
+          </span>
+        </button>
       </div>
-      <div class="home-point">
-        <span class="home-point-no">02</span>
-        <h3>红笔手批</h3>
-        <p>五种修改符号标在原文上，不遮字，逐条采纳或忽略。</p>
+
+      <ol class="lp-entry-list">
+        <li><button type="button" data-go="topics"><span class="lp-list-no">01</span><strong>找作文题</strong><span>按学段、文体和方向出题，挑一道直接拿去写。</span><span class="lp-entry-arrow" aria-hidden="true">→</span></button></li>
+        <li><button type="button" data-go="quotes"><span class="lp-list-no">02</span><strong>金句与成语</strong><span>名言带白话解释，成语带释义；先想意思再看原句，记得更深。</span><span class="lp-entry-arrow" aria-hidden="true">→</span></button></li>
+        <li><button type="button" data-go="import"><span class="lp-list-no">03</span><strong>录入已有作文</strong><span>把写好的稿子放进来，照样能润色和评改。</span><span class="lp-entry-arrow" aria-hidden="true">→</span></button></li>
+        <li><button type="button" data-go="style"><span class="lp-list-no">04</span><strong>我的文风</strong><span>AI 读你的稿子认出行文习惯，之后写和改都照着这个来。</span><span class="lp-entry-arrow" aria-hidden="true">→</span></button></li>
+      </ol>
+
+      <div class="lp-feature-foot">
+        <a href="credits.html">积分与兑换</a>
+        <a href="teacher.html" id="lpTeacherLink" hidden>教师控制台</a>
       </div>
-      <div class="home-point">
-        <span class="home-point-no">03</span>
-        <h3>逐句评改</h3>
-        <p>只判这句话有没有落到实处，认可的问题一次交给 AI 改。</p>
-      </div>
-    </div>
+    </section>
 
   </div>
 </main>
@@ -659,6 +734,6 @@
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
 <script src="assets/js/memory.js?v=20261122C"></script>
-<script src="assets/js/home.js?v=20261122ZB"></script>
+<script src="assets/js/home.js?v=20261128A"></script>
 </body>
 </html>
