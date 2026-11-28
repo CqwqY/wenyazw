@@ -52,8 +52,9 @@ function get(p) {
 
     // 加载一次拿域，注入 token，再重载
     await send("Page.navigate", { url: BASE + "/" });
-    await new Promise(r => setTimeout(r, 2000));
-    await evalJS(`(function(){localStorage.setItem("wenyazw.auth.token",${JSON.stringify(TOKEN)});localStorage.setItem("wenyazw.auth.user","Cai");localStorage.setItem("wenyazw.auth.email","1784627101@qq.com");return 1;})()`);
+    await new Promise(r => setTimeout(r, 4000));
+    const injected = await evalJS(`(function(){localStorage.setItem("wenyazw.auth.token",${JSON.stringify(TOKEN)});localStorage.setItem("wenyazw.auth.user","Cai");localStorage.setItem("wenyazw.auth.email","1784627101@qq.com");return localStorage.getItem("wenyazw.auth.token")?"yes":"no";})()`);
+    console.log("INJECT=" + injected);
     await send("Page.navigate", { url: BASE + "/?dashprobe=" + Date.now() });
     await new Promise(r => setTimeout(r, 5000));
 
