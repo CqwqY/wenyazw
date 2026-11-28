@@ -1,8 +1,8 @@
 /* 文芽作文 - 服务条款确认（全站共享）
    职责：
-   1) 登录后检查 /api/terms，未同意就弹窗；
-   2) 拦截任何 API 返回的 403 terms_required，弹窗引导同意；
-   3) 同意后写 /api/terms/agree，并让被拦下的请求可以重试。
+   1) 静默查询 /api/terms 状态，不因为"打开页面/阅读条款"就弹窗；
+   2) 只在真正调用站内 AI 被后端 403 terms_required 拦下时弹窗；
+   3) 同意后写 /api/terms/agree。
    依赖 auth.js 暴露的 window.WY_AUTH；页面需有 #termsMask 弹窗 DOM，
    没有就自动创建一个（这样各页不用重复写结构）。 */
 (function () {
@@ -12,6 +12,7 @@
   var VERSION = "2026-11-28-v1";
   var checking = false;
   var modal = null;
+  var agreed = false;
 
   function auth() {
     return window.WY_AUTH || {
@@ -86,6 +87,7 @@
       .then(function (x) {
         btn && (btn.disabled = false);
         if (!x.ok || !x.j.ok) { setMsg((x.j && x.j.error) || "提交失败，重试一下。", "error"); return; }
+        agreed = true;
         hideModal();
         if (window.dispatchEvent) window.dispatchEvent(new CustomEvent("wy-terms-agreed", { detail: { version: VERSION } }));
       })
@@ -107,8 +109,8 @@
         checking = false;
         if (!x.ok || !x.j.ok) return false;
         VERSION = x.j.version || VERSION;
-        if (!x.j.agreed) { showModal(); return false; }
-        return true;
+        agreed = !!x.j.agreed;
+        return agreed;
       })
       .catch(function () { checking = false; return false; });
   }
@@ -135,7 +137,7 @@
   auth().onChange(function () { check(true); });
   window.WY_TERMS = {
     check: check,
-    agreed: function () { return !!($("termsMask") && $("termsMask").hasAttribute("hidden")); },
+    agreed: function () { return agreed; },
     version: function () { return VERSION; }
   };
 
