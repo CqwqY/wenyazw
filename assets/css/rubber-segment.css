@@ -1,0 +1,139 @@
+/* RubberSegment - React Bits 风格的橡胶分段控件（原生 CSS 移植）
+   低开销：只动 clip-path/transform，不用 WebGL；尊重 prefers-reduced-motion。 */
+.rs {
+  --rs-track: var(--g-100, #e4f2e9);
+  --rs-thumb: var(--paper, #fffdf8);
+  --rs-ink: var(--ink-soft, #4a5d51);
+  --rs-ink-active: var(--g-900, #123f2c);
+  --rs-radius: 12px;
+  --rs-inset: 3px;
+  --rs-h: 40px;
+  --rs-font: 13px;
+  --rs-pad: 14px;
+  --rs-min: 64px;
+  --rs-thumb-radius: 9px;
+  --rs-idle: .72;
+  --rs-hover: .92;
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  vertical-align: middle;
+  padding: var(--rs-inset);
+  border-radius: var(--rs-radius);
+  background: var(--rs-track);
+  font-family: var(--sans, inherit);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: inset 0 1px 2px rgba(12, 46, 32, .06);
+  max-width: 100%;
+}
+.rs[data-equal="false"] { grid-auto-columns: auto; }
+.rs[data-disabled="true"] { opacity: .5; pointer-events: none; }
+.rs[data-draggable="true"][data-held] { cursor: grabbing; }
+.rs[data-draggable="true"][data-held] .rs__item { cursor: grabbing; }
+
+.rs__item {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: calc(var(--rs-h) - var(--rs-inset) * 2);
+  min-width: var(--rs-min);
+  margin: 0;
+  padding: 0 var(--rs-pad);
+  border: 0;
+  border-radius: var(--rs-thumb-radius);
+  background: none;
+  color: var(--rs-ink);
+  opacity: var(--rs-idle);
+  font: inherit;
+  font-size: var(--rs-font);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: opacity 160ms ease, transform 160ms cubic-bezier(.23, 1, .32, 1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rs__item[data-pressed] { transform: scale(.96); }
+.rs__item:focus-visible { outline: 2px solid var(--g-500, #2a8a5b); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+  .rs__item[aria-checked="false"]:hover { opacity: var(--rs-hover); }
+}
+
+/* 橡胶滑块：用 clip-path 裁切一份与按钮同构的标签副本，露出部分自动反色 */
+.rs__thumb {
+  position: absolute;
+  inset: var(--rs-inset);
+  z-index: 2;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  background: var(--rs-thumb);
+  color: var(--rs-ink-active);
+  border-radius: var(--rs-thumb-radius);
+  box-shadow: 0 2px 8px -3px rgba(12, 46, 32, .28), 0 0 0 1px rgba(12, 46, 32, .05);
+  pointer-events: none;
+  will-change: clip-path;
+  clip-path: inset(0 100% 0 0 round var(--rs-thumb-radius));
+}
+.rs[data-equal="false"] .rs__thumb { grid-auto-columns: auto; }
+.rs__copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 var(--rs-pad);
+  min-width: var(--rs-min);
+  opacity: 1;
+  color: inherit;
+  font: inherit;
+  font-size: var(--rs-font);
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 尺寸档 */
+.rs[data-size="sm"] { --rs-h: 32px; --rs-font: 12px; --rs-pad: 10px; --rs-min: 52px; --rs-radius: 10px; --rs-thumb-radius: 7px; }
+.rs[data-size="lg"] { --rs-h: 46px; --rs-font: 14px; --rs-pad: 18px; --rs-min: 74px; --rs-radius: 14px; --rs-thumb-radius: 11px; }
+
+/* 深色轨道（主题层/手机底栏用） */
+.rs[data-tone="deep"] {
+  --rs-track: rgba(255, 255, 255, .12);
+  --rs-thumb: var(--g-50, #f1f8f3);
+  --rs-ink: var(--on-green-mute, #b7d4c2);
+  --rs-ink-active: var(--g-900, #123f2c);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .14);
+}
+
+/* 纵向变体：桌面侧边栏用，thumb 沿 Y 轴滑动 */
+.rs[data-orientation="vertical"] {
+  display: inline-grid;
+  grid-auto-flow: row;
+  grid-auto-rows: auto;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  --rs-min: 44px;
+  --rs-pad: 12px;
+  --rs-thumb-radius: var(--rs-radius);
+}
+.rs[data-orientation="vertical"] .rs__thumb {
+  grid-auto-flow: row;
+  grid-auto-rows: auto;
+  grid-template-columns: minmax(0, 1fr);
+}
+.rs[data-orientation="vertical"] .rs__item,
+.rs[data-orientation="vertical"] .rs__copy { justify-content: flex-start; width: 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rs__item { transition: opacity 160ms ease; }
+}

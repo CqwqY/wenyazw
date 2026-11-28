@@ -1,0 +1,107 @@
+/* 侧边栏 / 手机底栏 = RubberSegment 橡胶分段导航
+   保留 .side-item / .app-tab 原类名，只覆盖视觉，不碰事件绑定。 */
+
+/* ---------- 桌面侧栏：纵向分段，滑块沿 Y 轴移动 ---------- */
+.app-side-nav.rubber-nav {
+  display: grid;
+  grid-auto-flow: row;
+  gap: 0;
+  padding: 3px;
+  background: var(--paper-2, #f3efe6);
+  border-radius: 14px;
+}
+.app-side-nav.rubber-nav .side-item {
+  position: relative;
+  z-index: 1;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 11px;
+  font-size: 14px;
+  opacity: .78;
+  background: transparent;
+  transition: opacity .18s ease, transform .18s cubic-bezier(.23, 1, .32, 1);
+}
+/* 选中项的视觉完全交给上层滑块副本，底层按钮只保留点击热区 */
+.app-side-nav.rubber-nav .side-item[aria-checked="true"] {
+  color: transparent;
+  font-weight: 650;
+  background: transparent;
+  box-shadow: none;
+}
+.app-side-nav.rubber-nav .side-item[aria-checked="true"] svg { opacity: 0; }
+.app-side-nav.rubber-nav .side-item[aria-checked="true"] .side-item-badge { opacity: 0; }
+.app-side-nav.rubber-nav .side-item:hover { opacity: 1; background: transparent; }
+.app-side-nav.rubber-nav .side-item-primary { opacity: 1; color: var(--ink); font-weight: 650; }
+.app-side-nav.rubber-nav .side-item-primary svg { stroke: currentColor; }
+.app-side-nav.rubber-nav .side-item-primary .side-item-badge {
+  background: var(--brand, #1d7048);
+  color: #fff;
+}
+.app-side-nav.rubber-nav .rs__thumb { z-index: 2; }
+.app-side-nav.rubber-nav .rs__copy {
+  display: flex; align-items: center; gap: 10px;
+  height: 44px; padding: 0 12px; width: 100%;
+  min-width: 0; flex: 0 0 auto;
+  font-size: 14px; font-weight: 650; color: var(--brand-deep, #123f2c);
+  white-space: nowrap; overflow: visible;
+}
+.app-side-nav.rubber-nav .rs__copy svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.side-teacher-link {
+  margin-top: 10px;
+  border: 1px dashed var(--line-strong, #6e9a7c);
+  color: var(--brand-deep, #123f2c);
+}
+.side-teacher-link[hidden] { display: none !important; }
+.app-side-nav.rubber-nav .side-item.side-item-primary[aria-checked="true"] { color: var(--brand-deep, #123f2c); }
+.app-side-nav.rubber-nav .side-item.side-item-primary[aria-checked="true"] .side-item-badge { background: var(--brand-soft, #e4f2e9); color: var(--brand-deep, #123f2c); }
+
+/* ---------- 手机底栏：横向分段，深绿轨道 ---------- */
+/* 本文件在 home.css 之后加载，必须显式隐藏桌面端底栏 */
+@media (min-width: 721px) {
+  .app-tabs.rubber-nav { display: none !important; }
+}
+.app-tabs.rubber-nav {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0;
+  padding: 3px;
+  border-radius: 14px;
+  overflow: visible;
+}
+.app-tabs.rubber-nav .app-tab {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: 50px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--on-green-mute, #b7d4c2);
+  opacity: .8;
+  font-size: 10.5px;
+  transition: opacity .18s ease, transform .18s cubic-bezier(.23, 1, .32, 1);
+}
+.app-tabs.rubber-nav .app-tab svg { width: 20px; height: 20px; }
+.app-tabs.rubber-nav .app-tab[aria-checked="true"] { opacity: 1; color: transparent; font-weight: 650; }
+.app-tabs.rubber-nav .app-tab[aria-checked="true"] svg { opacity: 0; }
+.app-tabs.rubber-nav .app-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.app-tabs.rubber-nav .rs__thumb { z-index: 2; }
+.app-tabs.rubber-nav .rs__copy {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; height: 100%; padding: 0 2px; min-width: 0;
+  font-size: 10.5px; font-weight: 650; color: var(--g-900, #123f2c);
+}
+.app-tabs.rubber-nav .rs__copy svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.app-tabs.rubber-nav .rs__copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+@media (max-width: 360px) {
+  .app-tabs.rubber-nav .app-tab, .app-tabs.rubber-nav .rs__copy { font-size: 9.5px; }
+  .app-tabs.rubber-nav .app-tab svg, .app-tabs.rubber-nav .rs__copy svg { width: 18px; height: 18px; }
+}

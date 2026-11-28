@@ -788,6 +788,15 @@
     return els.views[h] ? h : "home";
   }
 
+  /* 供 RubberSegment 导航复用：切换视图并同步分段滑块位置 */
+  window.WY_NAV = {
+    setView: setView,
+    sync: function (name) {
+      if (window.WY_SEG_SIDE) window.WY_SEG_SIDE.set(name);
+      if (window.WY_SEG_TAB) window.WY_SEG_TAB.set(name);
+    }
+  };
+
   /* 只把「换没换人」记下来：积分刷新也会走 onChange 广播，
      每次都重新 setView 会把它自己拉回顶部，还会和 loadAccount 互相递归。 */
   var shellOn = null;
@@ -877,6 +886,14 @@
   function renderMindmap(rows, boards) {
     allRows = rows || [];
     boardDefs = (boards && boards.length) ? boards : fallbackBoards(allRows);
+    /* 列表视图与导图共用同一批数据；卡片操作复用导图那套回调 */
+    window.WY_ESSAY_ACTIONS = {
+      open: function (id) { openEssay(id); },
+      params: function (id) { var r = rowOf(id); if (r) openParams(r); },
+      poster: function (id) { var r = rowOf(id); if (r) openPoster(r); },
+      delete: function (id) { var r = rowOf(id); deleteEssay(id, r ? r.title : "无题"); }
+    };
+    if (window.WY_ESSAY_LIST) window.WY_ESSAY_LIST.render({ rows: allRows, boards: boardDefs });
     if (!window.WY_MINDMAP) {
       setMsg(els.essayMsg, "导图组件没加载，刷新页面再试。", "error");
       return;

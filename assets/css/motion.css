@@ -1,0 +1,34 @@
+/* 全站轻量动效样式（配合 motion.js） */
+.motion-in {
+  opacity: 0;
+  transform: translateY(14px);
+  filter: blur(3px);
+  transition: opacity .58s cubic-bezier(.22,.68,0,1), transform .58s cubic-bezier(.22,.68,0,1), filter .58s ease;
+  transition-delay: var(--motion-delay, 0ms);
+}
+.motion-in.is-in { opacity: 1; transform: none; filter: none; }
+
+.spotlight { position: relative; isolation: isolate; --sx: 50%; --sy: 50%; }
+.spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(320px circle at var(--sx) var(--sy), rgba(255,255,255,.55), transparent 62%);
+  opacity: 0;
+  transition: opacity .28s ease;
+  pointer-events: none;
+}
+.spotlight:hover::before { opacity: 1; }
+
+/* 按钮轻按反馈 */
+.btn:active, .btn-outline:active, .ec-btn:active, .esv:active, .rs__item:active {
+  transform: scale(.975);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-in { opacity: 1; transform: none; filter: none; transition: none; }
+  .spotlight::before { display: none; }
+  .btn:active, .btn-outline:active, .ec-btn:active, .esv:active, .rs__item:active { transform: none; }
+}

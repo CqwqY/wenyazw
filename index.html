@@ -22,9 +22,13 @@
 <link rel="stylesheet" href="assets/css/dashboard.css?v=20261128F">
 <link rel="stylesheet" href="assets/css/memory.css?v=20261122B">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
+<link rel="stylesheet" href="assets/css/motion.css?v=20261128I">
 <link rel="stylesheet" href="assets/css/account.css?v=20261128G">
 <link rel="stylesheet" href="assets/css/terms.css?v=20261128G">
 <link rel="stylesheet" href="assets/css/derive-wizard.css?v=20261128G">
+<link rel="stylesheet" href="assets/css/rubber-segment.css?v=20261128I">
+<link rel="stylesheet" href="assets/css/nav-segment.css?v=20261128I">
+<link rel="stylesheet" href="assets/css/essay-list.css?v=20261128I">
 </head>
 <body class="home">
 
@@ -192,7 +196,7 @@
       <img src="assets/img/wenya-icon.svg" alt="" width="26" height="26">
       <span>文芽作文</span>
     </div>
-    <nav class="app-side-nav" aria-label="主导航">
+    <nav class="app-side-nav rubber-nav" id="sideSegment" aria-label="主导航">
       <button type="button" class="side-item active" data-view="home">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5M6 10.5V20h12v-9.5"/></svg>
         <span>主页</span>
@@ -215,15 +219,15 @@
         <span>金句与成语</span>
         <span class="side-item-tag" id="sideDueTag" hidden>复习</span>
       </button>
-      <a class="side-item" href="teacher.html" id="teacherSideLink" hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M9 8h6M9 11.5h4"/></svg>
-        <span>教师控制台</span>
-      </a>
       <button type="button" class="side-item" data-view="account">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.4 3.1-5.4 7-5.4s7 2 7 5.4"/></svg>
         <span>账户设置</span>
       </button>
     </nav>
+    <a class="side-item side-teacher-link" href="teacher.html" id="teacherSideLink" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M9 8h6M9 11.5h4"/></svg>
+      <span>教师控制台</span>
+    </a>
     <div class="app-side-foot">作文只存在你的账号下</div>
   </aside>
 
@@ -243,7 +247,7 @@
         </div>
 
         <div class="dash-paper-stage" id="dashPaperStage">
-          <article class="dash-paper" id="dashPaper">
+          <article class="dash-paper spotlight" id="dashPaper">
             <div class="dash-paper-glare" aria-hidden="true"></div>
             <div class="dash-paper-head">
               <span class="dash-paper-kind" id="dashPaperKind">最近一篇</span>
@@ -280,36 +284,36 @@
         <div class="dash-groups">
           <div class="dash-group">
             <h3 class="dash-group-title"><span class="dash-group-badge"><svg><use href="#i-write"/></svg></span>写起来</h3>
-            <button type="button" class="dash-link" data-action="create"><svg class="dash-ico"><use href="#i-spark"/></svg><span>AI 生成作文</span><span class="dash-link-hint">题目、大纲、正文分步走 →</span></button>
-            <button type="button" class="dash-link" data-action="import"><svg class="dash-ico"><use href="#i-upload"/></svg><span>录入已有作文</span><span class="dash-link-hint">写好的稿子照样润色评改 →</span></button>
-            <button type="button" class="dash-link" data-action="derive"><svg class="dash-ico"><use href="#i-branch"/></svg><span>从旧稿派生</span><span class="dash-link-hint">借自己的素材写新题 →</span></button>
-            <button type="button" class="dash-link" data-action="resume"><svg class="dash-ico"><use href="#i-write"/></svg><span>继续改上一篇</span><span class="dash-link-hint">回到上次停下的地方 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="create"><svg class="dash-ico"><use href="#i-spark"/></svg><span>AI 生成作文</span><span class="dash-link-hint">题目、大纲、正文分步走 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="import"><svg class="dash-ico"><use href="#i-upload"/></svg><span>录入已有作文</span><span class="dash-link-hint">写好的稿子照样润色评改 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="derive"><svg class="dash-ico"><use href="#i-branch"/></svg><span>从旧稿派生</span><span class="dash-link-hint">借自己的素材写新题 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="resume"><svg class="dash-ico"><use href="#i-write"/></svg><span>继续改上一篇</span><span class="dash-link-hint">回到上次停下的地方 →</span></button>
           </div>
           <div class="dash-group">
             <h3 class="dash-group-title"><span class="dash-group-badge"><svg><use href="#i-sort"/></svg></span>理清楚</h3>
-            <button type="button" class="dash-link" data-action="essays"><svg class="dash-ico"><use href="#i-sort"/></svg><span>我的作文与导图</span><span class="dash-link-hint">按题材摊成板块 →</span></button>
-            <button type="button" class="dash-link" data-action="classify"><svg class="dash-ico"><use href="#i-tags"/></svg><span>一键归类</span><span class="dash-link-hint">把没归类的稿子放进板块 →</span></button>
-            <button type="button" class="dash-link" data-action="refresh"><svg class="dash-ico"><use href="#i-refresh"/></svg><span>刷新导图</span><span class="dash-link-hint">重新取最新的作文 →</span></button>
-            <button type="button" class="dash-link" data-action="topics"><svg class="dash-ico"><use href="#i-bulb"/></svg><span>找作文题</span><span class="dash-link-hint">按学段、文体出题 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="essays"><svg class="dash-ico"><use href="#i-sort"/></svg><span>我的作文与导图</span><span class="dash-link-hint">按题材摊成板块 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="classify"><svg class="dash-ico"><use href="#i-tags"/></svg><span>一键归类</span><span class="dash-link-hint">把没归类的稿子放进板块 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="refresh"><svg class="dash-ico"><use href="#i-refresh"/></svg><span>刷新导图</span><span class="dash-link-hint">重新取最新的作文 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="topics"><svg class="dash-ico"><use href="#i-bulb"/></svg><span>找作文题</span><span class="dash-link-hint">按学段、文体出题 →</span></button>
           </div>
           <div class="dash-group">
             <h3 class="dash-group-title"><span class="dash-group-badge"><svg><use href="#i-bank"/></svg></span>攒素材</h3>
-            <button type="button" class="dash-link" data-action="quotes"><svg class="dash-ico"><use href="#i-quote"/></svg><span>金句与成语</span><span class="dash-link-hint">名言带解释，成语带释义 →</span></button>
-            <button type="button" class="dash-link" data-action="mem"><svg class="dash-ico"><use href="#i-brain"/></svg><span>开始记一记</span><span class="dash-link-hint">朗读、回想、挖空、排序 →</span></button>
-            <button type="button" class="dash-link" id="dashReview" data-action="review"><svg class="dash-ico"><use href="#i-calendar"/></svg><span>复习旧知识</span><span class="dash-link-hint" id="dashReviewHint">过一遍昨天学过的 →</span></button>
-            <button type="button" class="dash-link" data-action="bank"><svg class="dash-ico"><use href="#i-bank"/></svg><span>词库与学习记录</span><span class="dash-link-hint">389 条，按主题翻 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="quotes"><svg class="dash-ico"><use href="#i-quote"/></svg><span>金句与成语</span><span class="dash-link-hint">名言带解释，成语带释义 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="mem"><svg class="dash-ico"><use href="#i-brain"/></svg><span>开始记一记</span><span class="dash-link-hint">朗读、回想、挖空、排序 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" id="dashReview" data-action="review"><svg class="dash-ico"><use href="#i-calendar"/></svg><span>复习旧知识</span><span class="dash-link-hint" id="dashReviewHint">过一遍昨天学过的 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="bank"><svg class="dash-ico"><use href="#i-bank"/></svg><span>词库与学习记录</span><span class="dash-link-hint">389 条，按主题翻 →</span></button>
           </div>
           <div class="dash-group">
             <h3 class="dash-group-title"><span class="dash-group-badge"><svg><use href="#i-me"/></svg></span>我的</h3>
-            <button type="button" class="dash-link" data-action="style"><svg class="dash-ico"><use href="#i-feather"/></svg><span>我的文风</span><span class="dash-link-hint">让 AI 读稿认出习惯 →</span></button>
-            <button type="button" class="dash-link" data-action="credits"><svg class="dash-ico"><use href="#i-gift"/></svg><span>积分与兑换</span><span class="dash-link-hint">余额、明细、兑换码 →</span></button>
-            <button type="button" class="dash-link" data-action="password"><svg class="dash-ico"><use href="#i-lock"/></svg><span>设置 / 修改密码</span><span class="dash-link-hint">账号安全 →</span></button>
-            <button type="button" class="dash-link" data-action="teacher" id="dashTeacher" hidden><svg class="dash-ico"><use href="#i-board"/></svg><span>教师控制台</span><span class="dash-link-hint">批量讲评，导出幻灯片 →</span></button>
-            <button type="button" class="dash-link" data-action="logout"><svg class="dash-ico"><use href="#i-logout"/></svg><span>退出登录</span><span class="dash-link-hint">回到未登录主页 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="style"><svg class="dash-ico"><use href="#i-feather"/></svg><span>我的文风</span><span class="dash-link-hint">让 AI 读稿认出习惯 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="credits"><svg class="dash-ico"><use href="#i-gift"/></svg><span>积分与兑换</span><span class="dash-link-hint">余额、明细、兑换码 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="password"><svg class="dash-ico"><use href="#i-lock"/></svg><span>设置 / 修改密码</span><span class="dash-link-hint">账号安全 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="teacher" id="dashTeacher" hidden><svg class="dash-ico"><use href="#i-board"/></svg><span>教师控制台</span><span class="dash-link-hint">批量讲评，导出幻灯片 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="logout"><svg class="dash-ico"><use href="#i-logout"/></svg><span>退出登录</span><span class="dash-link-hint">回到未登录主页 →</span></button>
           </div>
           <div class="dash-group dash-wide">
             <h3 class="dash-group-title"><span class="dash-group-badge"><svg><use href="#i-studio"/></svg></span>写作台里</h3>
-            <button type="button" class="dash-link" data-action="studio"><svg class="dash-ico"><use href="#i-monitor"/></svg><span>打开写作台</span><span class="dash-link-hint">AI 评分 · 局部改写 · 名言警句 · 改动对照 · 复制 · 下载 txt · 作文海报 →</span></button>
+            <button type="button" class="dash-link motion-in spotlight" data-action="studio"><svg class="dash-ico"><use href="#i-monitor"/></svg><span>打开写作台</span><span class="dash-link-hint">AI 评分 · 局部改写 · 名言警句 · 改动对照 · 复制 · 下载 txt · 作文海报 →</span></button>
           </div>
         </div>
       </section>
@@ -325,6 +329,20 @@
         <button class="btn-outline" id="refreshEssays" type="button">刷新导图</button>
       </div>
       <div class="app-msg" id="essayMsg"></div>
+      <div class="essay-toolbar">
+        <nav class="essay-view-switch" id="essayViewSwitch" aria-label="作文展示方式">
+          <button type="button" class="esv active" data-mode="list">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>
+            <span>列表</span>
+          </button>
+          <button type="button" class="esv" data-mode="map">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="5" r="2"/><circle cx="12" cy="18" r="2"/><path d="M6.8 6.6 17 5.4M6 7.8l5 8.4M17.6 6.8 13 16.4"/></svg>
+            <span>思维导图</span>
+          </button>
+        </nav>
+        <input class="essay-search" id="essaySearch" type="search" placeholder="搜题目、正文、板块…" aria-label="搜索作文">
+        <span class="essay-count" id="essayCount"></span>
+      </div>
       <div class="map-toolbar">
         <button class="btn btn-primary" id="deriveOpen" type="button">给个题目，派生一篇</button>
         <span class="map-toolbar-note">AI 会从你写过的作文里挑最贴题的素材重新成篇，借过哪几篇会在图上连起来。</span>
@@ -334,7 +352,12 @@
         <button class="btn-outline" id="classifyBtn" type="button">一键归类</button>
         <span>归类只是建议，每个节点上都能自己改，改完就不再自动覆盖。</span>
       </div>
-      <div class="mindmap" id="mindmap"></div>
+      <div class="essay-list-view" id="essayListView" hidden>
+        <div class="essay-filter" id="essayFilter"></div>
+        <div class="essay-grid" id="essayGrid"></div>
+        <div class="essay-empty" id="essayEmpty" hidden>这里还没有作文。去「创建作文」写第一篇吧。</div>
+      </div>
+      <div class="mindmap" id="mindmap" hidden></div>
     </section>
 
     <!-- 视图二：创建作文 -->
@@ -675,8 +698,12 @@
 
   </div>
 
-  <!-- 手机版：底部三视图 -->
-  <nav class="app-tabs" aria-label="切换视图">
+  <!-- 手机版：底部导航（橡胶分段控件，含主页入口） -->
+  <nav class="app-tabs rubber-nav" id="tabSegment" aria-label="切换视图">
+    <button type="button" class="app-tab active" data-view="home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5M6 10.5V20h12v-9.5"/></svg>
+      <span>主页</span>
+    </button>
     <button type="button" class="app-tab active" data-view="essays">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>
       <span>我的作文</span>
@@ -891,7 +918,11 @@
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
 <script src="assets/js/memory.js?v=20261122C"></script>
-<script src="assets/js/home.js?v=20261128G"></script>
+<script src="assets/js/home.js?v=20261128I"></script>
+<script src="assets/js/rubber-segment.js?v=20261128I"></script>
+<script src="assets/js/nav-segment.js?v=20261128I"></script>
+<script src="assets/js/essay-list.js?v=20261128I"></script>
 <script src="assets/js/terms.js?v=20261128H"></script>
+<script src="assets/js/motion.js?v=20261128I"></script>
 </body>
 </html>
