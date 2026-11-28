@@ -602,7 +602,7 @@
       }
       if (els.dashSub) {
         els.dashSub.textContent = count
-          ? "给个题目，AI 先翻你的旧稿；能用就借来派生，没有就从零写。"
+          ? "给个题目，AI 先翻旧稿；能借就借，没有就从零写。"
           : "给个题目，先拆题目、立大纲，你点头之后才写正文。";
       }
       if (els.dashResume) {
