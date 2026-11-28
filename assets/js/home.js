@@ -19,10 +19,14 @@
     guest: $("guestView"), guestFooter: $("guestFooter"), shell: $("appShell"),
     cta: $("homeCta"), heroNote: $("heroNote"),
     lpTeacherLink: $("lpTeacherLink"), lpEntries: document.querySelectorAll(".lp-entry, .lp-entry-list button"),
-    dashStart: $("dashStart"), dashCredits: $("dashCredits"), dashGreet: $("dashGreet"),
-    dashEssayCount: $("dashEssayCount"), dashWordCount: $("dashWordCount"),
-    dashBoardCount: $("dashBoardCount"), dashRecent: $("dashRecent"), dashTeacher: $("dashTeacher"),
-    dashEntries: document.querySelectorAll(".dash-entry, .dash-section-more[data-go]"),
+    dashStart: $("dashStart"), dashResume: $("dashResume"),
+    dashLine: $("dashHeroLine"), dashSub: $("dashHeroSub"), dashTitle: $("dashHeroTitle"),
+    dashRecent: $("dashRecent"), dashTeacher: $("dashTeacher"),
+    dashPaper: $("dashPaper"), dashPaperStage: $("dashPaperStage"),
+    dashPaperTitle: $("dashPaperTitle"), dashPaperBody: $("dashPaperBody"),
+    dashPaperWords: $("dashPaperWords"), dashPaperTime: $("dashPaperTime"),
+    dashPaperNote: $("dashPaperNote"), dashPaperOpen: $("dashPaperOpen"),
+    dashEntries: document.querySelectorAll(".dash-path, .dash-section-more[data-go]"),
     views: {
       home: $("viewHome"), essays: $("viewEssays"), create: $("viewCreate"),
       topics: $("viewTopics"), quotes: $("viewQuotes"), account: $("viewAccount")
@@ -479,30 +483,132 @@
     return String(s).slice(0, 10);
   }
 
+  /* 登录主页：稿纸里的正文、字数、时间都来自真实作文，不用示例文案。 */
+  var dashMotionReady = false;
+
+  function renderPaper(rows) {
+    var top = rows && rows[0];
+    if (!top || !els.dashPaper) return;
+    if (els.dashPaperTitle) els.dashPaperTitle.textContent = top.title || "无题";
+    if (els.dashPaperWords) els.dashPaperWords.textContent = fmtNum(top.word_count || 0) + " 字";
+    if (els.dashPaperTime) els.dashPaperTime.textContent = fmtRecentTime(top.updated_at);
+    if (els.dashPaperOpen) {
+      els.dashPaperOpen.hidden = false;
+      els.dashPaperOpen.onclick = function () { openEssay(top.id); };
+    }
+    if (els.dashPaperNote) els.dashPaperNote.textContent = top.has_outline ? "大纲已立" : "接着写";
+
+    var body = els.dashPaperBody;
+    if (!body) return;
+    body.textContent = "";
+    var paras = String(top.excerpt || "").replace(/\r/g, "").split(/\n+/).filter(function (s) { return s.trim(); });
+    if (!paras.length) paras = ["这篇还没有正文，打开就能接着写。"];
+    paras.slice(0, 3).forEach(function (p, i) {
+      var line = document.createElement("p");
+      if (i === 0 && p.length > 14) {
+        var cut = p.length - 14;
+        line.appendChild(document.createTextNode(p.slice(0, cut)));
+        var mark = document.createElement("span");
+        mark.className = "dash-paper-mark";
+        mark.textContent = p.slice(cut);
+        line.appendChild(mark);
+      } else {
+        line.textContent = p;
+      }
+      body.appendChild(line);
+    });
+  }
+
+  /* 取 React Bits 的三处做法，收到首屏这一个动作里：
+     BlurText 的逐字模糊入场 + SpotlightCard 的指针聚光 + HoloCard 的弹簧倾斜。
+     默认文案可见；只有 JS 初始化成功才拆字并加动画类。 */
+  function initHeroMotion() {
+    if (dashMotionReady) return;
+    dashMotionReady = true;
+    var dash = els.views.home;
+    if (!dash) return;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (!reduce && els.dashTitle) {
+      var text = els.dashTitle.textContent || "";
+      els.dashTitle.textContent = "";
+      Array.prototype.forEach.call(Array.from(text), function (ch, i) {
+        var s = document.createElement("span");
+        s.className = "hero-char";
+        s.textContent = ch;
+        s.style.setProperty("--d", Math.min(i * 46, 620) + "ms");
+        els.dashTitle.appendChild(s);
+      });
+    }
+    dash.classList.add("is-animated");
+
+    var stage = els.dashPaperStage, paper = els.dashPaper;
+    if (!stage || !paper || reduce) return;
+    var tx = 0, ty = 0, cx = 0, cy = 0, raf = 0;
+    function frame() {
+      cx += (tx - cx) * 0.13;
+      cy += (ty - cy) * 0.13;
+      paper.style.setProperty("--tilt-x", (cy * -3.4).toFixed(2) + "deg");
+      paper.style.setProperty("--tilt-y", (cx * 4.4).toFixed(2) + "deg");
+      if (Math.abs(tx - cx) > 0.004 || Math.abs(ty - cy) > 0.004) raf = requestAnimationFrame(frame);
+      else raf = 0;
+    }
+    function wake() { if (!raf) raf = requestAnimationFrame(frame); }
+    stage.addEventListener("pointermove", function (e) {
+      var r = stage.getBoundingClientRect();
+      tx = (e.clientX - r.left) / r.width - 0.5;
+      ty = (e.clientY - r.top) / r.height - 0.5;
+      paper.style.setProperty("--mx", (e.clientX - r.left) + "px");
+      paper.style.setProperty("--my", (e.clientY - r.top) + "px");
+      paper.style.setProperty("--glare", "1");
+      paper.style.setProperty("--lift", "-4px");
+      wake();
+    });
+    stage.addEventListener("pointerleave", function () {
+      tx = 0; ty = 0;
+      paper.style.setProperty("--glare", "0");
+      paper.style.setProperty("--lift", "0px");
+      wake();
+    });
+  }
+
   async function loadDashboard() {
     if (!loggedIn()) return;
-    var who = (auth() && auth().user && auth().user()) || "";
-    if (els.dashGreet) els.dashGreet.textContent = who ? (who + "，欢迎回来") : "欢迎回来";
-    if (els.dashCredits) els.dashCredits.textContent = "…";
-    if (auth() && auth().refreshCredits) {
-      auth().refreshCredits().then(function (n) {
-        if (els.dashCredits) els.dashCredits.textContent = (n === null || n === undefined) ? "—" : fmtCredits(n);
-      });
+    if (auth() && auth().refreshCredits && auth().credits) {
+      var creditText = function (n) {
+        if (els.dashLine) {
+          var parts = els.dashLine.dataset.parts || "";
+          els.dashLine.textContent = parts + (n === null || n === undefined ? " · 积分暂不可用" : " · 可用积分 " + fmtCredits(n));
+        }
+      };
+      auth().refreshCredits().then(creditText);
     }
     try {
       var j = await api("/api/essays");
       var rows = (j && j.essays) || [];
-      var boards = (j && j.boards) || [];
       var words = rows.reduce(function (a, r) { return a + (Number(r.word_count) || 0); }, 0);
-      if (els.dashEssayCount) els.dashEssayCount.textContent = String(rows.length);
-      if (els.dashWordCount) els.dashWordCount.textContent = fmtNum(words);
-      if (els.dashBoardCount) els.dashBoardCount.textContent = String(boards.length);
-      renderDashRecent(rows.slice(0, 4));
+      var count = rows.length;
+      if (els.dashLine) {
+        var line = count
+          ? "已写 " + count + " 篇 · 累计 " + fmtNum(words) + " 字 · 最近一篇 " + fmtRecentTime(rows[0].updated_at)
+          : "还没有作文。给个题目，先立大纲再写正文。";
+        els.dashLine.dataset.parts = line;
+        els.dashLine.textContent = line + (auth() && auth().credits ? " · 可用积分 " + fmtCredits(auth().credits()) : " · 积分加载中");
+      }
+      if (els.dashSub) {
+        els.dashSub.textContent = count
+          ? "给个题目，AI 先翻你的旧稿；能用就借来派生，没有就从零写。"
+          : "给个题目，先拆题目、立大纲，你点头之后才写正文。";
+      }
+      if (els.dashResume) {
+        els.dashResume.hidden = !count;
+        els.dashResume.onclick = count ? function () { openEssay(rows[0].id); } : null;
+      }
+      renderPaper(rows);
+      renderDashRecent(rows.slice(0, 5));
     } catch (e) {
-      if (els.dashEssayCount) els.dashEssayCount.textContent = "—";
-      if (els.dashWordCount) els.dashWordCount.textContent = "—";
-      if (els.dashBoardCount) els.dashBoardCount.textContent = "—";
-      if (els.dashRecent) els.dashRecent.innerHTML = '<div class="dash-empty">作文列表暂时加载失败，去「我的作文」里刷新试试。</div>';
+      if (els.dashLine) els.dashLine.textContent = "写作记录暂时加载失败，去「我的作文」里刷新试试。";
+      if (els.dashRecent) els.dashRecent.innerHTML = '<div class="dash-empty">作文列表暂时加载失败。</div>';
     }
   }
 
@@ -513,24 +619,34 @@
       box.innerHTML = '<div class="dash-empty">还没有作文。点上面的「写篇新作文」，给个题目就能开始。</div>';
       return;
     }
-    box.innerHTML = "";
+    box.textContent = "";
     rows.forEach(function (r) {
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "dash-card";
-      b.setAttribute("data-essay-id", String(r.id));
+      b.className = "dash-row";
+      var main = document.createElement("span");
+      main.className = "dash-row-main";
       var t = document.createElement("span");
-      t.className = "dash-card-title";
+      t.className = "dash-row-title";
       t.textContent = r.title || "无题";
-      var m = document.createElement("span");
-      m.className = "dash-card-meta";
+      var ex = document.createElement("span");
+      ex.className = "dash-row-excerpt";
+      ex.textContent = String(r.excerpt || "").replace(/\s+/g, " ").trim().slice(0, 72) || (r.category || "点开继续写");
+      main.appendChild(t);
+      main.appendChild(ex);
+      var meta = document.createElement("span");
+      meta.className = "dash-row-meta";
       var bits = [];
       if (r.category) bits.push(String(r.category));
       if (r.word_count) bits.push(fmtNum(r.word_count) + " 字");
       if (r.updated_at) bits.push(fmtRecentTime(r.updated_at));
-      m.textContent = bits.join(" · ") || "继续修改";
-      b.appendChild(t);
-      b.appendChild(m);
+      meta.textContent = bits.join(" · ");
+      var arrow = document.createElement("span");
+      arrow.className = "dash-row-arrow";
+      arrow.textContent = "→";
+      meta.appendChild(arrow);
+      b.appendChild(main);
+      b.appendChild(meta);
       b.addEventListener("click", function () { openEssay(r.id); });
       box.appendChild(b);
     });
@@ -594,7 +710,7 @@
     if (!noHash && window.history && history.replaceState) {
       try { history.replaceState(null, "", "#" + name); } catch (e) { /* ignore */ }
     }
-    if (name === "home" && loggedIn()) loadDashboard();
+    if (name === "home" && loggedIn()) { initHeroMotion(); loadDashboard(); }
     if (name === "essays" && loggedIn()) loadEssays();
     if (name === "account" && loggedIn()) { loadAccount(); loadStyle(); }
     // 只有真的换了视图才回到顶部，重复渲染同一视图不动滚动位置

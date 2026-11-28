@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="assets/css/mobile.css?v=20261116S">
 <link rel="stylesheet" href="assets/css/home.css?v=20261122ZB">
 <link rel="stylesheet" href="assets/css/landing.css?v=20261128A">
-<link rel="stylesheet" href="assets/css/dashboard.css?v=20261128A">
+<link rel="stylesheet" href="assets/css/dashboard.css?v=20261128C">
 <link rel="stylesheet" href="assets/css/memory.css?v=20261122B">
 <link rel="stylesheet" href="assets/css/theme.css?v=20261116Q">
 </head>
@@ -201,65 +201,60 @@
 
   <div class="app-main">
 
-    <!-- 视图零：登录后的主页 -->
+    <!-- 视图零：登录后的主页。首屏是真实稿纸，不是数字看板 -->
     <section class="app-view dash" id="viewHome" hidden>
-      <div class="dash-hero">
-        <div>
-          <p class="dash-hero-greet" id="dashGreet">欢迎回来</p>
-          <h1 class="dash-hero-title">今天写点什么？</h1>
-          <p class="dash-hero-sub">先想清楚，再写下去。给个题目，AI 先翻你的旧稿，有能撑起它的素材就借来派生，没有就从零写。</p>
+      <div class="dash-hero" id="dashHero">
+        <div class="dash-hero-copy">
+          <h1 class="dash-hero-title" id="dashHeroTitle">接着写，把你写过的留下来</h1>
+          <p class="dash-hero-sub" id="dashHeroSub">给个题目，AI 先翻你的旧稿；能用就借来派生，没有就从零写。</p>
+          <div class="dash-hero-actions">
+            <button class="btn btn-primary btn-lg" id="dashStart" type="button">写篇新作文</button>
+            <button class="btn btn-outline" id="dashResume" type="button" hidden>继续改上一篇</button>
+          </div>
+          <p class="dash-hero-line" id="dashHeroLine">正在取你的写作记录…</p>
         </div>
-        <div class="dash-hero-cta">
-          <button class="btn btn-primary btn-lg" id="dashStart" type="button">写篇新作文</button>
-          <span class="dash-hero-credit">可用积分 <b id="dashCredits">—</b></span>
-        </div>
-      </div>
 
-      <div class="dash-stats">
-        <div class="dash-stat"><span class="dash-stat-num" id="dashEssayCount">—</span><span class="dash-stat-label">篇作文</span></div>
-        <div class="dash-stat"><span class="dash-stat-num" id="dashWordCount">—</span><span class="dash-stat-label">累计字数</span></div>
-        <div class="dash-stat"><span class="dash-stat-num" id="dashBoardCount">—</span><span class="dash-stat-label">个板块</span></div>
+        <div class="dash-paper-stage" id="dashPaperStage">
+          <article class="dash-paper" id="dashPaper">
+            <div class="dash-paper-glare" aria-hidden="true"></div>
+            <div class="dash-paper-head">
+              <span class="dash-paper-kind" id="dashPaperKind">最近一篇</span>
+              <span id="dashPaperWords">—</span>
+            </div>
+            <h2 class="dash-paper-title" id="dashPaperTitle">稿纸加载中</h2>
+            <div class="dash-paper-body" id="dashPaperBody">
+              <p class="dash-paper-placeholder">这里会从你写过的作文里取一段真内容。</p>
+            </div>
+            <span class="dash-paper-note" id="dashPaperNote">接着写</span>
+            <div class="dash-paper-foot">
+              <span id="dashPaperTime">—</span>
+              <button type="button" class="dash-paper-open" id="dashPaperOpen" hidden>打开这篇 →</button>
+            </div>
+          </article>
+        </div>
       </div>
 
       <section class="dash-section">
         <div class="dash-section-head">
-          <h2 class="dash-section-title">最近写的</h2>
+          <h2 class="dash-section-title">你写过的</h2>
           <button type="button" class="dash-section-more" data-go="essays">全部作文 →</button>
         </div>
-        <div class="dash-recent" id="dashRecent">
+        <div class="dash-list" id="dashRecent">
           <div class="dash-empty">加载中…</div>
         </div>
       </section>
 
-      <section class="dash-section">
+      <section class="dash-section dash-paths">
         <div class="dash-section-head">
-          <h2 class="dash-section-title">从这里开始</h2>
+          <h2 class="dash-section-title">换个方式开始</h2>
         </div>
-        <div class="dash-entries">
-          <button type="button" class="dash-entry" data-go="topics">
-            <span class="dash-entry-no">01</span>
-            <span class="dash-entry-body"><strong class="dash-entry-title">找作文题</strong><span class="dash-entry-desc">按学段、文体和方向出题，挑一道直接写。</span></span>
-          </button>
-          <button type="button" class="dash-entry" data-go="quotes">
-            <span class="dash-entry-no">02</span>
-            <span class="dash-entry-body"><strong class="dash-entry-title">金句与成语</strong><span class="dash-entry-desc">名言带解释，成语带释义，记得更深。</span></span>
-          </button>
-          <button type="button" class="dash-entry" data-go="import">
-            <span class="dash-entry-no">03</span>
-            <span class="dash-entry-body"><strong class="dash-entry-title">录入已有作文</strong><span class="dash-entry-desc">写好的稿子放进来，照样润色评改。</span></span>
-          </button>
-          <button type="button" class="dash-entry" data-go="style">
-            <span class="dash-entry-no">04</span>
-            <span class="dash-entry-body"><strong class="dash-entry-title">我的文风</strong><span class="dash-entry-desc">AI 读你的稿子认出习惯，写改都照着来。</span></span>
-          </button>
-          <button type="button" class="dash-entry" data-go="essays">
-            <span class="dash-entry-no">05</span>
-            <span class="dash-entry-body"><strong class="dash-entry-title">作文导图</strong><span class="dash-entry-desc">按题材摊成板块，点节点接着改。</span></span>
-          </button>
-          <button type="button" class="dash-entry" data-go="teacher" id="dashTeacher" hidden>
-            <span class="dash-entry-no">06</span>
-            <span class="dash-entry-body"><strong class="dash-entry-title">教师控制台</strong><span class="dash-entry-desc">批量评分讲评，导出讲评幻灯片。</span></span>
-          </button>
+        <div class="dash-path-list">
+          <button type="button" class="dash-path" data-go="topics"><span>找作文题</span><span class="dash-path-hint">按学段、文体出题 →</span></button>
+          <button type="button" class="dash-path" data-go="quotes"><span>金句与成语</span><span class="dash-path-hint">名言带解释，成语带释义 →</span></button>
+          <button type="button" class="dash-path" data-go="import"><span>录入已有作文</span><span class="dash-path-hint">写好的稿子照样润色评改 →</span></button>
+          <button type="button" class="dash-path" data-go="style"><span>我的文风</span><span class="dash-path-hint">AI 读你的稿子认出习惯 →</span></button>
+          <button type="button" class="dash-path" data-go="essays"><span>作文导图</span><span class="dash-path-hint">按题材摊成板块 →</span></button>
+          <button type="button" class="dash-path" data-go="teacher" id="dashTeacher" hidden><span>教师控制台</span><span class="dash-path-hint">批量讲评，导出幻灯片 →</span></button>
         </div>
       </section>
     </section>
@@ -802,6 +797,6 @@
 <script src="assets/js/mindmap.js?v=20261116A"></script>
 <script src="assets/js/quotes-store.js?v=20261116A"></script>
 <script src="assets/js/memory.js?v=20261122C"></script>
-<script src="assets/js/home.js?v=20261128B"></script>
+<script src="assets/js/home.js?v=20261128C"></script>
 </body>
 </html>
